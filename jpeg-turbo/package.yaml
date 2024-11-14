@@ -6,6 +6,12 @@ author: "IC Rainbow"
 maintainer: "aenor.realm@gmail.com"
 copyright: "2024 IC Rainbow"
 
+flags:
+  static:
+    description: Try linking libturbojpeg statically. Would not work with MacOS linker.
+    manual: True
+    default: False
+
 extra-source-files:
 - CHANGELOG.md
 
@@ -23,8 +29,19 @@ library:
   source-dirs: src
   dependencies:
   - bytestring >= 0.10 && < 1
-  pkgconfig-depends:
-  - libturbojpeg
+  when:
+  - condition: flag(static)
+    then:
+      ld-options:
+      - -Wl,--allow-multiple-definition
+      - -Wl,--whole-archive
+      - -Wl,-Bstatic
+      - -Wl,-lturbojpeg
+      - -Wl,-Bdynamic
+      - -Wl,--no-whole-archive
+    else:
+      pkgconfig-depends:
+      - libturbojpeg
 
 tests:
   jpeg-turbo-test:
