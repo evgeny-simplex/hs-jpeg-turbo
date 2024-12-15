@@ -7,8 +7,16 @@ maintainer: "aenor.realm@gmail.com"
 copyright: "2024 IC Rainbow"
 
 flags:
+  pkgconfig:
+    description: Use pkgconfig to find library.
+    manual: True
+    default: False
   static:
-    description: Try linking libturbojpeg statically. Would not work with MacOS linker.
+    description: Use extra-libraries for turbojpeg.
+    manual: True
+    default: False
+  static-gcc:
+    description: Try linking libturbojpeg statically with ld hacks. Would not work with clang.
     manual: True
     default: False
 
@@ -30,18 +38,19 @@ library:
   dependencies:
   - bytestring >= 0.10 && < 1
   when:
+  - condition: flag(pkgconfig)
+    pkgconfig-depends:
+    - libturbojpeg
   - condition: flag(static)
-    then:
-      ld-options:
-      - -Wl,--allow-multiple-definition
-      - -Wl,--whole-archive
-      - -Wl,-Bstatic
-      - -Wl,-lturbojpeg
-      - -Wl,-Bdynamic
-      - -Wl,--no-whole-archive
-    else:
-      pkgconfig-depends:
-      - libturbojpeg
+    extra-libraries: turbojpeg
+  - condition: flag(static-gcc)
+    ld-options:
+    - -Wl,--allow-multiple-definition
+    - -Wl,--whole-archive
+    - -Wl,-Bstatic
+    - -Wl,-lturbojpeg
+    - -Wl,-Bdynamic
+    - -Wl,--no-whole-archive
 
 tests:
   jpeg-turbo-test:

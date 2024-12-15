@@ -24,8 +24,18 @@ source-repository head
   type: git
   location: https://gitlab.com/dpwiz/hs-jpeg-turbo
 
+flag pkgconfig
+  description: Use pkgconfig to find library.
+  manual: True
+  default: False
+
 flag static
-  description: Try linking libturbojpeg statically. Would not work with MacOS linker.
+  description: Use extra-libraries for turbojpeg.
+  manual: True
+  default: False
+
+flag static-gcc
+  description: Try linking libturbojpeg statically with ld hacks. Would not work with clang.
   manual: True
   default: False
 
@@ -55,11 +65,14 @@ library
       base >=4.7 && <5
     , bytestring >=0.10 && <1
   default-language: Haskell2010
-  if flag(static)
-    ld-options: -Wl,--allow-multiple-definition -Wl,--whole-archive -Wl,-Bstatic -Wl,-lturbojpeg -Wl,-Bdynamic -Wl,--no-whole-archive
-  else
+  if flag(pkgconfig)
     pkgconfig-depends:
         libturbojpeg
+  if flag(static)
+    extra-libraries:
+        turbojpeg
+  if flag(static-gcc)
+    ld-options: -Wl,--allow-multiple-definition -Wl,--whole-archive -Wl,-Bstatic -Wl,-lturbojpeg -Wl,-Bdynamic -Wl,--no-whole-archive
 
 test-suite jpeg-turbo-test
   type: exitcode-stdio-1.0
