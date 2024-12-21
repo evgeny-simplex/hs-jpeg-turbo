@@ -10,7 +10,8 @@ extra-source-files:
 - CHANGELOG.md
 
 synopsis: JuicyPixels wrappers for libjpeg-turbo
-# description:
+description: |
+  NB. You must set one of the build flags on `jpeg-turbo` dependency.
 
 dependencies:
 - base >= 4.7 && < 5

@@ -24,9 +24,11 @@ extra-source-files:
 - CHANGELOG.md
 
 category: Codec, Image
-synopsis: Bindings to libjpeg-turbo
+synopsis: FFI bindings to libjpeg-turbo
 description: |
   Faster and more capable codec for JPEG images using libjpeg-turbo.
+  .
+  Set one of the flags according to your build environment.
   .
   <https://libjpeg-turbo.org/Documentation>
 
