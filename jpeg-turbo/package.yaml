@@ -92,3 +92,4 @@ default-extensions:
 - RecordWildCards
 - TupleSections
 - TypeApplications
+- TypeFamilies
