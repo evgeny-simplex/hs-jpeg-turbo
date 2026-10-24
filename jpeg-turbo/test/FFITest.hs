@@ -6,20 +6,22 @@ import Data.ByteString qualified as B
 import Data.ByteString.Unsafe qualified as BU
 import Foreign
 import Foreign.C.String
-import Test.Tasty.HUnit ((@?=))
+import Test.Tasty.HUnit (assertBool, (@?=))
 import TurboJPEG2 qualified as TJ2
 
 unit_TurboJPEG2 :: IO ()
 unit_TurboJPEG2 =
-  encoding w h TJ2.TJSAMP_420 1 rgb \encoded ->
+  encoding w h TJ2.TJSAMP_420 100 rgb \encoded ->
     decoding encoded \width height jpegSubsamp _jpegColorspace decoded -> do
       (width, height, jpegSubsamp) @?= (w, h, TJ2.TJSAMP_420)
-      B.length decoded @?= fromIntegral (w * h * 3)
+      assertBool "decoded colour differs by more than 2" $ and $ zipWith closeEnough (B.unpack decoded) (cycle colour)
   where
     w = 37
     h = 23
-    rgb = B.pack [fromIntegral (x * y + c) | y <- [0 .. h - 1], x <- [0 .. w - 1], c <- [0 .. 2]]
+    colour = [200, 100, 50]
+    rgb = B.pack $ concat $ replicate (fromIntegral (w * h)) colour
     pixelFormat = TJ2.TJPF_RGB
+    closeEnough a b = abs (fromIntegral a - fromIntegral b :: Int) <= 2
 
     decoding bsIn action =
       bracket TJ2.tjInitDecompress TJ2.tjDestroy \jt ->
