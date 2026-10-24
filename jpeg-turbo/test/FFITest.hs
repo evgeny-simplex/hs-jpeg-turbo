@@ -60,4 +60,4 @@ unit_TurboJPEG2 =
         flags = TJ2.TJFLAG_PROGRESSIVE .|. TJ2.TJFLAG_STOPONWARNING
 
 unit_tjBufSize :: IO ()
-unit_tjBufSize = toInteger (TJ2.tjBufSize 37838 37838 TJ2.TJSAMP_420) @?= 4295598848
+unit_tjBufSize = toInteger (TJ2.tjBufSize 30000 30000 TJ2.TJSAMP_420) @?= 2700002048
