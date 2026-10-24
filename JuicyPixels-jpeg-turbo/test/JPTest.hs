@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
+
 module JPTest where
 
 import Codec.Picture (Image(..), PixelRGB8(..), PixelRGBA8(..), decodeJpeg, dynamicMap, generateImage)
