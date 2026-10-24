@@ -33,14 +33,25 @@ unit_shortBuffer = assertRejected "encodeRGB: invalid image data length" $ JT.en
 unit_badQuality :: IO ()
 unit_badQuality = forM_ ([-1, 101] ++ [2 ^ (32 :: Int) + 50 | finiteBitSize (0 :: Int) > 32]) \q -> assertRejected "encodeRGB: invalid quality" $ JT.encodeRGB q image
 
+unit_maxDimension :: IO ()
+unit_maxDimension = forM_ [(65500, 1), (1, 65500)] \(w, h) -> do
+  decoded <- JT.encodeRGB 1 (blank w h) >>= either error pure . decodeJpeg
+  (dynamicMap imageWidth decoded, dynamicMap imageHeight decoded) @?= (w, h)
+
 unit_wideImage :: IO ()
-unit_wideImage = assertRejected "encodeRGB: invalid image dimensions" $ JT.encodeRGB 100 (generateImage (\_ _ -> PixelRGB8 0 0 0) 65501 1)
+unit_wideImage = assertRejected "encodeRGB: invalid image dimensions" $ JT.encodeRGB 100 (blank 65501 1)
+
+unit_tallImage :: IO ()
+unit_tallImage = assertRejected "encodeRGB: invalid image dimensions" $ JT.encodeRGB 100 (blank 1 65501)
 
 -- TODO: unit_rgba etc
 -- TODO: unit_yuv
 
 image :: Image PixelRGB8
 image = generateImage (\x y -> PixelRGB8 (fromIntegral x) (fromIntegral y) (fromIntegral (x * y))) 37 23
+
+blank :: Int -> Int -> Image PixelRGB8
+blank = generateImage (\_ _ -> PixelRGB8 0 0 0)
 
 assertRejected :: String -> IO a -> Assertion
 assertRejected expected action =
