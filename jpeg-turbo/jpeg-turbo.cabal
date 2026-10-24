@@ -1,9 +1,5 @@
 cabal-version: 2.2
 
--- This file has been generated from package.yaml by hpack version 0.37.0.
---
--- see: https://github.com/sol/hpack
-
 name:           jpeg-turbo
 version:        0.1.0.0
 synopsis:       FFI bindings to libjpeg-turbo
