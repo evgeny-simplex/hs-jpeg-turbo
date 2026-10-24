@@ -18,14 +18,15 @@ category:       Codec, Image
 author:         IC Rainbow
 maintainer:     aenor.realm@gmail.com
 copyright:      2024 IC Rainbow, 2026 SimpleX Chat Ltd
-license:        BSD-3-Clause
-license-file:   LICENSE
+license:        BSD-3-Clause AND IJG AND Zlib
+license-files:
+    LICENSE
+    cbits/libjpeg-turbo/LICENSE.md
+    cbits/libjpeg-turbo/README.ijg
 build-type:     Simple
 extra-source-files:
     CHANGELOG.md
     cbits/*.h
-    cbits/libjpeg-turbo/LICENSE.md
-    cbits/libjpeg-turbo/README.ijg
     cbits/libjpeg-turbo/src/*.c
     cbits/libjpeg-turbo/src/*.h
     cbits/libjpeg-turbo/simd/jsimd.h

@@ -1,7 +1,11 @@
 name: jpeg-turbo
 version: "0.1.0.0"
 git: https://gitlab.com/dpwiz/hs-jpeg-turbo
-license: BSD-3-Clause
+license: BSD-3-Clause AND IJG AND Zlib
+license-file:
+- LICENSE
+- cbits/libjpeg-turbo/LICENSE.md
+- cbits/libjpeg-turbo/README.ijg
 author: "IC Rainbow"
 maintainer: "aenor.realm@gmail.com"
 copyright: "2024 IC Rainbow, 2026 SimpleX Chat Ltd"
@@ -9,8 +13,6 @@ copyright: "2024 IC Rainbow, 2026 SimpleX Chat Ltd"
 extra-source-files:
 - CHANGELOG.md
 - cbits/*.h
-- cbits/libjpeg-turbo/LICENSE.md
-- cbits/libjpeg-turbo/README.ijg
 - cbits/libjpeg-turbo/src/*.c
 - cbits/libjpeg-turbo/src/*.h
 - cbits/libjpeg-turbo/simd/jsimd.h
