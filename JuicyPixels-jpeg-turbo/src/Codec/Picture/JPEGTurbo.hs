@@ -12,7 +12,6 @@ import Data.Vector.Storable qualified as V
 import Data.Word (Word8)
 import Foreign (castPtr, peek, with, nullPtr)
 import Foreign.C.String (peekCString)
-import Foreign.C.Types (CInt)
 import TurboJPEG2 qualified as TJ2
 
 class (Pixel px, PixelBaseComponent px ~ Word8) => EncodableRGB px where
@@ -41,7 +40,7 @@ encodeRGB jpegQual image@Image{imageWidth, imageHeight, imageData} = do
             jpegSize <- peek jpegSizePtr
             B.packCStringLen (castPtr jpegBuf, fromIntegral jpegSize)
   where
-    validDimension d = 1 <= d && d <= fromIntegral (maxBound :: CInt)
+    validDimension d = 1 <= d && d <= 65500
     flags = TJ2.TJFLAG_PROGRESSIVE <> TJ2.TJFLAG_STOPONWARNING
     pixelFormat = jtPixelFormat image
     pixelSize = maybe (error "encodeRGB: unknown pixel format") toInteger $ TJ2.tjPixelSize pixelFormat

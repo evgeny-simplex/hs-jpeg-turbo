@@ -30,6 +30,9 @@ unit_shortBuffer = assertRejected "encodeRGB: invalid image data length" $ JT.en
 unit_badQuality :: IO ()
 unit_badQuality = forM_ [-1, 101, 2 ^ (32 :: Int) + 50] \q -> assertRejected "encodeRGB: invalid quality" $ JT.encodeRGB q image
 
+unit_wideImage :: IO ()
+unit_wideImage = assertRejected "encodeRGB: invalid image dimensions" $ JT.encodeRGB 100 (generateImage (\_ _ -> PixelRGB8 0 0 0) 65501 1)
+
 -- TODO: unit_rgba etc
 -- TODO: unit_yuv
 
