@@ -29,7 +29,7 @@ unit_TurboJPEG2 =
               alloca \jpegSubsampPtr ->
                 alloca \jpegColorspacePtr -> do
                   TJ2.tjDecompressHeader3 jt (castPtr bufPtr) (fromIntegral bufLen) widthPtr heightPtr jpegSubsampPtr jpegColorspacePtr >>= \rc ->
-                    unless (rc == 0) $ peekCString (TJ2.tjGetErrorStr2 jt) >>= error
+                    unless (rc == 0) $ TJ2.tjGetErrorStr2 jt >>= peekCString >>= error
                   width <- peek widthPtr
                   height <- peek heightPtr
                   jpegSubsamp <- peek jpegSubsampPtr
@@ -38,7 +38,7 @@ unit_TurboJPEG2 =
                   let dstSize = fromIntegral $ width * height * pixelSize -- TODO: consider pitch
                   allocaBytes dstSize \dstPtr -> do
                     TJ2.tjDecompress2 jt (castPtr bufPtr) (fromIntegral bufLen) dstPtr width 0 height pixelFormat flags >>= \rc ->
-                      unless (rc == 0) $ peekCString (TJ2.tjGetErrorStr2 jt) >>= error
+                      unless (rc == 0) $ TJ2.tjGetErrorStr2 jt >>= peekCString >>= error
                     BU.unsafePackCStringLen (castPtr dstPtr, dstSize) >>=
                       action width height jpegSubsamp jpegColorspace
       where
@@ -52,9 +52,12 @@ unit_TurboJPEG2 =
               rc <- TJ2.tjCompress2 jt (castPtr bufPtr) width 0 height pixelFormat jpegBufPtr jpegSizePtr jpegSubsamp jpegQual flags
               jpegBuf <- peek jpegBufPtr
               flip finally (TJ2.tjFree jpegBuf) do
-                unless (rc == 0) $ peekCString (TJ2.tjGetErrorStr2 jt) >>= error
+                unless (rc == 0) $ TJ2.tjGetErrorStr2 jt >>= peekCString >>= error
                 jpegSize <- peek jpegSizePtr
                 BU.unsafePackCStringLen (castPtr jpegBuf, fromIntegral jpegSize) >>=
                   action
       where
         flags = TJ2.TJFLAG_PROGRESSIVE .|. TJ2.TJFLAG_STOPONWARNING
+
+unit_tjBufSize :: IO ()
+unit_tjBufSize = toInteger (TJ2.tjBufSize 37838 37838 TJ2.TJSAMP_420) @?= 4295598848

@@ -16,9 +16,9 @@ newtype TjHandle a = Handle (Ptr (TjHandle a))
 
 foreign import ccall "turbojpeg.h tjDestroy" tjDestroy :: (TjHandle a) -> IO ()
 
-foreign import ccall "turbojpeg.h tjGetErrorCode" tjGetErrorCode :: (TjHandle a) -> Int
+foreign import ccall "turbojpeg.h tjGetErrorCode" tjGetErrorCode :: (TjHandle a) -> IO CInt
 
-foreign import ccall "turbojpeg.h tjGetErrorStr2" tjGetErrorStr2 :: (TjHandle a) -> CString
+foreign import ccall "turbojpeg.h tjGetErrorStr2" tjGetErrorStr2 :: (TjHandle a) -> IO CString
 
 -- * Buffers
 
@@ -31,7 +31,7 @@ foreign import ccall "turbojpeg.h tjBufSize" tjBufSize
   :: CInt -- ^ width
   -> CInt -- ^ height
   -> TJSAMP -- ^ jpegSubsamp
-  -> CInt
+  -> CULong
 
 -- * Compression
 

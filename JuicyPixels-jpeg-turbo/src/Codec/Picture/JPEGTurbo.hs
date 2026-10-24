@@ -37,7 +37,7 @@ encodeRGB jpegQual image@Image{imageWidth, imageHeight, imageData} = do
           flip finally (peek jpegBufPtr >>= TJ2.tjFree) do
             rc <- TJ2.tjCompress2 jt (castPtr bufPtr) (fromIntegral imageWidth) 0 (fromIntegral imageHeight) pixelFormat jpegBufPtr jpegSizePtr jpegSubsamp (fromIntegral jpegQual) flags
             jpegBuf <- peek jpegBufPtr
-            unless (rc == 0) $ peekCString (TJ2.tjGetErrorStr2 jt) >>= error
+            unless (rc == 0) $ TJ2.tjGetErrorStr2 jt >>= peekCString >>= error
             jpegSize <- peek jpegSizePtr
             B.packCStringLen (castPtr jpegBuf, fromIntegral jpegSize)
   where
