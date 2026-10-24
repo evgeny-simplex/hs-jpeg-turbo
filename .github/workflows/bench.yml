@@ -1,0 +1,164 @@
+name: bench
+
+on:
+  push:
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  bench:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, macos-latest, windows-latest]
+    env:
+      libjpeg_turbo_cmake: "-DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_LIBDIR:PATH=lib -DBUILD=20260327 -DENABLE_SHARED=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON"
+      tjbench_options: "-rgb -subsamp 420 -progressive -fastdct -strict -componly -nowrite -alloc -benchtime 1 -warmup 0.5"
+      user_agent: "hs-jpeg-turbo-bench (https://github.com/evgeny-simplex/hs-jpeg-turbo)"
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/checkout@v6
+        with:
+          repository: libjpeg-turbo/libjpeg-turbo
+          ref: 9217719d3a58633923b096af4c1d50d304768a64
+          path: libjpeg-turbo
+
+      - name: Runner CPU
+        run: |
+          case "$RUNNER_OS" in
+            Linux) lscpu ;;
+            macOS) sysctl -n machdep.cpu.brand_string hw.ncpu hw.memsize ;;
+            Windows) powershell -Command "Get-CimInstance Win32_Processor | Format-List Name,NumberOfCores,NumberOfLogicalProcessors" ;;
+          esac
+
+      - name: Download photos
+        run: |
+          mkdir photos
+          curl -fsSL --retry 3 -A "$user_agent" -o photos/waterfall.jpg 'https://upload.wikimedia.org/wikipedia/commons/9/96/Autum_Waterfall_%2811838942225%29.jpg'
+          curl -fsSL --retry 3 -A "$user_agent" -o photos/city.jpg 'https://upload.wikimedia.org/wikipedia/commons/1/1c/Ternate_%28City%29%2C_Indonesia_%282010%29.jpg'
+          cd photos
+          if command -v sha256sum > /dev/null; then
+            sha256sum -c ../bench/photos.sha256
+          else
+            shasum -a 256 -c ../bench/photos.sha256
+          fi
+
+      - name: Point Command Line Tools SDK to Xcode SDK
+        if: runner.os == 'macOS'
+        run: sudo ln -sfn "$(xcrun --sdk macosx --show-sdk-path)" /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk
+
+      - id: setup
+        uses: simplex-chat/setup-haskell-action@v2
+        with:
+          ghc-version: 9.6.3
+          cabal-version: 3.10.2.0
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ steps.setup.outputs.cabal-store }}
+          key: bench-store-${{ matrix.os }}-${{ hashFiles('*/*.cabal') }}
+          restore-keys: bench-store-${{ matrix.os }}-
+
+      - name: Build libjpeg-turbo 3.1.4.1 with and without SIMD (Linux, macOS)
+        if: runner.os != 'Windows'
+        run: |
+          if [ "$RUNNER_OS" = Linux ]; then
+            sudo apt-get update
+            sudo apt-get install -y nasm
+          fi
+          for simd in 1 0; do
+            cmake -S libjpeg-turbo -B "$RUNNER_TEMP/ljt-build-$simd" -DCMAKE_INSTALL_PREFIX="$RUNNER_TEMP/ljt-$simd" $libjpeg_turbo_cmake -DWITH_SIMD=$simd -DREQUIRE_SIMD=$simd
+            cmake --build "$RUNNER_TEMP/ljt-build-$simd" --target install --parallel
+          done
+
+      - name: Setup MSYS2
+        if: runner.os == 'Windows'
+        uses: simplex-chat/setup-msys2@v2
+        with:
+          msystem: ucrt64
+          update: true
+          install: make
+          pacboy: >-
+            toolchain:p
+            cmake:p
+            nasm:p
+
+      - name: Build libjpeg-turbo 3.1.4.1 with and without SIMD (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          export PATH=$PATH:/c/ghcup/bin:$(echo /c/tools/ghc-*/bin || echo)
+          export CC=$(cygpath -m "$(ghc --print-libdir)/../mingw/bin/clang.exe")
+          export LDFLAGS="-fuse-ld=lld --rtlib=compiler-rt"
+          tmp=$(cygpath -m "$RUNNER_TEMP")
+          for simd in 1 0; do
+            cmake -S libjpeg-turbo -B "$tmp/ljt-build-$simd" -DCMAKE_INSTALL_PREFIX="$tmp/ljt-$simd" $libjpeg_turbo_cmake -DWITH_SIMD=$simd -DREQUIRE_SIMD=$simd
+            cmake --build "$tmp/ljt-build-$simd" --target install --parallel
+          done
+
+      - name: Build benchmark with each libjpeg-turbo build
+        run: |
+          prefix=$RUNNER_TEMP
+          if [ "$RUNNER_OS" = Windows ]; then
+            prefix=$(cygpath -m "$RUNNER_TEMP")
+          fi
+          for simd in 1 0; do
+            printf 'package jpeg-turbo\n    flags: -pkgconfig +static\n    extra-include-dirs: %s\n    extra-lib-dirs: %s\n' "$prefix/ljt-$simd/include" "$prefix/ljt-$simd/lib" > cabal.project.local
+            cabal build --builddir="dist-$simd" exe:jpeg-bench
+            mkdir "bin-$simd"
+            cp "$(cabal list-bin --builddir="dist-$simd" exe:jpeg-bench)" "bin-$simd/"
+          done
+
+      - name: Count SIMD functions in each binary
+        continue-on-error: true
+        run: |
+          nm=nm
+          if [ "$RUNNER_OS" = Windows ]; then
+            nm="$(ghc --print-libdir)/../mingw/bin/llvm-nm.exe"
+          fi
+          for simd in 1 0; do
+            echo "bin-$simd: $("$nm" bin-$simd/jpeg-bench* | grep -c -E 'jsimd_.*_(avx2|sse2|neon)')"
+          done
+
+      - name: Benchmark
+        run: |
+          temp=$RUNNER_TEMP
+          rts="-A64m -H64m -xn"
+          if [ "$RUNNER_OS" = Windows ]; then
+            temp=$(cygpath -u "$RUNNER_TEMP")
+            rts="-A64m -H64m"
+          fi
+          mkdir results
+          for photo in waterfall city; do
+            mkdir -p "images/$photo"
+            bin-1/jpeg-bench images "photos/$photo.jpg" "images/$photo"
+            for image in images/$photo/*.ppm; do
+              for q in 20 50 85 95; do
+                for simd in 1 0; do
+                  out=$("$temp/ljt-$simd/bin/tjbench" "$image" $q $tjbench_options)
+                  echo "$out" >> results/tjbench.log
+                  fps=$(echo "$out" | awk '/Frame rate:/ {print $5}')
+                  bytes=$(echo "$out" | awk '/Output image size:/ {print $4}')
+                  printf 'tjbench-%s\t%s\t%s\t%s\t%s\t%s\n' "$simd" "$photo" "$(basename "$image" .ppm)" "$q" "$fps" "$bytes" | tee -a results/tjbench.tsv
+                done
+              done
+            done
+            bin-1/jpeg-bench encode turbo turbo-simd "photos/$photo.jpg" +RTS $rts -RTS | tee -a results/encode.tsv
+            bin-0/jpeg-bench encode turbo turbo-c "photos/$photo.jpg" +RTS $rts -RTS | tee -a results/encode.tsv
+            bin-0/jpeg-bench encode juicypixels juicypixels "photos/$photo.jpg" +RTS $rts -RTS | tee -a results/encode.tsv
+            bin-1/jpeg-bench fit turbo turbo-simd "photos/$photo.jpg" +RTS $rts -RTS | tee -a results/fit.tsv
+            bin-0/jpeg-bench fit turbo turbo-c "photos/$photo.jpg" +RTS $rts -RTS | tee -a results/fit.tsv
+            bin-0/jpeg-bench fit juicypixels juicypixels "photos/$photo.jpg" +RTS $rts -RTS | tee -a results/fit.tsv
+          done
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bench-${{ matrix.os }}
+          path: results

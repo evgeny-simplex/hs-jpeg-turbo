@@ -1,0 +1,23 @@
+cabal-version: 2.2
+
+name:           jpeg-bench
+version:        0.1.0.0
+synopsis:       Speed and size of JPEG encoding with libjpeg-turbo and JuicyPixels
+license:        BSD-3-Clause
+build-type:     Simple
+
+executable jpeg-bench
+  main-is: Main.hs
+  hs-source-dirs:
+      .
+  ghc-options: -O2 -Wall -threaded -rtsopts
+  build-depends:
+      JuicyPixels ==3.3.8
+    , JuicyPixels-jpeg-turbo
+    , JuicyPixels-stbir ==0.1.0.0
+    , base >=4.7 && <5
+    , base64-bytestring >=1.0 && <1.3
+    , bytestring
+    , filepath
+    , vector
+  default-language: Haskell2010
