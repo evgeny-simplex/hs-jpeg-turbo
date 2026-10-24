@@ -2,19 +2,11 @@
 
 set -euo pipefail
 
-if [ "$RUNNER_OS" = Windows ]; then
-  cc="$(ghc --print-libdir)/../mingw/bin/clang.exe"
-  ldflags="-fuse-ld=lld --rtlib=compiler-rt"
-else
-  cc=cc
-  ldflags=
-fi
-
 out=dist-newstyle/output-check
 
 encode() {
   mkdir -p "$out/$1"
-  "$cc" -O2 -I jpeg-turbo/cbits/libjpeg-turbo/src .github/scripts/encode.c "$2" $ldflags -lm -o "$out/encode-$1.exe"
+  "${CC:-cc}" -O2 -I jpeg-turbo/cbits/libjpeg-turbo/src .github/scripts/encode.c "$2" ${LDFLAGS:-} -lm -o "$out/encode-$1.exe"
   "$out/encode-$1.exe" "$out/$1"
 }
 
