@@ -1,0 +1,94 @@
+name: build
+
+on:
+  push:
+  pull_request:
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    name: ${{ matrix.os }}, GHC ${{ matrix.ghc }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            ghc: 9.6.3
+          - os: ubuntu-22.04
+            ghc: 8.10.7
+          - os: macos-latest
+            ghc: 9.6.3
+          - os: windows-latest
+            ghc: 9.6.3
+    env:
+      libjpeg_turbo_cmake: "-DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_LIBDIR:PATH=lib -DBUILD=20260327 -DENABLE_SHARED=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON"
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/checkout@v6
+        with:
+          repository: libjpeg-turbo/libjpeg-turbo
+          ref: 9217719d3a58633923b096af4c1d50d304768a64
+          path: libjpeg-turbo
+
+      - name: Point Command Line Tools SDK to Xcode SDK
+        if: runner.os == 'macOS'
+        run: sudo ln -sfn "$(xcrun --sdk macosx --show-sdk-path)" /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk
+
+      - id: setup
+        uses: simplex-chat/setup-haskell-action@v2
+        with:
+          ghc-version: ${{ matrix.ghc }}
+          cabal-version: 3.10.2.0
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ steps.setup.outputs.cabal-store }}
+          key: store-${{ matrix.os }}-ghc${{ matrix.ghc }}-${{ hashFiles('*/*.cabal') }}
+          restore-keys: store-${{ matrix.os }}-ghc${{ matrix.ghc }}-
+
+      - name: Build libjpeg-turbo 3.1.4.1 (Linux, macOS)
+        if: runner.os != 'Windows'
+        run: |
+          if [ "$RUNNER_OS" = Linux ]; then
+            sudo apt-get update
+            sudo apt-get install -y nasm
+          else
+            brew install nasm
+          fi
+          cmake -S libjpeg-turbo -B "$RUNNER_TEMP/libjpeg-turbo-build" -DCMAKE_INSTALL_PREFIX="$RUNNER_TEMP/libjpeg-turbo" $libjpeg_turbo_cmake
+          cmake --build "$RUNNER_TEMP/libjpeg-turbo-build" --target install --parallel
+          echo "PKG_CONFIG_PATH=$RUNNER_TEMP/libjpeg-turbo/lib/pkgconfig" >> "$GITHUB_ENV"
+          printf 'package jpeg-turbo\n    flags: +pkgconfig\n' > cabal.project.local
+
+      - name: Setup MSYS2
+        if: runner.os == 'Windows'
+        uses: simplex-chat/setup-msys2@v2
+        with:
+          msystem: ucrt64
+          update: true
+          install: make
+          pacboy: >-
+            toolchain:p
+            cmake:p
+            nasm:p
+
+      - name: Build libjpeg-turbo 3.1.4.1 (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          export PATH=$PATH:/c/ghcup/bin:$(echo /c/tools/ghc-*/bin || echo)
+          export CC=$(cygpath -m "$(ghc --print-libdir)/../mingw/bin/clang.exe")
+          export LDFLAGS="-fuse-ld=lld --rtlib=compiler-rt"
+          tmp=$(cygpath -m "$RUNNER_TEMP")
+          cmake -S libjpeg-turbo -B "$tmp/libjpeg-turbo-build" -DCMAKE_INSTALL_PREFIX="$tmp/libjpeg-turbo" $libjpeg_turbo_cmake
+          cmake --build "$tmp/libjpeg-turbo-build" --target install --parallel
+          printf 'package jpeg-turbo\n    flags: -pkgconfig +static\n    extra-include-dirs: %s\n    extra-lib-dirs: %s\n' "$tmp/libjpeg-turbo/include" "$tmp/libjpeg-turbo/lib" > cabal.project.local
+
+      - run: cabal build --enable-tests all
+
+      - run: cabal test --enable-tests --test-show-details=direct all
