@@ -4,6 +4,7 @@ import Codec.Picture (Image(..), PixelRGB8(..), PixelRGBA8(..), decodeJpeg, dyna
 import Codec.Picture.JPEGTurbo qualified as JT
 import Control.Exception (ErrorCall(..), try)
 import Control.Monad (forM_)
+import Data.Bits (finiteBitSize)
 import Data.ByteString qualified as B
 import Test.Tasty.HUnit (Assertion, assertBool, assertFailure, (@?=))
 import TurboJPEG2 qualified as TJ2
@@ -28,7 +29,7 @@ unit_shortBuffer :: IO ()
 unit_shortBuffer = assertRejected "encodeRGB: invalid image data length" $ JT.encodeRGB 1 (image {imageHeight = imageHeight image + 1} :: Image PixelRGB8)
 
 unit_badQuality :: IO ()
-unit_badQuality = forM_ [-1, 101, 2 ^ (32 :: Int) + 50] \q -> assertRejected "encodeRGB: invalid quality" $ JT.encodeRGB q image
+unit_badQuality = forM_ ([-1, 101] ++ [2 ^ (32 :: Int) + 50 | finiteBitSize (0 :: Int) > 32]) \q -> assertRejected "encodeRGB: invalid quality" $ JT.encodeRGB q image
 
 unit_wideImage :: IO ()
 unit_wideImage = assertRejected "encodeRGB: invalid image dimensions" $ JT.encodeRGB 100 (generateImage (\_ _ -> PixelRGB8 0 0 0) 65501 1)
