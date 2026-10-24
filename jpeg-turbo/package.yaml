@@ -4,7 +4,7 @@ git: https://gitlab.com/dpwiz/hs-jpeg-turbo
 license: BSD-3-Clause
 author: "IC Rainbow"
 maintainer: "aenor.realm@gmail.com"
-copyright: "2024 IC Rainbow"
+copyright: "2024 IC Rainbow, 2026 SimpleX Chat Ltd"
 
 flags:
   pkgconfig:

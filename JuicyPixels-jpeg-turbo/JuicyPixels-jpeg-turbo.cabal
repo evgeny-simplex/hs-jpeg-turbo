@@ -11,7 +11,7 @@ description:    NB. You must set one of the build flags on `jpeg-turbo` dependen
 category:       Codec, Image
 author:         IC Rainbow
 maintainer:     aenor.realm@gmail.com
-copyright:      2024 IC Rainbow
+copyright:      2024 IC Rainbow, 2026 SimpleX Chat Ltd
 license:        BSD-3-Clause
 license-file:   LICENSE
 build-type:     Simple
