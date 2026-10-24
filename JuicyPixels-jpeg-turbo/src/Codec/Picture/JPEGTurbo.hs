@@ -33,10 +33,10 @@ encodeRGB jpegQual image@Image{imageWidth, imageHeight, imageData} = do
   bracket TJ2.tjInitCompress TJ2.tjDestroy \jt ->
     V.unsafeWith imageData \bufPtr ->
       with nullPtr \jpegBufPtr ->
-        with 0 \jpegSizePtr -> do
-          rc <- TJ2.tjCompress2 jt (castPtr bufPtr) (fromIntegral imageWidth) 0 (fromIntegral imageHeight) pixelFormat jpegBufPtr jpegSizePtr jpegSubsamp (fromIntegral jpegQual) flags
-          jpegBuf <- peek jpegBufPtr
-          flip finally (TJ2.tjFree jpegBuf) do
+        with 0 \jpegSizePtr ->
+          flip finally (peek jpegBufPtr >>= TJ2.tjFree) do
+            rc <- TJ2.tjCompress2 jt (castPtr bufPtr) (fromIntegral imageWidth) 0 (fromIntegral imageHeight) pixelFormat jpegBufPtr jpegSizePtr jpegSubsamp (fromIntegral jpegQual) flags
+            jpegBuf <- peek jpegBufPtr
             unless (rc == 0) $ peekCString (TJ2.tjGetErrorStr2 jt) >>= error
             jpegSize <- peek jpegSizePtr
             B.packCStringLen (castPtr jpegBuf, fromIntegral jpegSize)
