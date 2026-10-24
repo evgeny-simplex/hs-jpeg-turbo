@@ -10,6 +10,10 @@ import Foreign.C
 
 #include "turbojpeg.h"
 
+#ifndef TJFLAG_LIMITSCANS
+#error "libjpeg-turbo >= 2.1.0 is required"
+#endif
+
 -- * Common
 
 newtype TjHandle a = Handle (Ptr (TjHandle a))
@@ -398,13 +402,12 @@ pattern TJFLAG_FASTDCT = TJFLAG #{const TJFLAG_FASTDCT}
 pattern TJFLAG_FASTUPSAMPLE :: TJFLAG
 pattern TJFLAG_FASTUPSAMPLE = TJFLAG #{const TJFLAG_FASTUPSAMPLE}
 
--- since 2.1, ubuntu 20.04 ships 2.0
--- -- | Limit the number of progressive JPEG scans that the decompression and transform functions will process.
--- --
--- -- If a progressive JPEG image contains an unreasonably large number of scans, then this flag will cause the decompression and transform functions to return an error.
--- -- The primary purpose of this is to allow security-critical applications to guard against an exploit of the progressive JPEG format described in this report.
--- pattern TJFLAG_LIMITSCANS :: TJFLAG
--- pattern TJFLAG_LIMITSCANS = TJFLAG #{const TJFLAG_LIMITSCANS}
+-- | Limit the number of progressive JPEG scans that the decompression and transform functions will process.
+--
+-- If a progressive JPEG image contains an unreasonably large number of scans, then this flag will cause the decompression and transform functions to return an error.
+-- The primary purpose of this is to allow security-critical applications to guard against an exploit of the progressive JPEG format described in this report.
+pattern TJFLAG_LIMITSCANS :: TJFLAG
+pattern TJFLAG_LIMITSCANS = TJFLAG #{const TJFLAG_LIMITSCANS}
 
 -- | Disable JPEG buffer (re)allocation.
 --
@@ -430,7 +433,7 @@ tjflagNames =
   , (TJFLAG_BOTTOMUP, "TJFLAG_BOTTOMUP")
   , (TJFLAG_FASTDCT, "TJFLAG_FASTDCT")
   , (TJFLAG_FASTUPSAMPLE, "TJFLAG_FASTUPSAMPLE")
-  -- , (TJFLAG_LIMITSCANS, "TJFLAG_LIMITSCANS")
+  , (TJFLAG_LIMITSCANS, "TJFLAG_LIMITSCANS")
   , (TJFLAG_NOREALLOC, "TJFLAG_NOREALLOC")
   , (TJFLAG_PROGRESSIVE, "TJFLAG_PROGRESSIVE")
   , (TJFLAG_STOPONWARNING, "TJFLAG_STOPONWARNING")

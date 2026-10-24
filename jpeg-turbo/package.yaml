@@ -38,7 +38,7 @@ library:
   when:
   - condition: flag(pkgconfig)
     pkgconfig-depends:
-    - libturbojpeg
+    - libturbojpeg >= 2.1.0
   - condition: flag(static)
     extra-libraries: turbojpeg
 
