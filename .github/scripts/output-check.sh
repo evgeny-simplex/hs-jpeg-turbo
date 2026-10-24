@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+if [ "$RUNNER_OS" = Windows ]; then
+  cc="$(ghc --print-libdir)/../mingw/bin/clang.exe"
+  ldflags="-fuse-ld=lld --rtlib=compiler-rt"
+else
+  cc=cc
+  ldflags=
+fi
+
+out=dist-newstyle/output-check
+
+encode() {
+  mkdir -p "$out/$1"
+  "$cc" -O2 -I jpeg-turbo/cbits/libjpeg-turbo/src .github/scripts/encode.c "$2" $ldflags -lm -o "$out/encode-$1.exe"
+  "$out/encode-$1.exe" "$out/$1"
+}
+
+rm -rf "$out"
+encode cabal "$(find dist-newstyle -name 'libHSjpeg-turbo-*.a' -not -name '*_p.a')"
+encode cmake "$LIBJPEG_TURBO_PREFIX/lib/libturbojpeg.a"
+ls -l "$out/cabal"
+diff -r "$out/cabal" "$out/cmake"
+echo "$(ls "$out/cabal" | wc -l) JPEGs are identical"

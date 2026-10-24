@@ -20,10 +20,18 @@ jobs:
             ghc: 9.6.3
           - os: ubuntu-22.04
             ghc: 8.10.7
+          - os: ubuntu-22.04-arm
+            ghc: 9.6.3
+          - os: ubuntu-24.04-arm
+            ghc: 9.6.3
           - os: macos-latest
+            ghc: 9.6.3
+          - os: macos-15-intel
             ghc: 9.6.3
           - os: windows-latest
             ghc: 9.6.3
+    env:
+      libjpeg_turbo_cmake: "-DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_LIBDIR:PATH=lib -DBUILD=20260327 -DENABLE_SHARED=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON"
     steps:
       - uses: actions/checkout@v6
         with:
@@ -56,13 +64,59 @@ jobs:
           "$cc" --version
           "$cc" -dM -E "$RUNNER_TEMP/empty.c" | grep -E ' (__SIZEOF_SIZE_T__|__SIZEOF_LONG__|__aarch64__|__x86_64__|_WIN32|__APPLE__|__ELF__|__clang__|__GNUC__) '
 
+      - name: Compare neon-compat.h with the Neon intrinsic probes of libjpeg-turbo
+        if: runner.arch == 'ARM64'
+        run: bash .github/scripts/neon-compat.sh
+
       - run: cabal build --enable-tests all
 
       - name: Show Neon symbols in the library
-        if: runner.os == 'macOS'
+        if: runner.arch == 'ARM64'
         run: |
           lib=$(find dist-newstyle -name 'libHSjpeg-turbo-*.a' -not -name '*_p.a')
-          nm -A -g "$lib" | grep -E 'neon\.o.* T _jsimd_'
-          nm -A -g "$lib" | grep -E 'jsimd\.o.* T _jsimd_can_'
+          nm -A -g "$lib" | grep -E 'neon\.o.* T _?jsimd_'
+          nm -A -g "$lib" | grep -E 'jsimd\.o.* T _?jsimd_can_'
 
       - run: cabal test --enable-tests --test-show-details=direct all
+
+      - name: Build libjpeg-turbo 3.1.4.1 with CMake (Linux, macOS)
+        if: runner.os != 'Windows'
+        run: |
+          if [ "$RUNNER_ARCH" = X64 ]; then
+            if [ "$RUNNER_OS" = Linux ]; then
+              sudo apt-get update
+              sudo apt-get install -y nasm
+            else
+              brew install nasm
+            fi
+          fi
+          cmake -S jpeg-turbo/cbits/libjpeg-turbo -B "$RUNNER_TEMP/libjpeg-turbo-build" -DCMAKE_INSTALL_PREFIX="$RUNNER_TEMP/libjpeg-turbo" $libjpeg_turbo_cmake
+          cmake --build "$RUNNER_TEMP/libjpeg-turbo-build" --target install --parallel
+          echo "LIBJPEG_TURBO_PREFIX=$RUNNER_TEMP/libjpeg-turbo" >> "$GITHUB_ENV"
+
+      - name: Setup MSYS2
+        if: runner.os == 'Windows'
+        uses: simplex-chat/setup-msys2@v2
+        with:
+          msystem: ucrt64
+          update: true
+          install: make
+          pacboy: >-
+            toolchain:p
+            cmake:p
+            nasm:p
+
+      - name: Build libjpeg-turbo 3.1.4.1 with CMake (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          export PATH=$PATH:/c/ghcup/bin:$(echo /c/tools/ghc-*/bin || echo)
+          export CC=$(cygpath -m "$(ghc --print-libdir)/../mingw/bin/clang.exe")
+          export LDFLAGS="-fuse-ld=lld --rtlib=compiler-rt"
+          tmp=$(cygpath -m "$RUNNER_TEMP")
+          cmake -S jpeg-turbo/cbits/libjpeg-turbo -B "$tmp/libjpeg-turbo-build" -DCMAKE_INSTALL_PREFIX="$tmp/libjpeg-turbo" $libjpeg_turbo_cmake
+          cmake --build "$tmp/libjpeg-turbo-build" --target install --parallel
+          echo "LIBJPEG_TURBO_PREFIX=$tmp/libjpeg-turbo" >> "$GITHUB_ENV"
+
+      - name: Compare JPEGs encoded by the cabal and CMake builds
+        run: bash .github/scripts/output-check.sh
