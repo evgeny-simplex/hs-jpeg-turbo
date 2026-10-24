@@ -43,10 +43,13 @@ jobs:
           curl -fsSL --retry 3 -A "$user_agent" -o photos/waterfall.jpg 'https://upload.wikimedia.org/wikipedia/commons/9/96/Autum_Waterfall_%2811838942225%29.jpg'
           curl -fsSL --retry 3 -A "$user_agent" -o photos/city.jpg 'https://upload.wikimedia.org/wikipedia/commons/1/1c/Ternate_%28City%29%2C_Indonesia_%282010%29.jpg'
           cd photos
+          printf '%s  %s\n' \
+            9e58cb1b72f79d29df6b4082cdedda13d637b8d9d6ac1435d99e7c9ca03970ab waterfall.jpg \
+            13f206315bef3511672cc87e1d38422a0e272147d787061e4096ac15cc6b55f0 city.jpg > photos.sha256
           if command -v sha256sum > /dev/null; then
-            sha256sum -c ../bench/photos.sha256
+            sha256sum -c photos.sha256
           else
-            shasum -a 256 -c ../bench/photos.sha256
+            shasum -a 256 -c photos.sha256
           fi
 
       - name: Point Command Line Tools SDK to Xcode SDK
