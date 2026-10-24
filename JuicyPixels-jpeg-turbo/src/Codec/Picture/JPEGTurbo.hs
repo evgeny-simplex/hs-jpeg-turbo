@@ -28,7 +28,7 @@ instance EncodableRGB PixelRGB8 where
 encodeRGB :: EncodableRGB px => Int -> Image px -> IO ByteString
 encodeRGB jpegQual image@Image{imageWidth, imageHeight, imageData} = do
   unless (validDimension imageWidth && validDimension imageHeight) $ error "encodeRGB: invalid image dimensions"
-  unless (toInteger (V.length imageData) == toInteger imageWidth * toInteger imageHeight * 3) $ error "encodeRGB: invalid image data length"
+  unless (toInteger (V.length imageData) == toInteger imageWidth * toInteger imageHeight * pixelSize) $ error "encodeRGB: invalid image data length"
   unless (0 <= jpegQual && jpegQual <= 100) $ error "encodeRGB: invalid quality"
   bracket TJ2.tjInitCompress TJ2.tjDestroy \jt ->
     V.unsafeWith imageData \bufPtr ->
@@ -44,4 +44,5 @@ encodeRGB jpegQual image@Image{imageWidth, imageHeight, imageData} = do
     validDimension d = 1 <= d && d <= fromIntegral (maxBound :: CInt)
     flags = TJ2.TJFLAG_PROGRESSIVE <> TJ2.TJFLAG_STOPONWARNING
     pixelFormat = jtPixelFormat image
+    pixelSize = maybe (error "encodeRGB: unknown pixel format") toInteger $ TJ2.tjPixelSize pixelFormat
     jpegSubsamp = TJ2.TJSAMP_420
