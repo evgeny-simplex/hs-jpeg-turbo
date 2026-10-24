@@ -6,21 +6,19 @@ import Data.ByteString qualified as B
 import Data.ByteString.Unsafe qualified as BU
 import Foreign
 import Foreign.C.String
+import Test.Tasty.HUnit ((@?=))
 import TurboJPEG2 qualified as TJ2
 
 unit_TurboJPEG2 :: IO ()
-unit_TurboJPEG2 = do
-  inBS <- B.readFile inFile
-  decoding inBS \width height jpegSubsamp jpegColorspace decoded ->
-    encoding width height TJ2.TJSAMP_420 1 decoded \encoded -> do
-      print ((width, height, lookup jpegSubsamp TJ2.tjsampNames, lookup jpegColorspace TJ2.tjcsNames), B.length encoded)
-      B.writeFile outFile encoded
-  outBS <- B.readFile outFile
-  decoding outBS \_width _height _jpegSubsamp _jpegColorspace _decoded ->
-    pure () :: IO () -- just read back
+unit_TurboJPEG2 =
+  encoding w h TJ2.TJSAMP_420 1 rgb \encoded ->
+    decoding encoded \width height jpegSubsamp _jpegColorspace decoded -> do
+      (width, height, jpegSubsamp) @?= (w, h, TJ2.TJSAMP_420)
+      B.length decoded @?= fromIntegral (w * h * 3)
   where
-    inFile = "../fixtures/lv.jpg"
-    outFile = "../fixtures/lv-out.jpg"
+    w = 37
+    h = 23
+    rgb = B.pack [fromIntegral (x * y + c) | y <- [0 .. h - 1], x <- [0 .. w - 1], c <- [0 .. 2]]
     pixelFormat = TJ2.TJPF_RGB
 
     decoding bsIn action =

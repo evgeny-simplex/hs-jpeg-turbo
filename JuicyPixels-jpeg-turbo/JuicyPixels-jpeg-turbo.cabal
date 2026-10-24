@@ -77,6 +77,8 @@ test-suite JuicyPixels-jpeg-turbo-test
       TypeOperators
       TypeFamilies
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
+  build-tool-depends:
+      tasty-discover:tasty-discover
   build-depends:
       JuicyPixels
     , JuicyPixels-jpeg-turbo

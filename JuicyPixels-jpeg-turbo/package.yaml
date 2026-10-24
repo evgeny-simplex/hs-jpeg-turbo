@@ -41,6 +41,8 @@ tests:
     - tasty
     - tasty-discover
     - tasty-hunit
+    build-tools:
+    - tasty-discover:tasty-discover
 
 ghc-options:
 - -Wall
