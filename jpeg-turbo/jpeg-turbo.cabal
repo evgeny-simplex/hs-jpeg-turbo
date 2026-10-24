@@ -36,11 +36,6 @@ flag static
   manual: True
   default: False
 
-flag static-gcc
-  description: Try linking libturbojpeg statically with ld hacks. Would not work with clang.
-  manual: True
-  default: False
-
 library
   exposed-modules:
       TurboJPEG2
@@ -74,8 +69,6 @@ library
   if flag(static)
     extra-libraries:
         turbojpeg
-  if flag(static-gcc)
-    ld-options: -Wl,--allow-multiple-definition -Wl,--whole-archive -Wl,-Bstatic -Wl,-lturbojpeg -Wl,-Bdynamic -Wl,--no-whole-archive
 
 test-suite jpeg-turbo-test
   type: exitcode-stdio-1.0

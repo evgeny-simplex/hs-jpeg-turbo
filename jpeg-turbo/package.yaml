@@ -15,10 +15,6 @@ flags:
     description: Use extra-libraries for turbojpeg.
     manual: True
     default: False
-  static-gcc:
-    description: Try linking libturbojpeg statically with ld hacks. Would not work with clang.
-    manual: True
-    default: False
 
 extra-source-files:
 - CHANGELOG.md
@@ -45,14 +41,6 @@ library:
     - libturbojpeg
   - condition: flag(static)
     extra-libraries: turbojpeg
-  - condition: flag(static-gcc)
-    ld-options:
-    - -Wl,--allow-multiple-definition
-    - -Wl,--whole-archive
-    - -Wl,-Bstatic
-    - -Wl,-lturbojpeg
-    - -Wl,-Bdynamic
-    - -Wl,--no-whole-archive
 
 tests:
   jpeg-turbo-test:
