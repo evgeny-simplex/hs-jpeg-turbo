@@ -9,7 +9,7 @@ version:        0.1.0.0
 synopsis:       FFI bindings to libjpeg-turbo
 description:    Faster and more capable codec for JPEG images using libjpeg-turbo.
                 .
-                Set one of the flags according to your build environment.
+                libjpeg-turbo 3.1.4.1 is compiled from the bundled source.
                 .
                 <https://libjpeg-turbo.org/Documentation>
 category:       Codec, Image
@@ -21,20 +21,19 @@ license-file:   LICENSE
 build-type:     Simple
 extra-source-files:
     CHANGELOG.md
+    cbits/*.h
+    cbits/libjpeg-turbo/LICENSE.md
+    cbits/libjpeg-turbo/README.ijg
+    cbits/libjpeg-turbo/src/*.c
+    cbits/libjpeg-turbo/src/*.h
+    cbits/libjpeg-turbo/simd/jsimd.h
+    cbits/libjpeg-turbo/simd/arm/*.c
+    cbits/libjpeg-turbo/simd/arm/*.h
+    cbits/libjpeg-turbo/simd/arm/aarch64/*.c
 
 source-repository head
   type: git
   location: https://gitlab.com/dpwiz/hs-jpeg-turbo
-
-flag pkgconfig
-  description: Use pkgconfig to find library.
-  manual: True
-  default: False
-
-flag static
-  description: Use extra-libraries for turbojpeg.
-  manual: True
-  default: False
 
 library
   exposed-modules:
@@ -59,16 +58,146 @@ library
       TypeApplications
       TypeFamilies
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wno-missing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
+  cc-options: -DBMP_SUPPORTED -DPPM_SUPPORTED
+  include-dirs:
+      cbits
+      cbits/libjpeg-turbo/src
+  c-sources:
+      cbits/libjpeg-turbo/src/jaricom.c
+      cbits/libjpeg-turbo/src/jcapimin.c
+      cbits/libjpeg-turbo/src/jcarith.c
+      cbits/libjpeg-turbo/src/jchuff.c
+      cbits/libjpeg-turbo/src/jcicc.c
+      cbits/libjpeg-turbo/src/jcinit.c
+      cbits/libjpeg-turbo/src/jclhuff.c
+      cbits/libjpeg-turbo/src/jcmarker.c
+      cbits/libjpeg-turbo/src/jcmaster.c
+      cbits/libjpeg-turbo/src/jcomapi.c
+      cbits/libjpeg-turbo/src/jcparam.c
+      cbits/libjpeg-turbo/src/jcphuff.c
+      cbits/libjpeg-turbo/src/jctrans.c
+      cbits/libjpeg-turbo/src/jdapimin.c
+      cbits/libjpeg-turbo/src/jdarith.c
+      cbits/libjpeg-turbo/src/jdatadst-tj.c
+      cbits/libjpeg-turbo/src/jdatadst.c
+      cbits/libjpeg-turbo/src/jdatasrc-tj.c
+      cbits/libjpeg-turbo/src/jdatasrc.c
+      cbits/libjpeg-turbo/src/jdhuff.c
+      cbits/libjpeg-turbo/src/jdicc.c
+      cbits/libjpeg-turbo/src/jdinput.c
+      cbits/libjpeg-turbo/src/jdlhuff.c
+      cbits/libjpeg-turbo/src/jdmarker.c
+      cbits/libjpeg-turbo/src/jdmaster.c
+      cbits/libjpeg-turbo/src/jdphuff.c
+      cbits/libjpeg-turbo/src/jdtrans.c
+      cbits/libjpeg-turbo/src/jerror.c
+      cbits/libjpeg-turbo/src/jfdctflt.c
+      cbits/libjpeg-turbo/src/jmemmgr.c
+      cbits/libjpeg-turbo/src/jmemnobs.c
+      cbits/libjpeg-turbo/src/jpeg_nbits.c
+      cbits/libjpeg-turbo/src/rdbmp.c
+      cbits/libjpeg-turbo/src/transupp.c
+      cbits/libjpeg-turbo/src/turbojpeg.c
+      cbits/libjpeg-turbo/src/wrbmp.c
+      cbits/libjpeg-turbo/src/wrapper/jcapistd-12.c
+      cbits/libjpeg-turbo/src/wrapper/jcapistd-16.c
+      cbits/libjpeg-turbo/src/wrapper/jcapistd-8.c
+      cbits/libjpeg-turbo/src/wrapper/jccoefct-12.c
+      cbits/libjpeg-turbo/src/wrapper/jccoefct-8.c
+      cbits/libjpeg-turbo/src/wrapper/jccolor-12.c
+      cbits/libjpeg-turbo/src/wrapper/jccolor-16.c
+      cbits/libjpeg-turbo/src/wrapper/jccolor-8.c
+      cbits/libjpeg-turbo/src/wrapper/jcdctmgr-12.c
+      cbits/libjpeg-turbo/src/wrapper/jcdctmgr-8.c
+      cbits/libjpeg-turbo/src/wrapper/jcdiffct-12.c
+      cbits/libjpeg-turbo/src/wrapper/jcdiffct-16.c
+      cbits/libjpeg-turbo/src/wrapper/jcdiffct-8.c
+      cbits/libjpeg-turbo/src/wrapper/jclossls-12.c
+      cbits/libjpeg-turbo/src/wrapper/jclossls-16.c
+      cbits/libjpeg-turbo/src/wrapper/jclossls-8.c
+      cbits/libjpeg-turbo/src/wrapper/jcmainct-12.c
+      cbits/libjpeg-turbo/src/wrapper/jcmainct-16.c
+      cbits/libjpeg-turbo/src/wrapper/jcmainct-8.c
+      cbits/libjpeg-turbo/src/wrapper/jcprepct-12.c
+      cbits/libjpeg-turbo/src/wrapper/jcprepct-16.c
+      cbits/libjpeg-turbo/src/wrapper/jcprepct-8.c
+      cbits/libjpeg-turbo/src/wrapper/jcsample-12.c
+      cbits/libjpeg-turbo/src/wrapper/jcsample-16.c
+      cbits/libjpeg-turbo/src/wrapper/jcsample-8.c
+      cbits/libjpeg-turbo/src/wrapper/jdapistd-12.c
+      cbits/libjpeg-turbo/src/wrapper/jdapistd-16.c
+      cbits/libjpeg-turbo/src/wrapper/jdapistd-8.c
+      cbits/libjpeg-turbo/src/wrapper/jdcoefct-12.c
+      cbits/libjpeg-turbo/src/wrapper/jdcoefct-8.c
+      cbits/libjpeg-turbo/src/wrapper/jdcolor-12.c
+      cbits/libjpeg-turbo/src/wrapper/jdcolor-16.c
+      cbits/libjpeg-turbo/src/wrapper/jdcolor-8.c
+      cbits/libjpeg-turbo/src/wrapper/jddctmgr-12.c
+      cbits/libjpeg-turbo/src/wrapper/jddctmgr-8.c
+      cbits/libjpeg-turbo/src/wrapper/jddiffct-12.c
+      cbits/libjpeg-turbo/src/wrapper/jddiffct-16.c
+      cbits/libjpeg-turbo/src/wrapper/jddiffct-8.c
+      cbits/libjpeg-turbo/src/wrapper/jdlossls-12.c
+      cbits/libjpeg-turbo/src/wrapper/jdlossls-16.c
+      cbits/libjpeg-turbo/src/wrapper/jdlossls-8.c
+      cbits/libjpeg-turbo/src/wrapper/jdmainct-12.c
+      cbits/libjpeg-turbo/src/wrapper/jdmainct-16.c
+      cbits/libjpeg-turbo/src/wrapper/jdmainct-8.c
+      cbits/libjpeg-turbo/src/wrapper/jdmerge-12.c
+      cbits/libjpeg-turbo/src/wrapper/jdmerge-8.c
+      cbits/libjpeg-turbo/src/wrapper/jdpostct-12.c
+      cbits/libjpeg-turbo/src/wrapper/jdpostct-16.c
+      cbits/libjpeg-turbo/src/wrapper/jdpostct-8.c
+      cbits/libjpeg-turbo/src/wrapper/jdsample-12.c
+      cbits/libjpeg-turbo/src/wrapper/jdsample-16.c
+      cbits/libjpeg-turbo/src/wrapper/jdsample-8.c
+      cbits/libjpeg-turbo/src/wrapper/jfdctfst-12.c
+      cbits/libjpeg-turbo/src/wrapper/jfdctfst-8.c
+      cbits/libjpeg-turbo/src/wrapper/jfdctint-12.c
+      cbits/libjpeg-turbo/src/wrapper/jfdctint-8.c
+      cbits/libjpeg-turbo/src/wrapper/jidctflt-12.c
+      cbits/libjpeg-turbo/src/wrapper/jidctflt-8.c
+      cbits/libjpeg-turbo/src/wrapper/jidctfst-12.c
+      cbits/libjpeg-turbo/src/wrapper/jidctfst-8.c
+      cbits/libjpeg-turbo/src/wrapper/jidctint-12.c
+      cbits/libjpeg-turbo/src/wrapper/jidctint-8.c
+      cbits/libjpeg-turbo/src/wrapper/jidctred-12.c
+      cbits/libjpeg-turbo/src/wrapper/jidctred-8.c
+      cbits/libjpeg-turbo/src/wrapper/jquant1-12.c
+      cbits/libjpeg-turbo/src/wrapper/jquant1-8.c
+      cbits/libjpeg-turbo/src/wrapper/jquant2-12.c
+      cbits/libjpeg-turbo/src/wrapper/jquant2-8.c
+      cbits/libjpeg-turbo/src/wrapper/jutils-12.c
+      cbits/libjpeg-turbo/src/wrapper/jutils-16.c
+      cbits/libjpeg-turbo/src/wrapper/jutils-8.c
+      cbits/libjpeg-turbo/src/wrapper/rdppm-12.c
+      cbits/libjpeg-turbo/src/wrapper/rdppm-16.c
+      cbits/libjpeg-turbo/src/wrapper/rdppm-8.c
+      cbits/libjpeg-turbo/src/wrapper/wrppm-12.c
+      cbits/libjpeg-turbo/src/wrapper/wrppm-16.c
+      cbits/libjpeg-turbo/src/wrapper/wrppm-8.c
   build-depends:
       base >=4.7 && <5
     , bytestring >=0.10 && <1
   default-language: Haskell2010
-  if flag(pkgconfig)
-    pkgconfig-depends:
-        libturbojpeg >= 2.1.0
-  if flag(static)
-    extra-libraries:
-        turbojpeg
+  if arch(aarch64)
+    cc-options: -DNEON_INTRINSICS
+    c-sources:
+        cbits/libjpeg-turbo/simd/arm/aarch64/jchuff-neon.c
+        cbits/libjpeg-turbo/simd/arm/aarch64/jsimd.c
+        cbits/libjpeg-turbo/simd/arm/jccolor-neon.c
+        cbits/libjpeg-turbo/simd/arm/jcgray-neon.c
+        cbits/libjpeg-turbo/simd/arm/jcphuff-neon.c
+        cbits/libjpeg-turbo/simd/arm/jcsample-neon.c
+        cbits/libjpeg-turbo/simd/arm/jdcolor-neon.c
+        cbits/libjpeg-turbo/simd/arm/jdmerge-neon.c
+        cbits/libjpeg-turbo/simd/arm/jdsample-neon.c
+        cbits/libjpeg-turbo/simd/arm/jfdctfst-neon.c
+        cbits/libjpeg-turbo/simd/arm/jfdctint-neon.c
+        cbits/libjpeg-turbo/simd/arm/jidctfst-neon.c
+        cbits/libjpeg-turbo/simd/arm/jidctint-neon.c
+        cbits/libjpeg-turbo/simd/arm/jidctred-neon.c
+        cbits/libjpeg-turbo/simd/arm/jquanti-neon.c
 
 test-suite jpeg-turbo-test
   type: exitcode-stdio-1.0

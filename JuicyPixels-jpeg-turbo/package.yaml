@@ -12,7 +12,7 @@ extra-source-files:
 category: Codec, Image
 synopsis: JuicyPixels wrappers for libjpeg-turbo
 description: |
-  NB. You must set one of the build flags on `jpeg-turbo` dependency.
+  JPEG encoding of JuicyPixels images with libjpeg-turbo.
 
 dependencies:
 - base >= 4.7 && < 5
