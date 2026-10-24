@@ -10,10 +10,6 @@ import Foreign.C
 
 #include "turbojpeg.h"
 
-#ifndef TJFLAG_LIMITSCANS
-#error "libjpeg-turbo >= 2.1.0 is required"
-#endif
-
 -- * Common
 
 newtype TjHandle a = Handle (Ptr (TjHandle a))
