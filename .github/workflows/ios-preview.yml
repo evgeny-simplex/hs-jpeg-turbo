@@ -1,0 +1,71 @@
+name: ios-preview
+
+on: push
+
+env:
+  DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
+
+jobs:
+  macos:
+    name: previews with CoreGraphics and ImageIO
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Show runner
+        run: |
+          sw_vers
+          xcodebuild -version
+          swift --version
+
+      - name: Generate previews
+        run: |
+          mkdir out
+          for f in *.jpg *.png; do
+            swift ios-preview.swift "$f" "out/${f%.*}.jpg" | tee -a out/previews.txt
+          done
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: macos-previews
+          path: out
+          if-no-files-found: error
+
+  simulator:
+    name: previews with UIKit in the iOS simulator
+    runs-on: macos-latest
+    timeout-minutes: 30
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Show runner
+        run: |
+          sw_vers
+          xcodebuild -version
+          xcrun simctl list runtimes
+
+      - name: Build for the iOS simulator
+        run: xcrun --sdk iphonesimulator swiftc -target "$(uname -m)-apple-ios17.0-simulator" -o ios-preview-sim ios-preview.swift
+
+      - name: Boot an iPhone simulator
+        run: |
+          runtime=com.apple.CoreSimulator.SimRuntime.iOS-$(xcrun --sdk iphonesimulator --show-sdk-version | tr . -)
+          udid=$(xcrun simctl create ci-iphone com.apple.CoreSimulator.SimDeviceType.iPhone-16 "$runtime")
+          xcrun simctl boot "$udid"
+          xcrun simctl bootstatus "$udid" -b
+          echo "SIM_UDID=$udid" >> "$GITHUB_ENV"
+
+      - name: Generate previews
+        run: |
+          mkdir out
+          for f in *.jpg *.png; do
+            xcrun simctl spawn "$SIM_UDID" "$PWD/ios-preview-sim" "$PWD/$f" "$PWD/out/${f%.*}.jpg" | tee -a out/previews.txt
+          done
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: simulator-previews
+          path: out
+          if-no-files-found: error
