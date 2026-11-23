@@ -27,13 +27,14 @@ int main(int argc, char **argv)
       pixel[0] = (uint8_t)x;
       pixel[1] = (uint8_t)y;
       pixel[2] = (uint8_t)(x ^ y);
-      pixel[3] = alpha ? (uint8_t)(128 + ((x / 64 + y / 64) & 127)) : 255;
+      pixel[3] = alpha == 2 ? (uint8_t)(x + y) : alpha ? (uint8_t)(128 + ((x / 64 + y / 64) & 127)) : 255;
     }
   }
   if (!WebPConfigInit(&config) || !WebPPictureInit(&picture))
     return 1;
   config.lossless = lossless;
   config.method = lossless ? 0 : 4;
+  config.alpha_filtering = alpha == 2 ? 0 : config.alpha_filtering;
   picture.use_argb = lossless;
   picture.width = width;
   picture.height = height;

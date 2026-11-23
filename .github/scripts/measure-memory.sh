@@ -45,13 +45,14 @@ while read -r name width height lossless alpha; do
   "$out/encode.exe" "$image" "$width" "$height" "$lossless" "$alpha"
   read -r old_heap old_rss old_out <<< "$(measure heap-v1.6.0 "$image")"
   read -r new_heap new_rss new_out <<< "$(measure heap-f054d0c3 "$image")"
-  channels=$([ "$alpha" = 1 ] && echo 4 || echo 3)
+  channels=$([ "$alpha" = 0 ] && echo 3 || echo 4)
   echo "| $name ${width}x${height} | $((width * height * channels)) | $old_heap | $new_heap | $old_rss | $new_rss | $old_out | $new_out |" | tee -a "$summary"
   rm -f "$image"
 done <<'EOF'
 lossless-opaque-mobile 16383 5461 1 0
 lossless-alpha-mobile 16383 4096 1 1
 lossy-alpha-mobile 16383 4096 0 1
+lossy-alpha-gradient-mobile 16383 4096 0 2
 lossy-opaque-mobile 16383 5461 0 0
 lossless-opaque-desktop 16383 10922 1 0
 lossless-alpha-desktop 16383 8192 1 1
