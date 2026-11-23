@@ -32,7 +32,7 @@ build heap-v1.6.0 "$old" -DPRINT_MEM_INFO
 build heap-f054d0c3 "$main" -DPRINT_MEM_INFO
 build rss-v1.6.0 "$old" ""
 build rss-f054d0c3 "$main" ""
-gcc -O2 -I "$main" "$main"/src/*/*.c "$main"/sharpyuv/*.c .github/scripts/measure-encode.c -lm -o "$out/encode.exe"
+gcc -O2 -I "$main" -I "$main/src" "$main"/src/*/*.c "$main"/sharpyuv/*.c .github/scripts/measure-encode.c -lm -o "$out/encode.exe"
 
 {
   echo "### libwebp heap high-water mark (PRINT_MEM_INFO) and process maximum RSS while decoding, as decodeWebp decodes"
