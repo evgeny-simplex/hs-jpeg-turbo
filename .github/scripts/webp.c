@@ -90,6 +90,32 @@ static void write_netpbm(const char *dir, const char *path)
   free(webp);
 }
 
+static void set_le32(unsigned char *p, size_t value)
+{
+  p[0] = (unsigned char)value;
+  p[1] = (unsigned char)(value >> 8);
+  p[2] = (unsigned char)(value >> 16);
+  p[3] = (unsigned char)(value >> 24);
+}
+
+static size_t fit_container(unsigned char *webp, size_t size)
+{
+  size_t pos = 12, payload;
+
+  if (size < pos)
+    return size;
+  while (pos + 8 <= size) {
+    payload = webp[pos + 4] | webp[pos + 5] << 8 | webp[pos + 6] << 16 | (size_t)webp[pos + 7] << 24;
+    if ((unsigned long long)payload + (payload & 1) > size - pos - 8) {
+      payload = (size - pos - 8) & ~(size_t)1;
+      set_le32(webp + pos + 4, payload);
+    }
+    pos += 8 + payload + (payload & 1);
+  }
+  set_le32(webp + 4, pos - 8);
+  return pos;
+}
+
 static int decode_copy(const unsigned char *webp, size_t size, size_t changed, unsigned char mask)
 {
   unsigned char *copy = malloc(size ? size : 1);
@@ -103,6 +129,8 @@ static int decode_copy(const unsigned char *webp, size_t size, size_t changed, u
   memcpy(copy, webp, size);
   if (changed < size)
     copy[changed] ^= mask;
+  else
+    size = fit_container(copy, size);
   rc = decode(copy, size, &canvas);
   free(canvas.pixels);
   free(copy);
