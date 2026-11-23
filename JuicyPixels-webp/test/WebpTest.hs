@@ -51,12 +51,13 @@ unit_animation = do
         | otherwise = PixelRGBA8 0 0 0 0
   decodeWebp options webp >>= (@?= Right ("RGBA8", imageData expected)) . fmap (samples . fst)
 
-unit_iccProfile :: IO ()
-unit_iccProfile = do
+unit_metadata :: IO ()
+unit_metadata = do
   still <- testFile "test.webp"
   let profile = B.pack $ take 1001 $ cycle [0 .. 255]
-  decodeWebp options (riff [vp8x 0x20 (128, 128), chunk "ICCP" profile, B.drop 12 still]) >>= (@?= Right (Just profile)) . fmap snd
-  decodeWebp options still >>= (@?= Right Nothing) . fmap snd
+      exifData = B.pack $ take 101 $ cycle [255, 254 .. 0]
+  decodeWebp options (riff [vp8x 0x28 (128, 128), chunk "ICCP" profile, B.drop 12 still, chunk "EXIF" exifData]) >>= (@?= Right (Metadata (Just profile) (Just exifData))) . fmap snd
+  decodeWebp options still >>= (@?= Right (Metadata Nothing Nothing)) . fmap snd
 
 unit_limits :: IO ()
 unit_limits = do

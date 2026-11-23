@@ -1,5 +1,6 @@
 module Codec.Picture.Webp
   ( DecodeOptions(..)
+  , Metadata(..)
   , decodeWebp
   ) where
 
@@ -27,7 +28,13 @@ newtype DecodeOptions = DecodeOptions
   }
   deriving (Eq, Show)
 
-decodeWebp :: DecodeOptions -> ByteString -> IO (Either String (DynamicImage, Maybe ByteString))
+data Metadata = Metadata
+  { iccProfile :: Maybe ByteString
+  , exif :: Maybe ByteString
+  }
+  deriving (Eq, Show)
+
+decodeWebp :: DecodeOptions -> ByteString -> IO (Either String (DynamicImage, Metadata))
 decodeWebp DecodeOptions{maxMemoryMB} webp
   | maxMemoryMB < 1 = pure $ Left "invalid decode options"
   | otherwise = withDemuxer webp \input demux -> do
@@ -39,7 +46,8 @@ decodeWebp DecodeOptions{maxMemoryMB} webp
       image <-
         withIterator #{size WebPIterator} (webPDemuxGetFrame demux 1) webPDemuxReleaseIterator (decodeFrame width height animated)
           >>= maybe (throwE "invalid WebP container") pure
-      (image,) <$> withIterator #{size WebPChunkIterator} (getChunk demux "ICCP") webPDemuxReleaseChunkIterator (chunkPayload input)
+      let chunk fourcc = withIterator #{size WebPChunkIterator} (getChunk demux fourcc) webPDemuxReleaseChunkIterator (chunkPayload input)
+      (image,) <$> (Metadata <$> chunk "ICCP" <*> chunk "EXIF")
   where
     decodeFrame width height animated iter = do
       hasAlpha <- liftIO (#{peek WebPIterator, has_alpha} iter :: IO CInt)
