@@ -15,7 +15,7 @@ import Data.ByteString.Unsafe qualified as BU
 import Data.Vector.Storable qualified as V
 import Data.Vector.Storable.Mutable qualified as MV
 import Data.Word (Word32, Word8)
-import Foreign (Ptr, allocaBytes, castPtr, minusPtr, nullPtr, plusPtr)
+import Foreign (Ptr, allocaBytes, castPtr, minusPtr, nullPtr, peekByteOff, plusPtr, pokeByteOff)
 import Foreign.C.String (CString)
 import Foreign.C.Types (CInt(..), CSize(..))
 
