@@ -86,7 +86,7 @@ jobs:
           git -C "$RUNNER_TEMP/libwebp-test-data" checkout --quiet 06ddd96e276c2c638a72d39d3c0f340afd61978c
           libwebp=JuicyPixels-webp/cbits/libwebp
           mkdir -p dist-newstyle
-          "${CC:-cc}" -O2 -I "$libwebp" "$libwebp"/src/*/*.c "$libwebp"/sharpyuv/*.c .github/scripts/webp-encode.c ${LDFLAGS:-} -lm -o dist-newstyle/webp-encode.exe
+          "${CC:-cc}" -O2 -I "$libwebp" -I "$libwebp/src" "$libwebp"/src/*/*.c "$libwebp"/sharpyuv/*.c .github/scripts/webp-encode.c ${LDFLAGS:-} -lm -o dist-newstyle/webp-encode.exe
           dist-newstyle/webp-encode.exe "$RUNNER_TEMP/libwebp-test-data"
           echo "WEBP_TEST_DATA=$RUNNER_TEMP/libwebp-test-data" >> "$GITHUB_ENV"
 
