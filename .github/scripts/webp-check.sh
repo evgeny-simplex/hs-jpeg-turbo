@@ -22,7 +22,7 @@ rm -rf "$out"
 mkdir -p "$out/armv7" "$out/aarch64"
 arm-linux-gnueabihf-gcc $armv7 -static $flags $sources .github/scripts/webp.c -lpthread -lm -o "$out/armv7.exe"
 gcc $flags $sources .github/scripts/webp.c -lpthread -lm -o "$out/aarch64.exe"
-gcc -g -fsanitize=address,undefined -fno-sanitize-recover=undefined $flags $sources .github/scripts/webp.c -lpthread -lm -o "$out/sanitized.exe"
+clang-18 -g -fsanitize=address,undefined -fno-sanitize-recover=undefined $flags $sources .github/scripts/webp.c -lpthread -lm -o "$out/sanitized.exe"
 file "$out/armv7.exe" "$out/aarch64.exe"
 
 "$out/armv7.exe" check "$out/armv7" $files
