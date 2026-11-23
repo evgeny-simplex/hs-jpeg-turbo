@@ -77,10 +77,17 @@ jobs:
           nm -A -g "$lib" | grep -E 'jsimd\.o.* T _?jsimd_can_'
 
       - &webp-test-data
-        name: Clone libwebp test data
+        name: Clone libwebp test data, encode WebP files taller than the lossless decoder's window
+        env:
+          CC: ${{ env.ghc_cc }}
+          LDFLAGS: ${{ env.ghc_ldflags }}
         run: |
           git clone --quiet https://chromium.googlesource.com/webm/libwebp-test-data "$RUNNER_TEMP/libwebp-test-data"
           git -C "$RUNNER_TEMP/libwebp-test-data" checkout --quiet 06ddd96e276c2c638a72d39d3c0f340afd61978c
+          libwebp=JuicyPixels-webp/cbits/libwebp
+          mkdir -p dist-newstyle
+          "${CC:-cc}" -O2 -I "$libwebp" "$libwebp"/src/*/*.c "$libwebp"/sharpyuv/*.c .github/scripts/webp-encode.c ${LDFLAGS:-} -lm -o dist-newstyle/webp-encode.exe
+          dist-newstyle/webp-encode.exe "$RUNNER_TEMP/libwebp-test-data"
           echo "WEBP_TEST_DATA=$RUNNER_TEMP/libwebp-test-data" >> "$GITHUB_ENV"
 
       - run: cabal test --enable-tests --test-show-details=direct all

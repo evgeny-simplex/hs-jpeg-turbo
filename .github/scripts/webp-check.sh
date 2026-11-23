@@ -10,6 +10,7 @@ flags="-O2 $options -I $package/cbits/libwebp"
 armv7="-march=armv7-a -mfpu=vfpv3-d16 -mfloat-abi=hard"
 md5s="$WEBP_TEST_DATA/libwebp_tests.md5"
 files=$(sed -n 's|^[0-9a-f]*  \(.*\.webp\)\.pam$|'"$WEBP_TEST_DATA"'/\1|p' "$md5s")
+tall="$WEBP_TEST_DATA/tall-lossless.webp $WEBP_TEST_DATA/tall-lossy-alpha.webp"
 
 objects() {
   mkdir -p "$out/$1"
@@ -19,7 +20,7 @@ objects() {
 }
 
 rm -rf "$out"
-mkdir -p "$out/armv7" "$out/aarch64"
+mkdir -p "$out/armv7" "$out/aarch64" "$out/tall-armv7" "$out/tall-aarch64" "$out/tall-sanitized"
 arm-linux-gnueabihf-gcc $armv7 -static $flags $sources .github/scripts/webp.c -lpthread -lm -o "$out/armv7.exe"
 gcc $flags $sources .github/scripts/webp.c -lpthread -lm -o "$out/aarch64.exe"
 clang-18 -g -fsanitize=address,undefined -fno-sanitize-recover=undefined $flags $sources .github/scripts/webp.c -lpthread -lm -o "$out/sanitized.exe"
@@ -35,7 +36,15 @@ awk 'NR == FNR {outputs[$1]; next} $2 in outputs' "$out/outputs.txt" "$md5s" > "
 (cd "$out/aarch64" && md5sum --check --quiet ../expected.md5)
 echo "$(wc -l < "$out/outputs.txt") WebP files decoded identically on armv7 and aarch64, equal to libwebp_tests.md5"
 
-"$out/sanitized.exe" fuzz $files
+for build in armv7 aarch64 sanitized; do
+  "$out/$build.exe" check "$out/tall-$build" $tall
+done
+diff -r "$out/tall-armv7" "$out/tall-aarch64"
+diff -r "$out/tall-aarch64" "$out/tall-sanitized"
+cmp "$out/tall-aarch64/tall-lossless.webp.pam" "$WEBP_TEST_DATA/tall-lossless.pam"
+echo "$(ls "$out/tall-aarch64" | wc -l) WebP files taller than the lossless decoder's window decoded identically on armv7, aarch64 and with sanitizers, the lossless one equal to its source pixels"
+
+"$out/sanitized.exe" fuzz $files $tall
 
 objects armv7-objects arm-linux-gnueabihf-gcc "$armv7"
 objects aarch64-objects gcc ""

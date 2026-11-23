@@ -8,6 +8,7 @@ import Data.Bits (shiftR)
 import Data.ByteString qualified as B
 import Data.ByteString.Builder qualified as BB
 import Data.ByteString.Char8 qualified as BC
+import Data.ByteString.Internal qualified as BI
 import Data.ByteString.Lazy qualified as BL
 import Data.Either (isRight)
 import Data.List (nub)
@@ -29,6 +30,14 @@ unit_conformance = do
       Left e -> assertFailure $ file <> ": " <> e
   where
     md5Entry line = let (md5, name) = break (== ' ') line in (drop 2 name, md5)
+
+unit_slidingWindow :: IO ()
+unit_slidingWindow =
+  forM_ [("tall-lossless.webp", "tall-lossless.pam", fmap snd . netpbmFile), ("tall-lossy-alpha.webp", "tall-lossy-alpha.pgm", alphaFile)] \(file, source, decoded) -> do
+    expected <- testFile source
+    testFile file >>= decodeWebp options >>= \case
+      Right (image, _) -> assertBool (file <> ": decoded pixels differ from " <> source) $ decoded image == Just expected
+      Left e -> assertFailure $ file <> ": " <> e
 
 unit_animation :: IO ()
 unit_animation = do
@@ -85,8 +94,15 @@ netpbmFile = \case
   ImageRGBA8 Image {imageWidth, imageHeight, imageData} ->
     Just (".pam", BC.pack ("P7\nWIDTH " <> show imageWidth <> "\nHEIGHT " <> show imageHeight <> "\nDEPTH 4\nMAXVAL 255\nTUPLTYPE RGB_ALPHA\nENDHDR\n") <> bytes imageData)
   _ -> Nothing
-  where
-    bytes = B.pack . V.toList
+
+alphaFile :: DynamicImage -> Maybe B.ByteString
+alphaFile = \case
+  ImageRGBA8 Image {imageWidth, imageHeight, imageData} ->
+    Just $ BC.pack ("P5\n" <> show imageWidth <> " " <> show imageHeight <> "\n255\n") <> bytes (V.generate (imageWidth * imageHeight) \i -> imageData V.! (4 * i + 3))
+  _ -> Nothing
+
+bytes :: V.Vector Word8 -> B.ByteString
+bytes v = let (pixels, size) = V.unsafeToForeignPtr0 v in BI.fromForeignPtr pixels 0 size
 
 md5Hex :: B.ByteString -> String
 md5Hex = BC.unpack . BL.toStrict . BB.toLazyByteString . BB.byteStringHex . MD5.hash
