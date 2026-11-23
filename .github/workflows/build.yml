@@ -176,7 +176,6 @@ jobs:
 
   armv7:
     name: armv7 on ubuntu-24.04-arm, Neon and C
-    if: *full-run
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v6
