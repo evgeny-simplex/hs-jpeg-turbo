@@ -41,6 +41,7 @@ static void encode(const char *dir, const char *name, const uint8_t *rgba, int l
   config.lossless = lossless;
   config.exact = 1;
   config.quality = lossless ? 80 : 75;
+  config.method = lossless ? 4 : 0;
   config.alpha_filtering = 0;
   picture.use_argb = lossless;
   picture.width = WIDTH;
