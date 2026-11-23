@@ -61,12 +61,27 @@ jobs:
 
       - run: cabal build --enable-tests all
 
+      - name: Report the size of the WebP library
+        run: |
+          lib=$(find dist-newstyle -name 'libHSJuicyPixels-webp-*.a' -not -name '*_p.a')
+          {
+            echo "WebP library, $RUNNER_OS $RUNNER_ARCH, GHC ${{ matrix.ghc }}: $(wc -c < "$lib") bytes"
+            if [ "$RUNNER_OS" = Linux ]; then size -t "$lib" | sed -n '1p;$p'; fi
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
       - name: Show Neon symbols in the library
         if: runner.arch == 'ARM64'
         run: |
           lib=$(find dist-newstyle -name 'libHSjpeg-turbo-*.a' -not -name '*_p.a')
           nm -A -g "$lib" | grep -E 'neon\.o.* T _?jsimd_'
           nm -A -g "$lib" | grep -E 'jsimd\.o.* T _?jsimd_can_'
+
+      - &webp-test-data
+        name: Clone libwebp test data
+        run: |
+          git clone --quiet https://chromium.googlesource.com/webm/libwebp-test-data "$RUNNER_TEMP/libwebp-test-data"
+          git -C "$RUNNER_TEMP/libwebp-test-data" checkout --quiet 06ddd96e276c2c638a72d39d3c0f340afd61978c
+          echo "WEBP_TEST_DATA=$RUNNER_TEMP/libwebp-test-data" >> "$GITHUB_ENV"
 
       - run: cabal test --enable-tests --test-show-details=direct all
 
@@ -184,3 +199,8 @@ jobs:
 
       - name: Compare PNGs decoded by the armv7 and aarch64 builds
         run: bash .github/scripts/png-check.sh
+
+      - *webp-test-data
+
+      - name: Compare WebP files decoded by the armv7 and aarch64 builds, decode changed files with sanitizers
+        run: bash .github/scripts/webp-check.sh
