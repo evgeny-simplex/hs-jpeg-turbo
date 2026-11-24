@@ -16,7 +16,9 @@ license-files:
 build-type:     Simple
 extra-source-files:
     CHANGELOG.md
+    cbits/hs_webp.h
     cbits/libwebp/src/**/*.h
+    cbits/libwebp/src/utils/utils.c
 
 source-repository head
   type: git
@@ -41,10 +43,12 @@ library
       TypeOperators
       TypeFamilies
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
-  cc-options: -DWEBP_USE_THREAD -DWEBP_MAX_ALLOCABLE_MEMORY=67108864
+  cc-options: -DWEBP_USE_THREAD -DNDEBUG
   include-dirs:
+      cbits
       cbits/libwebp
   c-sources:
+      cbits/hs_webp.c
       cbits/libwebp/src/dec/alpha_dec.c
       cbits/libwebp/src/dec/buffer_dec.c
       cbits/libwebp/src/dec/frame_dec.c
@@ -93,7 +97,6 @@ library
       cbits/libwebp/src/utils/random_utils.c
       cbits/libwebp/src/utils/rescaler_utils.c
       cbits/libwebp/src/utils/thread_utils.c
-      cbits/libwebp/src/utils/utils.c
   build-depends:
       JuicyPixels
     , base >=4.7 && <5
