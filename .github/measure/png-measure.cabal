@@ -1,0 +1,29 @@
+cabal-version: 2.2
+
+name:           png-measure
+version:        0
+build-type:     Simple
+extra-source-files:
+    src/Simplex/Chat/Image/DisplayP3-v4.icc
+
+executable resize
+  main-is: Main.hs
+  other-modules:
+      Simplex.Chat.Image
+  hs-source-dirs:
+      src
+  default-extensions:
+      StrictData
+  ghc-options: -O2
+  build-depends:
+      JuicyPixels ==3.3.*
+    , JuicyPixels-jpeg-turbo ==0.1.*
+    , JuicyPixels-spng ==0.1.*
+    , JuicyPixels-stbir ==0.1.*
+    , base >=4.7 && <5
+    , base64-bytestring >=1.0 && <1.3
+    , bytestring ==0.11.*
+    , file-embed ==0.0.15.*
+    , mtl >=2.3.1 && <3.0
+    , vector ==0.13.*
+  default-language: Haskell2010

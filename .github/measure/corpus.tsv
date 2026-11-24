@@ -1,0 +1,29 @@
+set	name	width	height	licence	url	sha1
+equal	emoji	512	512	CC BY 4.0	https://upload.wikimedia.org/wikipedia/commons/0/06/Emoji-cool-thumbs-up-sunglasses.png	b778d647125698acd637566beddd3323107471bd
+equal	window	1374	842	CC0	https://upload.wikimedia.org/wikipedia/commons/2/22/Quicklook_Sonoma.png	4ab167a449c7da379ba97198201b0b36aa4680ee
+equal	diagram	1122	1145	CC BY-SA 3.0	https://upload.wikimedia.org/wikipedia/commons/0/0d/Schem_Geothermal_Power_Plant.png	67b27ebb48a15c4479f043d13491f588a0e68c05
+equal	saturn	1449	949	Public domain	https://upload.wikimedia.org/wikipedia/commons/4/43/Saturnx.png	62043651c157e937f3e7cda9163764b9d9c72746
+equal	cutout	2417	1461	CC BY-SA 4.0	https://upload.wikimedia.org/wikipedia/commons/d/d9/Agassiz%27s_glassfish_%28Ambassis_agassizii%29_isolated_2023-03-08.png	a78b6dfd1ae0918e448fe12c1d05dc76c11eed14
+equal	balloons	2520	2484	CC BY 2.0	https://upload.wikimedia.org/wikipedia/commons/2/2d/Balloons_cutout_%2810464445726%29.png	20301f3f54c377d3f2db1b10c627920111ddd2c4
+png	large	6220	6220	Public domain	https://upload.wikimedia.org/wikipedia/commons/4/49/Flight_Director_insignia.png	110d12ef4e0a2a3e549159059210fc6b718d01ad
+png	wikipedia-screenshot	7680	3768	Public domain	https://upload.wikimedia.org/wikipedia/commons/3/3f/Wikipedia-Screenshot_2020110.png	8975e685765ed1fab27007893cf3423b85eb294b
+png	codex-screenshot	5096	2656	CC0	https://upload.wikimedia.org/wikipedia/commons/e/e2/Screenshot_of_OpenAI_Codex.png	47e381de9989d284027461b80d82cbdfa805ea25
+png	mandelbulber-render	7680	4320	CC0	https://upload.wikimedia.org/wikipedia/commons/0/06/8K-Screenshot_Mandelbulber_20200503.png	8861307cc2c03f6e4472c423476255573f11b995
+png	vlc-video-frame	7680	4320	CC BY 4.0	https://upload.wikimedia.org/wikipedia/commons/0/00/VLC_Screenshot_8K_002.png	fde850900e0b4c5a7b3904b6d851708ad5c68acf
+png	mole-cutout	5245	3240	CC BY-SA 4.0	https://upload.wikimedia.org/wikipedia/commons/0/04/Talpa_europaea_MHNT_on_transparent_background.png	6bf7bddc370763337ac4655e6218793acfd0d7c3
+png	ficus-cutout	5401	5722	CC0	https://upload.wikimedia.org/wikipedia/commons/1/10/Ficus_lyrata_indoor_house_second_floor_Transparent_-_July_2026.png	cecf2674453182d7bfacfaceca39a0831daea459
+png	spacecraft-render	7680	4320	CC BY-SA 3.0 IGO	https://upload.wikimedia.org/wikipedia/commons/4/4b/Smile_spacecraft_%28artist_impression%2C_transparent%29_ESA509842.png	0baa4118bacf2abca72101472122b685a5410c3b
+png	relief-transparent	10433	5778	CC0	https://upload.wikimedia.org/wikipedia/commons/5/5e/Resolution_Guyout_3D_relief_%28transparent%29.png	ec12febca7498065cd81a719792bdbd2ff1e83d9
+png	logo-wide	8721	2741	CC0	https://upload.wikimedia.org/wikipedia/commons/8/84/Novagraaf_logo_rgb.png	d98ca02771a1d12b372d8027f22454e8def1feae
+png	earthrise-photo	6417	5190	Public domain	https://upload.wikimedia.org/wikipedia/commons/1/1d/NASA_Earthrise_AS08-14-2383_Apollo_8%2C_1968-12-24%2C_from_print.png	db1f606112e6a2a9212b74a0dba71ab212bd04f9
+png	saturn-photo	12952	10156	CC BY 2.0	https://upload.wikimedia.org/wikipedia/commons/7/70/Saturn_and_Tethys_-_Nasa%27s_Cassini_%2851963788890%29.png	2ae62ab0f974aaba98ece7ba53359a9b4b79bc4f
+png	world-map	16000	8000	CC0	https://upload.wikimedia.org/wikipedia/commons/a/ae/Wikidata_Map_July_2017_Enormous.png	3f88b43271ef478ff591ea76b7f9faa8e4615b34
+png	subdivisions-map	14918	7462	CC BY 4.0	https://upload.wikimedia.org/wikipedia/commons/2/2f/Robinson_projection_subdivisions_map_high_resolution.png	e92891dce42547173016d8f679c7dac7efa271c2
+png	floor-plan	14400	9600	Public domain	https://upload.wikimedia.org/wikipedia/commons/f/f8/Apollo_Mission_Control_Floor_Plan%2C_Transverse_Sections_A_and_B%2C_Longitudinal_Section_C_-_NASA_Johnson_Space_Center%2C_Apollo_Mission_Control%2C_2101_NASA_Parkway%2C_Houston%2C_HAER_TX-109-C_%28sheet_3_of_4%29.png	c4273d7f73ced068223fd4e3a55647cf6223e650
+png	mars-panorama	6737	1258	Public domain	https://upload.wikimedia.org/wikipedia/commons/4/4f/NASA%E2%80%99s_Curiosity_Captures_Dawn_Breaking_on_Wind-Carved_Cliffs_%28PIA25629%29.png	9648b9655012cf973f6c9bd3f722a63b315a2969
+jpeg	chamois	7004	4672	CC BY-SA 4.0	https://upload.wikimedia.org/wikipedia/commons/9/99/013_Wild_Baby_Chamois_Riederalp_Photo_by_Giles_Laurent.jpg	5758591a7ead22b486503a28fe046cc5c8e14fd8
+jpeg	harbour	6000	4000	CC BY-SA 4.0	https://upload.wikimedia.org/wikipedia/commons/5/51/Cesenatico_-_Porto_Canale_%282023%29.jpg	321e11af424ff16a9ac01ad72de78876765a3ddf
+jpeg	relief	7727	4421	CC BY-SA 4.0	https://upload.wikimedia.org/wikipedia/commons/8/81/Naghsh-e_rostam%2C_Ir%C3%A1n%2C_2016-09-24%2C_DD_12.jpg	9eba8aaaa00c397802e630474d8364e6591e4908
+jpeg	shell	8000	6800	CC BY-SA 3.0	https://upload.wikimedia.org/wikipedia/commons/0/02/Liguus_virgineus_01.JPG	53ea9d018d1eafcf7591102ed1ed6243cbd3be14
+jpeg	snail	10000	5755	CC BY-SA 3.0	https://upload.wikimedia.org/wikipedia/commons/a/a3/Acavus_haemastoma_fastuosa_01.JPG	b1b3718cd059aa4f776f44f822e262bec2811f10
+jpeg	gorge	8620	4039	CC BY-SA 3.0	https://upload.wikimedia.org/wikipedia/commons/8/88/Sainte-Enimie-Gorges_du_Tarn-Frankreich.jpg	49ed6d1c305a69c3edd69722be4303645e7d1b46
