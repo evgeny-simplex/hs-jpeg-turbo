@@ -292,7 +292,7 @@ jobs:
           package=JuicyPixels-spng
           sources=$(sed -n '/^library$/,/^$/p' $package/$package.cabal | grep -oE 'cbits/libspng/[^ ]+\.c|cbits/miniz/[^ ]+\.c' | sed "s|^|$package/|")
           options=$(sed -n '/^library$/,/^$/s/^  cc-options: //p' $package/$package.cabal)
-          gcc -O2 $options -I $package/cbits/libspng/spng -I $package/cbits/miniz $sources .github/measure/decode.c -lm -o "$RUNNER_TEMP/decode"
+          gcc -O2 $options -I $package/cbits -I $package/cbits/libspng/spng -I $package/cbits/miniz $sources .github/measure/decode.c -lm -o "$RUNNER_TEMP/decode"
           python3 -m venv "$RUNNER_TEMP/venv"
           "$RUNNER_TEMP/venv/bin/pip" install --quiet pillow==11.0.0
           "$RUNNER_TEMP/venv/bin/python" -I .github/measure/run.py score ~/ssimulacra2/ssimulacra2 "$RUNNER_TEMP/decode" results inputs .github/measure/corpus.tsv results/quality
