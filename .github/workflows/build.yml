@@ -19,7 +19,7 @@ jobs:
       - name: Encode the WebP fixtures of simplex-chat with cwebp 1.6.0
         run: bash .github/scripts/measure-fixtures.sh
 
-      - name: Measure the memory of libwebp 1.6.0 decoding, at full size and scaled
+      - name: Measure the memory of libwebp decoding, at full size and scaled
         run: |
           sudo apt-get update
           sudo apt-get install -y time
@@ -29,3 +29,61 @@ jobs:
         with:
           name: webp-fixtures
           path: dist-newstyle/measure/fixtures
+
+  later-fixes-tests:
+    name: libwebp 68dd1c30 with five later commits, package tests
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+
+      - &later-fixes
+        name: Apply five libwebp commits after 68dd1c30
+        run: |
+          cd JuicyPixels-libwebp/cbits/libwebp
+          git log -1 --format='%H %s'
+          for commit in 1844042d1ca751e62e61df7617dba19c98588339 85755959324890521629da408901d79c87728e0b 90ffd41238fb645f9793f7353051fd8bf6538c43 f9c049d57323a51b51390bf6a1ad71c4dc008bb2 5c8c69ebd8a5836284b4ed4a01ce8b502db571f1; do
+            git fetch --quiet --depth=2 origin "$commit"
+            git -c user.name=ci -c user.email=ci@localhost cherry-pick --no-commit "$commit"
+          done
+          git diff --stat HEAD
+
+      - id: setup
+        uses: simplex-chat/setup-haskell-action@v2
+        with:
+          ghc-version: 9.6.3
+          cabal-version: 3.10.2.0
+
+      - &webp-test-data
+        name: Clone libwebp test data, encode tall WebP files with their source pixels
+        run: |
+          git clone --quiet https://chromium.googlesource.com/webm/libwebp-test-data "$RUNNER_TEMP/libwebp-test-data"
+          git -C "$RUNNER_TEMP/libwebp-test-data" checkout --quiet 06ddd96e276c2c638a72d39d3c0f340afd61978c
+          libwebp=JuicyPixels-libwebp/cbits/libwebp
+          mkdir -p dist-newstyle
+          cc -O2 -I "$libwebp" -I "$libwebp/src" "$libwebp"/src/*/*.c "$libwebp"/sharpyuv/*.c .github/scripts/webp-encode.c -lm -o dist-newstyle/webp-encode.exe
+          dist-newstyle/webp-encode.exe "$RUNNER_TEMP/libwebp-test-data"
+          echo "WEBP_TEST_DATA=$RUNNER_TEMP/libwebp-test-data" >> "$GITHUB_ENV"
+
+      - run: cabal test --enable-tests --test-show-details=direct JuicyPixels-libwebp
+
+  later-fixes-check:
+    name: libwebp 68dd1c30 with five later commits, armv7, aarch64 and sanitizers
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+
+      - *later-fixes
+
+      - name: Install the armv7 cross compiler and clang
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-arm-linux-gnueabihf clang-18 libclang-rt-18-dev
+
+      - *webp-test-data
+
+      - name: Compare WebP files decoded by the armv7 and aarch64 builds, decode changed files with sanitizers
+        run: bash .github/scripts/webp-check.sh

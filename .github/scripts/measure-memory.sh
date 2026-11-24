@@ -7,104 +7,80 @@ package=JuicyPixels-libwebp
 lib=$package/cbits/libwebp
 sources=$(sed -n '/^library$/,/^$/p' $package/$package.cabal | grep -oE 'cbits/[^ ]+\.c' | sed "s|^|$package/|")
 options=$(sed -n '/^library$/,/^$/s/^  cc-options: //p' $package/$package.cabal)
-maxAllocable=$(echo "$options" | grep -oE 'WEBP_MAX_ALLOCABLE_MEMORY=[0-9]+' | cut -d= -f2)
 summary=${GITHUB_STEP_SUMMARY:-/dev/null}
-mib=1048576
 
-build() {
-  gcc -O2 $options $2 -I "$lib" $sources .github/scripts/webp.c -lpthread -lm -o "$out/$1.exe"
-}
-
-decoder_memory() {
-  local kind=$1 pixels=$(($2 * $3)) rows=$((4 * mib)) lossless
-  lossless=$((4 * pixels + 3 * pixels / 4 + 2 * maxAllocable + maxAllocable / 16))
-  case $kind in
-    lossy) echo $rows ;;
-    lossless) echo $((rows + lossless)) ;;
-    alpha) echo $((rows + 2 * pixels + lossless)) ;;
-  esac
-}
-
-mib2() {
+mib() {
   awk -v b="$1" 'BEGIN { printf "%.1f", b / 1048576 }'
 }
 
+field() {
+  echo "$2" | sed -E "s/.*$1 ([0-9]+).*/\\1/"
+}
+
 measure() {
-  local name=$1 kind=$2 width=$3 height=$4 image=$5 side heap rss decoded header canvas formula
+  local name=$1 frame=$2 kind=$3 image=$4 side limit line result rss row
   for side in 16384 4320; do
-    heap=
-    rm -rf "$out/decoded"
-    mkdir -p "$out/decoded"
-    case $name in
-      chunks*) ;;
-      *)
-        /usr/bin/time -f %M -o "$out/rss.txt" "$out/heap.exe" check "$out/decoded" "$side" "$image" 2> "$out/heap.txt"
-        heap=$(sed -n 's/^high-water mark: //p' "$out/heap.txt")
-        ;;
-    esac
-    rm -rf "$out/decoded"
-    mkdir -p "$out/decoded"
-    /usr/bin/time -f %M -o "$out/rss.txt" "$out/rss.exe" check "$out/decoded" "$side" "$image"
-    rss=$(($(cat "$out/rss.txt") * 1024))
-    decoded=$(ls "$out/decoded")
-    formula=$(decoder_memory "$kind" "$width" "$height")
-    if [ "${decoded##*.}" = err ]; then
-      echo "| $name | ${width}x${height} | $kind | $side | $(cat "$out/decoded/$decoded") | | $(mib2 "$heap") | $(mib2 "$formula") | | $(mib2 "$rss") |" | tee -a "$summary"
-      continue
-    fi
-    header=$(head -n 3 "$out/decoded/$decoded" | tr '\n' ' ')
-    case $decoded in
-      *.pam) canvas=$(echo "$header" | awk '{print $3 "x" $5 " " $3 * $5 * 4}') ;;
-      *.ppm) canvas=$(echo "$header" | awk '{print $2 "x" $3 " " $2 * $3 * 3}') ;;
-    esac
-    if [ -n "$heap" ]; then
-      echo "| $name | ${width}x${height} | $kind | $side | ${canvas% *} | $(mib2 "${canvas#* }") | $(mib2 "$heap") | $(mib2 "$formula") | $(mib2 $((heap + ${canvas#* }))) | $(mib2 "$rss") |" | tee -a "$summary"
-    else
-      echo "| $name | ${width}x${height} | $kind | $side | ${canvas% *} | $(mib2 "${canvas#* }") | - | $(mib2 "$formula") | - | $(mib2 "$rss") |" | tee -a "$summary"
-    fi
+    row="| $name | $frame | $kind | $side |"
+    for limit in 256 4096; do
+      line=$(/usr/bin/time -f %M -o "$out/rss.txt" "$out/webp.exe" memory "$limit" "$side" "$image")
+      echo "$line"
+      result=$(echo "$line" | sed -E 's/^[^ ]+ ([^,]+),.*/\1/')
+      rss=$(($(cat "$out/rss.txt") * 1024))
+      if [ "$limit" = 256 ]; then
+        row="$row $(mib "$(field output "$line")") | $(mib "$(field demuxer "$line")") | $result | $(mib "$(field peak "$line")") | $(mib "$rss") |"
+      else
+        row="$row $result | $(mib "$(field peak "$line")") | $(mib "$rss") |"
+      fi
+    done
+    echo "$row" >> "$out/table.md"
   done
   rm -f "$image"
 }
 
-rm -rf "$out/images" "$out/decoded"
-mkdir -p "$out/images"
-echo "libwebp $(git -C "$lib" describe --tags) at $(git -C "$lib" rev-parse HEAD); $(echo "$sources" | wc -w) C files; cc-options: $options"
-build heap -DPRINT_MEM_INFO
-build rss ""
+rm -rf "$out/images" "$out/table.md"
+mkdir -p "$out/images" "$out/fixtures"
+echo "libwebp $(git -C "$lib" rev-parse HEAD); $(echo "$sources" | wc -w) C files; cc-options: $options"
+gcc -O2 $options -I "$package/cbits" -I "$lib" $sources .github/scripts/webp.c -lpthread -lm -o "$out/webp.exe"
 gcc -O2 -I "$lib" -I "$lib/src" "$lib"/src/*/*.c "$lib"/sharpyuv/*.c .github/scripts/measure-encode.c -lm -o "$out/encode.exe"
 gcc -O2 -I "$lib" -I "$lib/src" "$lib"/src/*/*.c "$lib"/sharpyuv/*.c .github/scripts/measure-craft.c -lm -o "$out/craft.exe"
-groups=$((maxAllocable / (4 * 2954)))
+
+while read -r name frame kind width height lossless alpha method; do
+  "$out/encode.exe" "$out/images/$name.webp" "$width" "$height" "$lossless" "$alpha" "$method"
+  measure "$name" "$frame" "$kind" "$out/images/$name.webp"
+done <<'EOF'
+lossy-16383x8191 16383x8191 lossy 16383 8191 0 0 4
+lossy-alpha-16383x8191 16383x8191 lossy,alpha 16383 8191 0 1 4
+lossy-alpha-unfiltered-16383x8191 16383x8191 lossy,alpha 16383 8191 0 2 4
+lossless-16383x16383 16383x16383 lossless 16383 16383 1 0 4
+lossless-alpha-16383x16383 16383x16383 lossless,alpha 16383 16383 1 1 4
+lossless-alpha-method6-4320x4320 4320x4320 lossless,alpha 4320 4320 1 1 6
+EOF
+
+while read -r name frame kind width height groups pattern bytes; do
+  "$out/craft.exe" "$out/images/$name.webp" "$kind" "$width" "$height" "$groups" "$pattern" "$bytes"
+  if [ "$name" = transforms-lossless-16384x16384 ]; then
+    cp "$out/images/$name.webp" "$out/fixtures/lossless-transforms-16384x16384.webp"
+  fi
+  measure "$name" "$frame" "$kind" "$out/images/$name.webp"
+done <<'EOF'
+transforms-lossless-16384x16384 16384x16384 lossless 16384 16384 2 last 0
+transforms-alpha-16383x8191 16383x8191 alpha 16383 8191 2 last 0
+huffman-lossless-1024x1024 1024x1024 lossless 1024 1024 65536 cycle 0
+huffman-alpha-1024x1024 1024x1024 alpha 1024 1024 65536 cycle 0
+chunks-16MiB 16x16 lossless 16 16 0 cycle 16777216
+chunks-16MiB-huffman-lossless-1024x1024 1024x1024 lossless 1024 1024 65536 cycle 16777216
+EOF
 
 {
-  echo "### libwebp 1.6.0 decoding memory, as decodeWebp decodes: at full size (sides up to 16384) and halved while a side exceeds 4320"
+  echo "### libwebp decoding memory at $(git -C "$lib" rev-parse --short=8 HEAD), as decodeWebp decodes: at full size (sides up to 16384) and halved while a side exceeds 4320"
   echo
-  echo "Heap: the high-water mark of libwebp's allocations (PRINT_MEM_INFO), the demuxer included; for the images with chunks only RSS, as PRINT_MEM_INFO searches a list of all blocks at each free. Formula: the decoder memory that decodeWebp checks, without the output image. RSS: the maximum resident set of the process, input and output image included."
+  echo "Counted: the bytes of libwebp's allocations, each with its 16-byte header, the demuxer's included, and the output image; peak: their maximum during the decode. RSS: the maximum resident set of the process, the input included. Limits: 256 MiB, the limit of mobile builds, and 4096 MiB, which these images do not reach."
   echo
-  echo "| Image | Frame | Kind | Max side | Output | Output MiB | Heap MiB | Formula MiB | Heap + output MiB | RSS MiB |"
-  echo "|---|---|---|---|---|---|---|---|---|---|"
+  echo "| Image | Frame | Kind | Max side | Output MiB | Demuxer MiB | 256 MiB: result | peak MiB | RSS MiB | 4096 MiB: result | peak MiB | RSS MiB |"
+  echo "|---|---|---|---|---|---|---|---|---|---|---|---|"
+  cat "$out/table.md"
+  echo
+  echo '```'
+  sha256sum "$out/fixtures/lossless-transforms-16384x16384.webp"
+  echo '```'
 } | tee -a "$summary"
-
-while read -r name width height lossless alpha kind; do
-  "$out/encode.exe" "$out/images/$name.webp" "$width" "$height" "$lossless" "$alpha"
-  measure "$name" "$kind" "$width" "$height" "$out/images/$name.webp"
-done <<'EOF'
-lossy-16383x8191 16383 8191 0 0 lossy
-lossless-opaque-4320x3758 4320 3758 1 0 lossless
-lossless-alpha-4320x3328 4320 3328 1 1 lossless
-lossless-alpha-4322x3864 4322 3864 1 1 lossless
-lossy-alpha-4320x2709 4320 2709 0 2 alpha
-lossy-alpha-4322x3746 4322 3746 0 2 alpha
-EOF
-
-while read -r name kind width height groups bytes; do
-  "$out/craft.exe" "$out/images/$name.webp" "$kind" "$width" "$height" "$groups" "$bytes"
-  measure "$name" "$kind" "$width" "$height" "$out/images/$name.webp"
-done <<EOF
-huffman-lossless-4320x3328 lossless 4320 3328 $groups 0
-huffman-lossless-4322x3864 lossless 4322 3864 $groups 0
-huffman-alpha-4320x2709 alpha 4320 2709 $groups 0
-huffman-alpha-4322x3746 alpha 4322 3746 $groups 0
-chunks-16MiB lossless 16 16 0 16777216
-chunks-16MiB-huffman-lossless-4322x3864 lossless 4322 3864 $groups 16777216
-chunks-16MiB-huffman-alpha-4322x3746 alpha 4322 3746 $groups 16777216
-EOF

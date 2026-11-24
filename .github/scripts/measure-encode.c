@@ -8,18 +8,20 @@ int main(int argc, char **argv)
   WebPConfig config;
   WebPPicture picture;
   WebPMemoryWriter writer;
+  WebPAuxStats stats;
   FILE *out;
-  int width, height, lossless, alpha, x, y;
+  int width, height, lossless, alpha, method, x, y;
   uint8_t *rgba, *pixel;
 
-  if (argc != 6) {
-    fprintf(stderr, "usage: %s OUTPUT WIDTH HEIGHT LOSSLESS ALPHA\n", argv[0]);
+  if (argc != 7) {
+    fprintf(stderr, "usage: %s OUTPUT WIDTH HEIGHT LOSSLESS ALPHA METHOD\n", argv[0]);
     return 2;
   }
   width = atoi(argv[2]);
   height = atoi(argv[3]);
   lossless = atoi(argv[4]);
   alpha = atoi(argv[5]);
+  method = atoi(argv[6]);
   if (!(rgba = malloc((size_t)width * height * 4)))
     return 1;
   for (y = 0, pixel = rgba; y < height; y++) {
@@ -33,7 +35,7 @@ int main(int argc, char **argv)
   if (!WebPConfigInit(&config) || !WebPPictureInit(&picture))
     return 1;
   config.lossless = lossless;
-  config.method = lossless ? 0 : 4;
+  config.method = method;
   config.partition_limit = 100;
   config.alpha_filtering = alpha == 2 ? 0 : config.alpha_filtering;
   picture.use_argb = lossless;
@@ -41,6 +43,7 @@ int main(int argc, char **argv)
   picture.height = height;
   picture.writer = WebPMemoryWrite;
   picture.custom_ptr = &writer;
+  picture.stats = &stats;
   WebPMemoryWriterInit(&writer);
   if (!WebPPictureImportRGBA(&picture, rgba, width * 4) || !WebPEncode(&config, &picture)) {
     fprintf(stderr, "encoding error %d\n", picture.error_code);
@@ -50,6 +53,8 @@ int main(int argc, char **argv)
     perror(argv[1]);
     return 1;
   }
-  printf("%s: %dx%d, %s%s, %lu bytes\n", argv[1], width, height, lossless ? "lossless" : "lossy", alpha ? " with alpha" : "", (unsigned long)writer.size);
+  printf("%s: %dx%d, %s%s, method %d, %lu bytes; %s stream: transforms 0x%x, predictor bits %d, cross-colour bits %d, histogram bits %d, cache bits %d\n", argv[1], width, height,
+         lossless ? "lossless" : "lossy", alpha ? " with alpha" : "", method, (unsigned long)writer.size, lossless ? "lossless" : "alpha", stats.lossless_features,
+         stats.transform_bits, stats.cross_color_transform_bits, stats.histogram_bits, stats.cache_bits);
   return 0;
 }
