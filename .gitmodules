@@ -7,3 +7,6 @@
 [submodule "JuicyPixels-spng/cbits/miniz"]
 	path = JuicyPixels-spng/cbits/miniz
 	url = https://github.com/richgel999/miniz
+[submodule "webp-sandbox/cbits/libwebp"]
+	path = webp-sandbox/cbits/libwebp
+	url = https://github.com/webmproject/libwebp

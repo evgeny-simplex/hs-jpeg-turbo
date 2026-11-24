@@ -1,0 +1,138 @@
+cabal-version: 3.0
+
+name:           webp-sandbox
+version:        0.1.0.0
+synopsis:       WebP decoding by libwebp in a wasm2c sandbox
+description:    Measurement package: libwebp compiled to WebAssembly by wasi-sdk and translated to C by wasm2c, compared with the native build of the same sources.
+category:       Codec, Image
+author:         simplex.chat
+maintainer:     chat@simplex.chat
+copyright:      2026 SimpleX Chat Ltd
+license:        BSD-3-Clause
+build-type:     Simple
+
+flag guard-pages
+  description: Check the accesses to the sandbox memory with guard pages and a signal handler instead of explicit bounds checks
+  default:     False
+  manual:      True
+
+common options
+  default-extensions:
+      BangPatterns
+      BlockArguments
+      ImportQualifiedPost
+      LambdaCase
+      NamedFieldPuns
+      OverloadedStrings
+      TypeApplications
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wpartial-fields -Wredundant-constraints
+  default-language: Haskell2010
+
+library
+  import: options
+  exposed-modules:
+      Codec.Picture.WebpSandbox
+  hs-source-dirs:
+      src
+  cc-options: -O2 -DWEBP_USE_THREAD -DWEBP_MAX_ALLOCABLE_MEMORY=67108864
+  if flag(guard-pages)
+    cc-options: -DWASM_RT_MEMCHECK_GUARD_PAGES=1
+  else
+    cc-options: -DWASM_RT_MEMCHECK_BOUNDS_CHECK=1
+  include-dirs:
+      cbits
+      cbits/libwebp
+      gen
+      gen/simde
+  c-sources:
+      cbits/canvas.c
+      cbits/native.c
+      cbits/host.c
+      gen/webp-wasm.c
+      gen/wasm-rt-impl.c
+      gen/wasm-rt-mem-impl.c
+      gen/wasm-rt-exceptions-impl.c
+      cbits/libwebp/src/dec/alpha_dec.c
+      cbits/libwebp/src/dec/buffer_dec.c
+      cbits/libwebp/src/dec/frame_dec.c
+      cbits/libwebp/src/dec/idec_dec.c
+      cbits/libwebp/src/dec/io_dec.c
+      cbits/libwebp/src/dec/quant_dec.c
+      cbits/libwebp/src/dec/tree_dec.c
+      cbits/libwebp/src/dec/vp8_dec.c
+      cbits/libwebp/src/dec/vp8l_dec.c
+      cbits/libwebp/src/dec/webp_dec.c
+      cbits/libwebp/src/demux/demux.c
+      cbits/libwebp/src/dsp/alpha_processing.c
+      cbits/libwebp/src/dsp/alpha_processing_neon.c
+      cbits/libwebp/src/dsp/alpha_processing_sse2.c
+      cbits/libwebp/src/dsp/alpha_processing_sse41.c
+      cbits/libwebp/src/dsp/cpu.c
+      cbits/libwebp/src/dsp/dec.c
+      cbits/libwebp/src/dsp/dec_clip_tables.c
+      cbits/libwebp/src/dsp/dec_neon.c
+      cbits/libwebp/src/dsp/dec_sse2.c
+      cbits/libwebp/src/dsp/dec_sse41.c
+      cbits/libwebp/src/dsp/filters.c
+      cbits/libwebp/src/dsp/filters_neon.c
+      cbits/libwebp/src/dsp/filters_sse2.c
+      cbits/libwebp/src/dsp/lossless.c
+      cbits/libwebp/src/dsp/lossless_neon.c
+      cbits/libwebp/src/dsp/lossless_sse2.c
+      cbits/libwebp/src/dsp/lossless_sse41.c
+      cbits/libwebp/src/dsp/rescaler.c
+      cbits/libwebp/src/dsp/rescaler_neon.c
+      cbits/libwebp/src/dsp/rescaler_sse2.c
+      cbits/libwebp/src/dsp/upsampling.c
+      cbits/libwebp/src/dsp/upsampling_neon.c
+      cbits/libwebp/src/dsp/upsampling_sse2.c
+      cbits/libwebp/src/dsp/upsampling_sse41.c
+      cbits/libwebp/src/dsp/yuv.c
+      cbits/libwebp/src/dsp/yuv_neon.c
+      cbits/libwebp/src/dsp/yuv_sse2.c
+      cbits/libwebp/src/dsp/yuv_sse41.c
+      cbits/libwebp/src/utils/bit_reader_utils.c
+      cbits/libwebp/src/utils/color_cache_utils.c
+      cbits/libwebp/src/utils/filters_utils.c
+      cbits/libwebp/src/utils/huffman_utils.c
+      cbits/libwebp/src/utils/palette.c
+      cbits/libwebp/src/utils/quant_levels_dec_utils.c
+      cbits/libwebp/src/utils/random_utils.c
+      cbits/libwebp/src/utils/rescaler_utils.c
+      cbits/libwebp/src/utils/thread_utils.c
+      cbits/libwebp/src/utils/utils.c
+  build-depends:
+      JuicyPixels
+    , base >=4.7 && <5
+    , bytestring
+    , vector
+
+test-suite webp-sandbox-test
+  import: options
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  hs-source-dirs:
+      test
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      JuicyPixels
+    , base >=4.7 && <5
+    , bytestring
+    , directory
+    , filepath
+    , tasty
+    , tasty-hunit
+    , vector
+    , webp-sandbox
+
+executable webp-sandbox-bench
+  import: options
+  main-is: Bench.hs
+  hs-source-dirs:
+      bench
+  ghc-options: -threaded -rtsopts
+  build-depends:
+      base >=4.7 && <5
+    , bytestring
+    , filepath
+    , webp-sandbox
