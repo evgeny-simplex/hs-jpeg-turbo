@@ -1,20 +1,188 @@
 name: build
 
 on:
-  push:
-    branches:
-      - master
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
 
 defaults:
   run:
     shell: bash
 
+env:
+  GEN: dist-newstyle/wasm-gen
+  FIXTURES: dist-newstyle/wasm-fixtures
+  WASM_VARIANT: sse2
+
 jobs:
-  build:
-    name: ${{ matrix.os }}, GHC ${{ matrix.ghc }}
+  generate:
+    name: libwebp to WebAssembly and C, WebP fixtures
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+
+      - name: Download wasi-sdk 34, wabt 1.0.42 and the SSE2 headers of Emscripten 6.0.13
+        run: |
+          tools=$RUNNER_TEMP/tools
+          mkdir -p "$tools/wasi-sdk" "$tools/wabt" "$tools/wabt-src" "$tools/emscripten"
+          curl -fsSL -o "$tools/wasi-sdk.tar.gz" https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-34/wasi-sdk-34.0-x86_64-linux.tar.gz
+          curl -fsSL -o "$tools/wabt.tar.gz" https://github.com/WebAssembly/wabt/releases/download/1.0.42/wabt-1.0.42-linux-x64.tar.gz
+          curl -fsSL -o "$tools/wabt-src.tar.xz" https://github.com/WebAssembly/wabt/releases/download/1.0.42/wabt-1.0.42.tar.xz
+          for header in xmmintrin.h emmintrin.h; do
+            curl -fsSL -o "$tools/emscripten/$header" "https://raw.githubusercontent.com/emscripten-core/emscripten/e13ee988ce3d87a738dd8f3661d02223308c412a/system/include/compat/$header"
+          done
+          sha256sum --check <<EOF
+          b761e3a0721dbae9c09a0059e5fdb2bf917d1b4a8a7b430fb3b5aafb0984b2c4  $tools/wasi-sdk.tar.gz
+          84895407a6bbb80e918f33b16b2fb2206021c150b6bc9ff6f761263a745ab131  $tools/wabt.tar.gz
+          a76cda3c174a43097863a07fc0b0c202f770f53e21806ea2636f167d1ffb1e30  $tools/wabt-src.tar.xz
+          9d3ebd5ec58e07bc97a788cd0ef21559adcbbc5f11bb779eb1864f45f8d167b9  $tools/emscripten/xmmintrin.h
+          ca357b61aa173bd5e617bc0b149c0165b57d21210787eeff5367175dfe63c947  $tools/emscripten/emmintrin.h
+          EOF
+          tar -xzf "$tools/wasi-sdk.tar.gz" -C "$tools/wasi-sdk" --strip-components=1
+          tar -xzf "$tools/wabt.tar.gz" -C "$tools/wabt" --strip-components=1
+          tar -xJf "$tools/wabt-src.tar.xz" -C "$tools/wabt-src" --strip-components=1
+          {
+            echo "WASI_SDK=$tools/wasi-sdk"
+            echo "WABT=$tools/wabt"
+            echo "WABT_SRC=$tools/wabt-src"
+            echo "EMSCRIPTEN_COMPAT=$tools/emscripten"
+          } >> "$GITHUB_ENV"
+
+      - name: Compile libwebp to WebAssembly and translate it to C
+        run: bash .github/scripts/wasm-generate.sh "$GEN"
+
+      - name: Encode the WebP fixtures
+        run: bash .github/scripts/wasm-fixtures.sh "$FIXTURES"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wasm-gen
+          path: ${{ env.GEN }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wasm-fixtures
+          path: ${{ env.FIXTURES }}
+
+  measure:
+    name: native and wasm2c builds on ${{ matrix.os }}
+    needs: generate
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-latest]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+
+      - &download-gen
+        uses: actions/download-artifact@v4
+        with:
+          name: wasm-gen
+          path: ${{ env.GEN }}
+
+      - &download-fixtures
+        uses: actions/download-artifact@v4
+        with:
+          name: wasm-fixtures
+          path: ${{ env.FIXTURES }}
+
+      - &test-data
+        name: Clone libwebp test data
+        run: |
+          git clone --quiet https://chromium.googlesource.com/webm/libwebp-test-data "$RUNNER_TEMP/libwebp-test-data"
+          git -C "$RUNNER_TEMP/libwebp-test-data" checkout --quiet 06ddd96e276c2c638a72d39d3c0f340afd61978c
+          echo "WEBP_TEST_DATA=$RUNNER_TEMP/libwebp-test-data" >> "$GITHUB_ENV"
+
+      - name: Install GNU time
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y time
+
+      - name: Show the CPU
+        run: |
+          if [ "$RUNNER_OS" = Linux ]; then lscpu; else sysctl -n machdep.cpu.brand_string hw.ncpu hw.memsize; fi
+
+      - name: Measure decoding by the native and wasm2c builds
+        run: bash .github/scripts/wasm-measure.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wasm-measure-${{ matrix.os }}
+          path: dist-newstyle/wasm-measure/*.tsv
+
+  sanitizers:
+    name: wasm2c build with sanitizers, truncated and changed inputs
+    needs: generate
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+
+      - *download-gen
+      - *download-fixtures
+      - *test-data
+
+      - name: Decode truncated and changed inputs in the sandbox built with address and undefined behaviour sanitizers
+        run: |
+          out=dist-newstyle/wasm-sanitizers
+          mkdir -p "$out"
+          clang --version | sed -n 1p
+          for check in bounds guard; do
+            mode=$([ $check = bounds ] && echo BOUNDS_CHECK || echo GUARD_PAGES)
+            clang -g -O1 -fsanitize=address,undefined -fno-sanitize-recover=undefined -DWASM_RT_MEMCHECK_$mode=1 -DSANDBOX \
+              -I "$GEN" -I "$GEN/scalar" -I "$GEN/simde" -I webp-sandbox/cbits "$GEN/scalar/webp-wasm.c" "$GEN"/wasm-rt-impl.c \
+              "$GEN"/wasm-rt-mem-impl.c "$GEN"/wasm-rt-exceptions-impl.c webp-sandbox/cbits/host.c .github/scripts/wasm-bench.c -lpthread -lm \
+              -o "$out/$check.exe"
+          done
+          conformance=$(sed -n 's|^[0-9a-f]*  \(.*\.webp\)\.pam$|'"$WEBP_TEST_DATA"'/\1|p' "$WEBP_TEST_DATA/libwebp_tests.md5")
+          {
+            echo "### wasm2c scalar build, clang with -fsanitize=address,undefined"
+            echo '```'
+            for check in bounds guard; do
+              echo "== $check"
+              "$out/$check.exe" trap
+              for side in 16384 64; do
+                "$out/$check.exe" fuzz $side $conformance "$FIXTURES"/*.webp
+              done
+            done
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
+  armv7:
+    name: armv7 native and wasm2c builds on ubuntu-24.04-arm
+    needs: generate
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+
+      - *download-gen
+      - *download-fixtures
+      - *test-data
+
+      - name: Install the armv7 cross compiler and GNU time
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-arm-linux-gnueabihf time
+          arm-linux-gnueabihf-gcc --version
+
+      - name: Measure decoding by the armv7 native and wasm2c builds
+        run: bash .github/scripts/wasm-armv7.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wasm-measure-armv7
+          path: dist-newstyle/wasm-armv7/*.tsv
+
+  haskell:
+    name: webp-sandbox on ${{ matrix.os }}, GHC ${{ matrix.ghc }}
+    needs: generate
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -22,9 +190,15 @@ jobs:
         include:
           - os: ubuntu-22.04
             ghc: 9.6.3
-    env: &build-env
-      mozjpeg_cmake: "-DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_LIBDIR:PATH=lib -DBUILD=20250623 -DBUILD_SHARED_LIBS=OFF -DPNG_SUPPORTED=OFF -DWITH_ARITH_DEC=1 -DCMAKE_POSITION_INDEPENDENT_CODE=ON"
-    steps: &build-steps
+          - os: ubuntu-22.04
+            ghc: 8.10.7
+          - os: ubuntu-22.04-arm
+            ghc: 9.6.3
+          - os: macos-latest
+            ghc: 9.6.3
+          - os: windows-latest
+            ghc: 9.6.3
+    steps:
       - uses: actions/checkout@v6
         with:
           submodules: true
@@ -45,142 +219,33 @@ jobs:
           key: store-${{ matrix.os }}-ghc${{ matrix.ghc }}-${{ hashFiles('*/*.cabal') }}
           restore-keys: store-${{ matrix.os }}-ghc${{ matrix.ghc }}-
 
-      - name: Select GHC's C compiler (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          echo "ghc_cc=$(ghc --print-libdir)/../mingw/bin/clang.exe" >> "$GITHUB_ENV"
-          echo "ghc_ldflags=-fuse-ld=lld --rtlib=compiler-rt" >> "$GITHUB_ENV"
+      - *download-gen
+      - *download-fixtures
+      - *test-data
 
-      - name: Show C compiler macros
+      - name: Copy the ${{ env.WASM_VARIANT }} module and the wasm2c runtime into the package
+        run: |
+          mkdir -p webp-sandbox/gen
+          cp "$GEN/$WASM_VARIANT"/webp-wasm.c "$GEN/$WASM_VARIANT"/webp-wasm.h "$GEN"/wasm-rt* webp-sandbox/gen/
+          cp -r "$GEN/simde" webp-sandbox/gen/
+
+      - run: cabal build --enable-tests webp-sandbox:lib:webp-sandbox webp-sandbox:test:webp-sandbox-test webp-sandbox:exe:webp-sandbox-bench
+
+      - name: Report the size of the library
+        run: |
+          lib=$(find dist-newstyle -name 'libHSwebp-sandbox-*.a' -not -name '*_p.a')
+          echo "webp-sandbox library, $RUNNER_OS $RUNNER_ARCH, GHC ${{ matrix.ghc }}: $(wc -c < "$lib") bytes" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Test decoding in the sandbox against the native build
+        run: cabal test --enable-tests webp-sandbox --test-show-details=direct
         env:
-          CC: ${{ env.ghc_cc }}
+          FIXTURES: ${{ github.workspace }}/${{ env.FIXTURES }}
+
+      - name: Time decoding through the Haskell binding
         run: |
-          echo > "$RUNNER_TEMP/empty.c"
-          "${CC:-cc}" --version
-          "${CC:-cc}" -dM -E "$RUNNER_TEMP/empty.c" | grep -E ' (__SIZEOF_SIZE_T__|__SIZEOF_LONG__|__aarch64__|__x86_64__|_WIN32|__APPLE__|__ELF__|__clang__|__GNUC__) '
-
-      - run: cabal build --enable-tests all
-
-      - name: Show Neon symbols in the library
-        if: runner.arch == 'ARM64'
-        run: |
-          lib=$(find dist-newstyle -name 'libHSjpeg-turbo-*.a' -not -name '*_p.a')
-          nm -A -g "$lib" | grep -E 'neon\.o.* T _?jsimd_'
-          nm -A -g "$lib" | grep -E 'jsimd\.o.* T _?jsimd_can_'
-
-      - run: cabal test --enable-tests --test-show-details=direct all
-
-      - name: Build mozjpeg with CMake (Linux, macOS)
-        if: runner.os != 'Windows'
-        run: |
-          if [ "$RUNNER_ARCH" = X64 ]; then
-            if [ "$RUNNER_OS" = Linux ]; then
-              sudo apt-get update
-              sudo apt-get install -y nasm
-            else
-              brew install nasm
-            fi
-          fi
-          cmake -S jpeg-turbo/cbits/mozjpeg -B "$RUNNER_TEMP/mozjpeg-build" -DCMAKE_INSTALL_PREFIX="$RUNNER_TEMP/mozjpeg" $mozjpeg_cmake
-          cmake --build "$RUNNER_TEMP/mozjpeg-build" --target install --parallel
-          echo "MOZJPEG_PREFIX=$RUNNER_TEMP/mozjpeg" >> "$GITHUB_ENV"
-
-      - name: Compare neon-compat.h with the header generated by CMake
-        if: runner.arch == 'ARM64'
-        run: |
-          macros() {
-            cc -dM -E -include "$1" -x c /dev/null | sed -n 's/^#define \(HAVE_VLD1[A-Z0-9_]*\).*/\1/p' | sort
-          }
-          macros jpeg-turbo/cbits/neon-compat.h > "$RUNNER_TEMP/neon-compat-cabal.txt"
-          macros "$RUNNER_TEMP/mozjpeg-build/simd/arm/neon-compat.h" > "$RUNNER_TEMP/neon-compat-cmake.txt"
-          cat "$RUNNER_TEMP/neon-compat-cmake.txt"
-          diff "$RUNNER_TEMP/neon-compat-cabal.txt" "$RUNNER_TEMP/neon-compat-cmake.txt"
-
-      - name: Setup MSYS2
-        if: runner.os == 'Windows'
-        uses: simplex-chat/setup-msys2@v2
-        with:
-          msystem: ucrt64
-          update: true
-          install: make
-          pacboy: >-
-            toolchain:p
-            cmake:p
-            nasm:p
-
-      - name: Build mozjpeg with CMake (Windows)
-        if: runner.os == 'Windows'
-        shell: msys2 {0}
-        env:
-          CC: ${{ env.ghc_cc }}
-          LDFLAGS: ${{ env.ghc_ldflags }}
-        run: |
-          export CC=$(cygpath -m "$CC")
-          tmp=$(cygpath -m "$RUNNER_TEMP")
-          cmake -S jpeg-turbo/cbits/mozjpeg -B "$tmp/mozjpeg-build" -DCMAKE_INSTALL_PREFIX="$tmp/mozjpeg" $mozjpeg_cmake
-          cmake --build "$tmp/mozjpeg-build" --target install --parallel
-          echo "MOZJPEG_PREFIX=$tmp/mozjpeg" >> "$GITHUB_ENV"
-
-      - name: Compare JPEGs encoded by the cabal and CMake builds
-        env:
-          CC: ${{ env.ghc_cc }}
-          LDFLAGS: ${{ env.ghc_ldflags }}
-        run: bash .github/scripts/output-check.sh
-
-      - name: Report test coverage
-        if: matrix.os == 'ubuntu-22.04' && matrix.ghc == '9.6.3'
-        run: bash .github/scripts/coverage.sh
-
-  build-full:
-    name: ${{ matrix.os }}, GHC ${{ matrix.ghc }}
-    if: &full-run ${{ !(github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == true || (github.event_name == 'push' && github.repository != 'simplex-chat/hs-jpeg-turbo')) }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-22.04
-            ghc: 8.10.7
-          - os: ubuntu-22.04-arm
-            ghc: 9.6.3
-          - os: macos-latest
-            ghc: 9.6.3
-          - os: macos-15-intel
-            ghc: 9.6.3
-          - os: windows-latest
-            ghc: 9.6.3
-    env: *build-env
-    steps: *build-steps
-
-  armv7:
-    name: armv7 on ubuntu-24.04-arm, Neon and C
-    if: *full-run
-    runs-on: ubuntu-24.04-arm
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          submodules: true
-
-      - name: Install the armv7 cross compiler
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-arm-linux-gnueabihf
-          arm-linux-gnueabihf-gcc --version
-
-      - name: Compare neon-compat.h with the header generated by CMake
-        run: |
-          flags="-march=armv7-a -mfpu=neon -mfloat-abi=hard"
-          cmake -S jpeg-turbo/cbits/mozjpeg -B "$RUNNER_TEMP/mozjpeg-build" -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=arm -DCMAKE_C_COMPILER=arm-linux-gnueabihf-gcc -DCMAKE_C_FLAGS="$flags" -DBUILD_SHARED_LIBS=OFF -DPNG_SUPPORTED=OFF
-          macros() {
-            arm-linux-gnueabihf-gcc $flags -dM -E -include "$1" -x c /dev/null | sed -n 's/^#define \(HAVE_VLD1[A-Z0-9_]*\).*/\1/p' | sort
-          }
-          macros jpeg-turbo/cbits/neon-compat.h > "$RUNNER_TEMP/neon-compat-cabal.txt"
-          macros "$RUNNER_TEMP/mozjpeg-build/simd/arm/neon-compat.h" > "$RUNNER_TEMP/neon-compat-cmake.txt"
-          cat "$RUNNER_TEMP/neon-compat-cmake.txt"
-          diff "$RUNNER_TEMP/neon-compat-cabal.txt" "$RUNNER_TEMP/neon-compat-cmake.txt"
-
-      - name: Compare JPEGs encoded with Neon and with the C code paths
-        run: bash .github/scripts/armv7-check.sh
-
-      - name: Compare PNGs decoded by the armv7 and aarch64 builds
-        run: bash .github/scripts/png-check.sh
+          bench=$(cabal list-bin --enable-tests webp-sandbox:exe:webp-sandbox-bench)
+          {
+            echo "### Haskell binding, $RUNNER_OS $RUNNER_ARCH, GHC ${{ matrix.ghc }}, the $WASM_VARIANT module with bounds checks"
+            echo
+            "$bench" "$FIXTURES"/*.webp
+          } | tee -a "$GITHUB_STEP_SUMMARY"
