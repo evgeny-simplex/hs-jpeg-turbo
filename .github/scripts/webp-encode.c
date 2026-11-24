@@ -5,7 +5,7 @@
 
 #define WIDTH 1024
 #define HEIGHT 4096
-#define PERIOD 1023
+#define PERIOD 960
 
 static uint32_t hash(uint32_t x, uint32_t y)
 {
@@ -32,6 +32,7 @@ static void encode(const char *dir, const char *name, const uint8_t *rgba, int l
   WebPConfig config;
   WebPPicture picture;
   WebPMemoryWriter writer;
+  WebPAuxStats stats;
 
   if (!WebPConfigInit(&config) || !WebPPictureInit(&picture)) {
     fprintf(stderr, "%s: libwebp version mismatch\n", name);
@@ -40,19 +41,22 @@ static void encode(const char *dir, const char *name, const uint8_t *rgba, int l
   config.lossless = lossless;
   config.exact = 1;
   config.quality = lossless ? 80 : 75;
+  config.method = lossless ? 4 : 0;
   config.alpha_filtering = 0;
   picture.use_argb = lossless;
   picture.width = WIDTH;
   picture.height = HEIGHT;
   picture.writer = WebPMemoryWrite;
   picture.custom_ptr = &writer;
+  picture.stats = &stats;
   WebPMemoryWriterInit(&writer);
   if (!WebPPictureImportRGBA(&picture, rgba, WIDTH * 4) || !WebPEncode(&config, &picture)) {
     fprintf(stderr, "%s: encoding error %d\n", name, picture.error_code);
     exit(1);
   }
   write_file(dir, name, "", writer.mem, writer.size);
-  printf("%s: %dx%d, %lu bytes\n", name, WIDTH, HEIGHT, (unsigned long)writer.size);
+  printf("%s: %dx%d, %lu bytes; %s stream: transforms 0x%x, palette %d, color cache bits %d\n", name, WIDTH, HEIGHT, (unsigned long)writer.size,
+         lossless ? "lossless" : "alpha", stats.lossless_features, stats.palette_size, stats.cache_bits);
   WebPMemoryWriterClear(&writer);
   WebPPictureFree(&picture);
 }

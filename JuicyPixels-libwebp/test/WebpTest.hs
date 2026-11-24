@@ -11,7 +11,7 @@ import Data.ByteString.Char8 qualified as BC
 import Data.ByteString.Internal qualified as BI
 import Data.ByteString.Lazy qualified as BL
 import Data.Either (isRight)
-import Data.List (nub)
+import Data.List (nub, transpose)
 import Data.Vector.Storable qualified as V
 import Data.Word (Word8)
 import System.Environment (lookupEnv)
@@ -31,13 +31,26 @@ unit_conformance = do
   where
     md5Entry line = let (md5, name) = break (== ' ') line in (drop 2 name, md5)
 
-unit_slidingWindow :: IO ()
-unit_slidingWindow =
+unit_sources :: IO ()
+unit_sources =
   forM_ [("tall-lossless.webp", "tall-lossless.pam", fmap snd . netpbmFile), ("tall-lossy-alpha.webp", "tall-lossy-alpha.pgm", alphaFile)] \(file, source, decoded) -> do
     expected <- testFile source
     testFile file >>= decodeWebp options >>= \case
       Right (image, _) -> assertBool (file <> ": decoded pixels differ from " <> source) $ decoded image == Just expected
       Left e -> assertFailure $ file <> ": " <> e
+
+unit_scaledSources :: IO ()
+unit_scaledSources =
+  forM_ [("tall-lossless.webp", premultiplied), ("tall-lossy-alpha.webp", \(PixelRGBA8 _ _ _ a) -> [fromIntegral a])] \(file, samplesOf) -> do
+    webp <- testFile file
+    Right (ImageRGBA8 full, _) <- decodeWebp options webp
+    Right (ImageRGBA8 half, _) <- decodeWebp options {outputSize = halfSize} webp
+    (imageWidth half, imageHeight half) @?= (imageWidth full `div` 2, imageHeight full `div` 2)
+    let average x y = map ((/ 4) . sum) $ transpose [samplesOf $ pixelAt full (2 * x + i) (2 * y + j) | i <- [0, 1], j <- [0, 1]]
+        differences = [abs (e - d) | y <- [0 .. imageHeight half - 1], x <- [0 .. imageWidth half - 1], (e, d) <- zip (average x y) (samplesOf $ pixelAt half x y)]
+    assertBool (file <> ": scaled samples differ from the averages of the full decode by more than 2") $ all (<= 2) differences
+  where
+    premultiplied (PixelRGBA8 r g b a) = [fromIntegral c * fromIntegral a / 255 | c <- [r, g, b]] <> [fromIntegral a :: Double]
 
 unit_animation :: IO ()
 unit_animation = do
@@ -51,21 +64,44 @@ unit_animation = do
         | otherwise = PixelRGBA8 0 0 0 0
   decodeWebp options webp >>= (@?= Right ("RGBA8", imageData expected)) . fmap (samples . fst)
 
-unit_iccProfile :: IO ()
-unit_iccProfile = do
+unit_scaledAnimation :: IO ()
+unit_scaledAnimation = do
+  small <- testFile "small_31x13.webp"
+  let webp = animation (37, 13) [((2, 0), (31, 13), small)]
+  Right (ImageRGBA8 canvas, _) <- decodeWebp options {outputSize = const $ Right (19, 7)} webp
+  (imageWidth canvas, imageHeight canvas) @?= (19, 7)
+  [a | y <- [0 .. 6], x <- [0 .. 18], let PixelRGBA8 _ _ _ a = pixelAt canvas x y] @?= [if x >= 1 && x <= 16 then 255 else 0 | _ <- [0 .. 6 :: Int], x <- [0 .. 18 :: Int]]
+
+unit_metadata :: IO ()
+unit_metadata = do
   still <- testFile "test.webp"
   let profile = B.pack $ take 1001 $ cycle [0 .. 255]
-  decodeWebp options (riff [vp8x 0x20 (128, 128), chunk "ICCP" profile, B.drop 12 still]) >>= (@?= Right (Just profile)) . fmap snd
-  decodeWebp options still >>= (@?= Right Nothing) . fmap snd
+      exifData = B.pack $ take 101 $ cycle [255, 254 .. 0]
+  decodeWebp options (riff [vp8x 0x28 (128, 128), chunk "ICCP" profile, B.drop 12 still, chunk "EXIF" exifData]) >>= (@?= Right (Metadata (Just profile) (Just exifData))) . fmap snd
+  decodeWebp options (riff [vp8x 0 (128, 128), chunk "ICCP" profile, B.drop 12 still, chunk "EXIF" exifData]) >>= (@?= Right (Metadata Nothing Nothing)) . fmap snd
+  decodeWebp options still >>= (@?= Right (Metadata Nothing Nothing)) . fmap snd
 
 unit_limits :: IO ()
 unit_limits = do
   small <- testFile "small_1x1.webp"
+  lossless <- testFile "tall-lossless.webp"
+  lossyAlpha <- testFile "tall-lossy-alpha.webp"
   let canvas size = animation size [((0, 0), (1, 1), small)]
-  decodeWebp (DecodeOptions 1) (canvas (512, 512)) >>= assertBool "512x512 RGBA canvas refused" . isRight
-  decodeWebp (DecodeOptions 1) (canvas (513, 512)) >>= (@?= Left "image is too large") . fmap (samples . fst)
+  forM_
+    [ (5, Right, canvas (512, 512), "512x512 canvas of a lossy frame")
+    , (171, Right, lossless, "1024x4096 lossless image")
+    , (159, halfSize, lossless, "1024x4096 lossless image decoded at 512x2048")
+    , (179, Right, lossyAlpha, "1024x4096 lossy image with alpha")
+    ]
+    \(memoryMB, size, webp, image) -> do
+      decodeWebp (DecodeOptions memoryMB size) webp >>= assertBool (image <> " refused within " <> show memoryMB <> " MiB") . isRight
+      decodeWebp (DecodeOptions (memoryMB - 1) size) webp >>= (@?= Left "image is too large") . fmap (samples . fst)
+  decodeWebp (DecodeOptions 5 Right) (canvas (513, 512)) >>= (@?= Left "image is too large") . fmap (samples . fst)
   decodeWebp options (canvas (16385, 16)) >>= (@?= Left "image side exceeds 16384") . fmap (samples . fst)
-  decodeWebp (DecodeOptions 0) small >>= (@?= Left "invalid decode options") . fmap (samples . fst)
+  decodeWebp options {maxMemoryMB = 0} small >>= (@?= Left "invalid decode options") . fmap (samples . fst)
+  decodeWebp options {outputSize = const $ Left "size refused"} small >>= (@?= Left "size refused") . fmap (samples . fst)
+  forM_ [(0, 1), (1, 0), (2, 1), (1, 2)] \size ->
+    decodeWebp options {outputSize = const $ Right size} small >>= (@?= Left "invalid decode options") . fmap (samples . fst)
 
 unit_malformed :: IO ()
 unit_malformed = do
@@ -79,7 +115,10 @@ testFile :: FilePath -> IO B.ByteString
 testFile name = lookupEnv "WEBP_TEST_DATA" >>= maybe (assertFailure "WEBP_TEST_DATA is not set") (\dir -> B.readFile $ dir <> "/" <> name)
 
 options :: DecodeOptions
-options = DecodeOptions 64
+options = DecodeOptions 256 Right
+
+halfSize :: (Int, Int) -> Either String (Int, Int)
+halfSize (w, h) = Right (w `div` 2, h `div` 2)
 
 samples :: DynamicImage -> (String, V.Vector Word8)
 samples = \case

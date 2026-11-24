@@ -1,6 +1,6 @@
 cabal-version: 3.0
 
-name:           JuicyPixels-webp
+name:           JuicyPixels-libwebp
 version:        0.1.0.0
 synopsis:       JuicyPixels wrappers for libwebp
 description:    WebP decoding of JuicyPixels images with libwebp.
@@ -41,7 +41,7 @@ library
       TypeOperators
       TypeFamilies
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
-  cc-options: -DWEBP_USE_THREAD -DWEBP_MAX_ALLOCABLE_MEMORY=536870912
+  cc-options: -DWEBP_USE_THREAD -DWEBP_MAX_ALLOCABLE_MEMORY=67108864
   include-dirs:
       cbits/libwebp
   c-sources:
@@ -55,7 +55,6 @@ library
       cbits/libwebp/src/dec/vp8_dec.c
       cbits/libwebp/src/dec/vp8l_dec.c
       cbits/libwebp/src/dec/webp_dec.c
-      cbits/libwebp/src/demux/anim_decode.c
       cbits/libwebp/src/demux/demux.c
       cbits/libwebp/src/dsp/alpha_processing.c
       cbits/libwebp/src/dsp/alpha_processing_neon.c
@@ -103,7 +102,7 @@ library
     , vector
   default-language: Haskell2010
 
-test-suite JuicyPixels-webp-test
+test-suite JuicyPixels-libwebp-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
@@ -128,7 +127,7 @@ test-suite JuicyPixels-webp-test
       tasty-discover:tasty-discover
   build-depends:
       JuicyPixels
-    , JuicyPixels-webp
+    , JuicyPixels-libwebp
     , base >=4.7 && <5
     , bytestring
     , cryptohash-md5

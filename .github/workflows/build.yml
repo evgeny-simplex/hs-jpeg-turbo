@@ -19,7 +19,7 @@ jobs:
       - name: Encode the WebP fixtures of simplex-chat with cwebp 1.6.0
         run: bash .github/scripts/measure-fixtures.sh
 
-      - name: Measure the memory of libwebp decoding at v1.6.0 and f054d0c3
+      - name: Measure the memory of libwebp 1.6.0 decoding, at full size and scaled
         run: |
           sudo apt-get update
           sudo apt-get install -y time
