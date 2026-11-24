@@ -34,6 +34,7 @@ int main(int argc, char **argv)
     return 1;
   config.lossless = lossless;
   config.method = lossless ? 0 : 4;
+  config.partition_limit = 100;
   config.alpha_filtering = alpha == 2 ? 0 : config.alpha_filtering;
   picture.use_argb = lossless;
   picture.width = width;

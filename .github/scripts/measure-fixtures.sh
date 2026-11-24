@@ -57,10 +57,10 @@ uniform "$tmp/uniform-alpha-4321x16.pam" 4321 16 200 100 50 128
 "$bin/dwebp" -quiet "$out/lossy-8641x16.webp" -scale 4320 8 -ppm -o "$tmp/lossy-8641x16-scaled.ppm"
 "$bin/dwebp" -quiet "$out/lossless-alpha-16383x16.webp" -scale 4096 4 -pam -o "$tmp/lossless-alpha-16383x16-scaled.pam"
 "$bin/dwebp" -quiet "$out/lossy-alpha-4321x16.webp" -scale 2160 8 -pam -o "$tmp/lossy-alpha-4321x16-scaled.pam"
-lib=JuicyPixels-libwebp/cbits/libwebp
-gcc -O2 -I "$lib" -I "$lib/src" "$lib"/src/*/*.c "$lib"/sharpyuv/*.c .github/scripts/measure-craft.c -lm -o "$tmp/craft.exe"
-"$tmp/craft.exe" "$out/lossless-16383x16383.webp" lossless 16383 16383 0 0
-for file in lossy lossless-alpha lossy-alpha lossy-8641x16 lossless-alpha-16383x16 lossy-alpha-4321x16 lossless-16383x16383; do
+uniform "$tmp/uniform-alpha-9000x9000.pam" 9000 9000 200 100 50 128
+"$bin/cwebp" -quiet -lossless -z 0 "$tmp/uniform-alpha-9000x9000.pam" -o "$out/lossless-alpha-9000x9000.webp"
+rm "$tmp/uniform-alpha-9000x9000.pam"
+for file in lossy lossless-alpha lossy-alpha lossy-8641x16 lossless-alpha-16383x16 lossy-alpha-4321x16 lossless-alpha-9000x9000; do
   echo "== $file.webp"
   "$bin/webpinfo" "$out/$file.webp" | grep -E 'Chunk|Width|Height|Format|Alpha|Animation|ICCP'
 done
