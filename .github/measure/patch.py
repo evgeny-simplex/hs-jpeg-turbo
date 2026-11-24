@@ -36,7 +36,14 @@ REPLACEMENTS = [
     ),
 ]
 
-path = sys.argv[1]
+PROVISIONAL = (
+    "      | \"\\x89PNG\\r\\n\\x1a\\n\" `B.isPrefixOf` s = ExceptT $ Spng.decodePng (Spng.DecodeOptions $ maxDecodeMemoryMB `div` 2) s\n",
+    "      | \"\\x89PNG\\r\\n\\x1a\\n\" `B.isPrefixOf` s = ExceptT $ Spng.decodePng (Spng.DecodeOptions (2 ^ (28 :: Int)) (maxDecodeMemoryMB `div` 2) (\\(w, h) -> maybe imageDoesNotFit (Right . snd) $ displaySize w h)) s\n",
+)
+
+path, *options = sys.argv[1:]
+if options == ["--provisional"]:
+    REPLACEMENTS.append(PROVISIONAL)
 with open(path) as f:
     source = f.read()
 for old, new in REPLACEMENTS:

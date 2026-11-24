@@ -311,7 +311,15 @@ def quality_report(scores):
 
 
 def environment_report():
-    return "Each measurement process runs alone on a GitHub ubuntu-24.04 runner with 4 CPUs. Image.hs is compiled with two replacements read from the environment: `maxDecodeMemoryMB` from `MAX_DECODE_MB` (1024 when unset, as in desktop builds) and sharpening at the kept size when `SHARPEN_KEPT` is set; with `SHARPEN_KEPT` unset and `MAX_DECODE_MB` at 512 or 1024, the code equals the commit's code of mobile or desktop builds.\n\n"
+    core = os.environ.get("NEW_SOURCE", "")
+    if core == "provisional":
+        new = "new: master's Image.hs with its PNG line of `decodeResizable` replaced by `Spng.DecodeOptions (2 ^ (28 :: Int)) (maxDecodeMemoryMB `div` 2) (\\(w, h) -> maybe imageDoesNotFit (Right . snd) $ displaySize w h)`, provisional until a commit of ep/core-png is measured, with the binding of this branch"
+    elif core:
+        new = f"new: Image.hs of evgeny-simplex/simplex-chat at {core}, with the binding of this branch"
+    else:
+        new = "new: not measured"
+    base = f"base: Image.hs of simplex-chat/simplex-chat at {os.environ.get('BASE_CORE')}, with simplex-chat/hs-jpeg-turbo at {os.environ.get('BASE_BINDING')}"
+    return f"{base}; {new}.\n\nEach measurement process runs alone on a GitHub ubuntu-24.04 runner with 4 CPUs. Image.hs is compiled with two replacements read from the environment: `maxDecodeMemoryMB` from `MAX_DECODE_MB` (1024 when unset, as in desktop builds) and sharpening at the kept size when `SHARPEN_KEPT` is set; with `SHARPEN_KEPT` unset and `MAX_DECODE_MB` at 512 or 1024, the code equals the commit's code of mobile or desktop builds.\n\n"
 
 
 def main():
