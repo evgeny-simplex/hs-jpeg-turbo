@@ -55,7 +55,6 @@ library
       cbits/libwebp/src/dec/vp8_dec.c
       cbits/libwebp/src/dec/vp8l_dec.c
       cbits/libwebp/src/dec/webp_dec.c
-      cbits/libwebp/src/demux/anim_decode.c
       cbits/libwebp/src/demux/demux.c
       cbits/libwebp/src/dsp/alpha_processing.c
       cbits/libwebp/src/dsp/alpha_processing_neon.c
