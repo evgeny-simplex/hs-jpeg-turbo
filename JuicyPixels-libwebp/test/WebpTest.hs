@@ -57,6 +57,7 @@ unit_metadata = do
   let profile = B.pack $ take 1001 $ cycle [0 .. 255]
       exifData = B.pack $ take 101 $ cycle [255, 254 .. 0]
   decodeWebp options (riff [vp8x 0x28 (128, 128), chunk "ICCP" profile, B.drop 12 still, chunk "EXIF" exifData]) >>= (@?= Right (Metadata (Just profile) (Just exifData))) . fmap snd
+  decodeWebp options (riff [vp8x 0 (128, 128), chunk "ICCP" profile, B.drop 12 still, chunk "EXIF" exifData]) >>= (@?= Right (Metadata Nothing Nothing)) . fmap snd
   decodeWebp options still >>= (@?= Right (Metadata Nothing Nothing)) . fmap snd
 
 unit_limits :: IO ()
