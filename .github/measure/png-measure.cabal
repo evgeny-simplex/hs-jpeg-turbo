@@ -14,7 +14,7 @@ executable resize
       src
   default-extensions:
       StrictData
-  ghc-options: -O2
+  ghc-options: -O2 -rtsopts
   build-depends:
       JuicyPixels ==3.3.*
     , JuicyPixels-jpeg-turbo ==0.1.*

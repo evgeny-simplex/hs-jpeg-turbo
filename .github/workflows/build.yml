@@ -159,7 +159,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: memory
-          path: results/memory.json
+          path: |
+            results/memory.json
+            results/stages.json
 
   quality:
     needs: [build, inputs]

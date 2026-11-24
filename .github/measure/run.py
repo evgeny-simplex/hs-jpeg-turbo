@@ -71,6 +71,28 @@ def memory(binaries, out, files):
     return results
 
 
+STAGE_INPUTS = ["zero-rgba8-8192x8192-paeth", "zero-rgba8-8192x8192-adam7-paeth", "large", "relief-transparent", "saturn-photo", "world-map", "grey-16384x16384"]
+
+
+def stages(binaries, files):
+    results = []
+    for limit in ["512", "1024"]:
+        for path in files:
+            name = os.path.splitext(os.path.basename(path))[0]
+            if name not in STAGE_INPUTS:
+                continue
+            for version, binary in binaries.items():
+                process = subprocess.run([binary, "stages", path, "+RTS", "-T", "-RTS"], env={**os.environ, "MAX_DECODE_MB": limit}, capture_output=True, text=True)
+                lines = [json.loads(line) for line in process.stdout.splitlines() if line.startswith("{")]
+                if process.returncode != 0:
+                    lines.append({"stage": "exit", "error": f"exit {process.returncode}: {process.stderr[-300:]}"})
+                for line in lines:
+                    line.update(version=version, limit=int(limit), name=name, cpu=cpu())
+                    print(json.dumps(line), flush=True)
+                results += lines
+    return results
+
+
 def binaries(directory):
     return {version: path for version in ["base", "new"] if os.path.exists(path := os.path.join(directory, f"resize-{version}"))}
 
@@ -243,6 +265,12 @@ def memory_report(results):
     return out + f"Base and new ran one after the other on one runner: {cpus}.\n\n" + table(["input", "bytes", "MAX_DECODE_MB", "mode", "base result", "base MiB", "base s", "new result", "new MiB", "new s"], rows)
 
 
+def stages_report(results):
+    out = "## Memory by stage\n\nOne process per input, version and limit; after each stage: resident set (`VmRSS`), its peak so far (`VmHWM`) and the RTS maximum of memory in use (`+RTS -T`), MiB. The stages before `resizeImage` repeat its first trial with the exported functions: `scaleRGBA8` of the decoded image at 1×1 premultiplies the whole image, as the first trial of `fitImage` does, and the closure keeps the premultiplied copy for the trial at the largest size; `resizeImage` and `resizeImageDataUri` then run the whole size search, each with its own premultiplied copy.\n\n"
+    rows = [[r["name"], r["limit"], r["version"], r["stage"], r.get("error") or "", r.get("ms"), r.get("rss_mib"), r.get("hwm_mib"), r.get("rts_max_mem_in_use_mib")] for r in results]
+    return out + table(["input", "MAX_DECODE_MB", "version", "stage", "error", "ms", "RSS", "peak RSS", "RTS max in use"], rows)
+
+
 def equality_report(rows):
     out = "## Equality with today's path, sides at most 4320\n\n"
     counts = {k: sum(1 for r in rows if r[k]) for k in ["decode", "image", "preview"]}
@@ -290,6 +318,7 @@ def main():
     if command == "memory":
         directory, out, inputs, corpus_file = args
         files = sorted(glob.glob(os.path.join(inputs, "generated", "*"))) + corpus(corpus_file, inputs, "png")
+        write_json(os.path.join(out, "stages.json"), stages(binaries(directory), files))
         write_json(os.path.join(out, "memory.json"), memory(binaries(directory), out, files))
     elif command == "resize":
         directory, wanted, out, inputs, corpus_file = args
@@ -309,6 +338,9 @@ def main():
         memories = [r for f in sorted(glob.glob(os.path.join(out, "**", "memory.json"), recursive=True)) for r in json.load(open(f))]
         if memories:
             report += memory_report(memories) + "\n"
+        stage_rows = [r for f in sorted(glob.glob(os.path.join(out, "**", "stages.json"), recursive=True)) for r in json.load(open(f))]
+        if stage_rows:
+            report += stages_report(stage_rows) + "\n"
         equalities = glob.glob(os.path.join(out, "**", "equality.json"), recursive=True)
         if equalities:
             report += equality_report(json.load(open(equalities[0]))) + "\n"

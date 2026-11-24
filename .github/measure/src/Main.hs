@@ -3,17 +3,20 @@
 
 module Main (main) where
 
-import Codec.Picture (DynamicImage (..), Image (..), decodeImage, dynamicMap)
+import Codec.Picture (DynamicImage (..), Image (..), convertRGB8, convertRGBA8, decodeImage, dynamicMap)
+import Codec.Picture.JPEGTurbo (encodeRGB)
+import qualified Codec.Picture.Spng as Spng
 import Control.Exception (evaluate)
 import Data.Bits (xor)
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Base64.Lazy as LB64
 import qualified Data.ByteString.Lazy.Char8 as LB
-import Data.List (intercalate)
+import Data.List (intercalate, isPrefixOf)
 import qualified Data.Vector.Storable as VS
 import Data.Word (Word64, Word8)
 import GHC.Clock (getMonotonicTimeNSec)
-import Simplex.Chat.Image (ColourProfile, decodeResizable, imageFormat, resizeImage, resizeImageDataUri)
+import GHC.Stats (RTSStats (..), getRTSStats, getRTSStatsEnabled)
+import Simplex.Chat.Image (ColourProfile, ImageFormat (..), decodeResizable, imageFormat, resizeImage, resizeImageDataUri, scaleRGB8, scaleRGBA8)
 import System.Environment (getArgs)
 
 main :: IO ()
@@ -26,7 +29,55 @@ main =
       (r, ms) <- timed . decodeForced =<< B.readFile file
       resized <- either (const $ pure []) (uncurry $ resize out) r
       putStrLn $ json $ [("mode", str "resize"), ("file", str file), ("decode_ms", show ms)] <> decoded r <> resized
-    _ -> fail "usage: resize decode FILE | resize resize FILE OUTDIR"
+    ["stages", file] -> stages file
+    _ -> fail "usage: resize decode FILE | resize resize FILE OUTDIR | resize stages FILE"
+
+stages :: FilePath -> IO ()
+stages file = do
+  bytes <- stage "read the file" $ B.readFile file >>= \b -> b <$ evaluate (B.length b)
+  stage "decodeResizable" (decodeForced bytes) >>= \case
+    Left e -> putStrLn $ json [("stage", str "decodeResizable"), ("error", str e)]
+    Right (img, profile) -> do
+      let (w, h) = size img
+          largest = halved (w, h)
+      case imageFormat img of
+        IFPng -> do
+          let scale = scaleRGBA8 (convertRGBA8 img)
+          _ <- stage "premultiply, as the first trial of scaleRGBA8 (1x1 output)" $ forcedImage $ scale (1, 1)
+          trial <- stage ("trial at the largest size " <> show largest <> ": Catmull-Rom, sharpen, unpremultiply") $ forcedImage $ scale largest
+          _ <- stage "encode the trial twice, libspng level 9 with and without filters" $ mapM (\f -> Spng.encodePng (Spng.EncodeOptions 9 f Nothing) trial) [False, True]
+          pure ()
+        IFJpeg -> do
+          trial <- stage ("trial at the largest size " <> show largest <> ": Catmull-Rom, sharpen") $ forcedImage $ scaleRGB8 (convertRGB8 img) largest
+          _ <- stage "encode the trial, mozjpeg quality 65" $ encodeRGB 65 Nothing trial >>= \b -> b <$ evaluate (B.length b)
+          pure ()
+      _ <- stage "resizeImage, 261120 bytes" $ resizeImage (imageFormat img) 261120 img profile >>= either (pure . Left) (\b -> Right b <$ evaluate (LB.length b))
+      _ <- stage "resizeImageDataUri, 14000 characters" $ resizeImageDataUri 14000 img profile >>= either (pure . Left) (\b -> Right b <$ evaluate (LB.length b))
+      pure ()
+  where
+    forcedImage i = i <$ evaluate (VS.length $ imageData i)
+    halved (w, h)
+      | w <= 4320 && h <= 4320 = (w, h)
+      | otherwise = halved (half w, half h)
+    half :: Int -> Int
+    half side = round (fromIntegral side / 2 :: Float)
+
+stage :: String -> IO a -> IO a
+stage name action = do
+  (r, ms) <- timed action
+  rss <- procStatus "VmRSS:"
+  hwm <- procStatus "VmHWM:"
+  heap <- getRTSStatsEnabled >>= \enabled -> if enabled then Just . max_mem_in_use_bytes <$> getRTSStats else pure Nothing
+  putStrLn $ json [("stage", str name), ("ms", show ms), ("rss_mib", show rss), ("hwm_mib", show hwm), ("rts_max_mem_in_use_mib", maybe "null" (\b -> show (fromIntegral b / 1048576 :: Double)) heap)]
+  pure r
+
+procStatus :: String -> IO Double
+procStatus key = do
+  status <- readFile "/proc/self/status"
+  _ <- evaluate (length status)
+  pure $ case [read (head (words (drop (length key) line))) :: Double | line <- lines status, key `isPrefixOf` line] of
+    kb : _ -> kb / 1024
+    [] -> -1
 
 decodeForced :: B.ByteString -> IO (Either String (DynamicImage, ColourProfile))
 decodeForced bytes =
