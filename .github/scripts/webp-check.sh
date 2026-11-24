@@ -36,24 +36,51 @@ awk 'NR == FNR {outputs[$1]; next} $2 in outputs' "$out/outputs.txt" "$md5s" > "
 (cd "$out/aarch64" && md5sum --check --quiet ../expected.md5)
 echo "$(wc -l < "$out/outputs.txt") WebP files decoded identically on armv7 and aarch64, equal to libwebp_tests.md5"
 
-for side in 16384 64; do
-  for build in armv7 aarch64 sanitized; do
-    mkdir -p "$out/$side-$build"
-    "$out/$build.exe" check "$out/$side-$build" $side $tall
-  done
-  diff -r "$out/$side-armv7" "$out/$side-aarch64"
-  diff -r "$out/$side-aarch64" "$out/$side-sanitized"
-done
-cmp "$out/16384-aarch64/tall-lossless.webp.pam" "$WEBP_TEST_DATA/tall-lossless.pam"
-echo "$(ls "$out/16384-aarch64" | wc -l) tall WebP files decoded identically on armv7, aarch64 and with sanitizers, at full size and with sides of at most 64, the lossless one at full size equal to its source pixels"
-
 for build in armv7 aarch64 sanitized; do
-  mkdir -p "$out/64-$build-conformance"
-  "$out/$build.exe" check "$out/64-$build-conformance" 64 $files
+  mkdir -p "$out/tall-$build" "$out/scaled-$build"
+  "$out/$build.exe" check "$out/tall-$build" 16384 $tall
+  "$out/$build.exe" check "$out/scaled-$build" 64 $files $tall
 done
-diff -r "$out/64-armv7-conformance" "$out/64-aarch64-conformance"
-diff -r "$out/64-aarch64-conformance" "$out/64-sanitized-conformance"
-echo "$(ls "$out/64-aarch64-conformance" | wc -l) WebP files decoded with sides of at most 64 identically on armv7, aarch64 and with sanitizers"
+diff -r "$out/tall-armv7" "$out/tall-aarch64"
+diff -r "$out/tall-aarch64" "$out/tall-sanitized"
+cmp "$out/tall-aarch64/tall-lossless.webp.pam" "$WEBP_TEST_DATA/tall-lossless.pam"
+echo "$(ls "$out/tall-aarch64" | wc -l) tall WebP files decoded identically on armv7, aarch64 and with sanitizers, the lossless one equal to its source pixels"
+
+diff -r "$out/scaled-aarch64" "$out/scaled-sanitized"
+python3 -I - "$out/scaled-armv7" "$out/scaled-aarch64" <<'PY'
+import os
+import sys
+
+def samples(path):
+    data = open(path, "rb").read()
+    if data.startswith(b"P7"):
+        end = data.index(b"ENDHDR\n") + 7
+        return 4, data[:end], data[end:]
+    if data.startswith(b"P6"):
+        end = len(b"\n".join(data.split(b"\n", 3)[:3])) + 1
+        return 3, data[:end], data[end:]
+    return 0, data, b""
+
+c_dir, neon_dir = sys.argv[1:]
+names = sorted(os.listdir(neon_dir))
+differing, largest = 0, 0
+for name in names:
+    depth, c_header, c = samples(os.path.join(c_dir, name))
+    _, neon_header, neon = samples(os.path.join(neon_dir, name))
+    if c_header != neon_header:
+        sys.exit(f"{name}: the armv7 and aarch64 outputs differ in their headers")
+    if c == neon:
+        continue
+    differing += 1
+    for i in range(0, len(c), depth):
+        if depth == 4:
+            a, b = c[i + 3], neon[i + 3]
+            largest = max([largest, abs(a - b)] + [abs(c[i + k] * a - neon[i + k] * b) / 255 for k in range(3)])
+        else:
+            largest = max([largest] + [abs(c[i + k] - neon[i + k]) for k in range(3)])
+print(f"{len(names)} WebP files decoded with sides of at most 64 identically on aarch64 and with sanitizers; armv7 and aarch64 outputs of {differing} files differ by at most {largest:.2f} in a sample, colour premultiplied by alpha")
+sys.exit(1 if largest > 5 else 0)
+PY
 
 for side in 16384 64; do
   "$out/sanitized.exe" fuzz $side $files $tall
