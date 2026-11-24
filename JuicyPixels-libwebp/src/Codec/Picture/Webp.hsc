@@ -98,8 +98,8 @@ scaledSpan side side' offset size = (start, end - start)
 decoderMemory :: CInt -> CInt -> CInt -> CInt -> Integer
 decoderMemory format hasAlpha width height
   | format == losslessFormat = rows + lossless
-  | hasAlpha /= 0 = rows + alphaPlanes + lossless
-  | otherwise = rows
+  | format == lossyFormat && hasAlpha == 0 = rows
+  | otherwise = rows + alphaPlanes + lossless
   where
     pixels = toInteger width * toInteger height
     lossless = 4 * pixels + subsampledImages + huffmanTables
@@ -108,6 +108,9 @@ decoderMemory format hasAlpha width height
     alphaPlanes = 2 * pixels
     rows = 4 * 1048576
     maxAllocable = #{const WEBP_MAX_ALLOCABLE_MEMORY}
+
+lossyFormat :: CInt
+lossyFormat = 1
 
 losslessFormat :: CInt
 losslessFormat = 2
