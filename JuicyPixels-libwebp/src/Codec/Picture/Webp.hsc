@@ -20,8 +20,7 @@ import Foreign (Ptr, allocaBytes, castPtr, minusPtr, nullPtr, peekByteOff, plusP
 import Foreign.C.String (CString)
 import Foreign.C.Types (CInt(..), CSize(..))
 
-#include "src/webp/decode.h"
-#include "src/webp/demux.h"
+#include "hs_webp.h"
 
 data DecodeOptions = DecodeOptions
   { maxMemoryMB :: Int
@@ -37,7 +36,7 @@ data Metadata = Metadata
 decodeWebp :: DecodeOptions -> ByteString -> IO (Either String (DynamicImage, Metadata))
 decodeWebp DecodeOptions{maxMemoryMB, outputSize} webp
   | maxMemoryMB < 1 = pure $ Left "invalid decode options"
-  | otherwise = withDemuxer webp \input demux -> do
+  | otherwise = withDemuxer limit webp \input memory demux -> do
       width <- canvasSide demux #{const WEBP_FF_CANVAS_WIDTH}
       height <- canvasSide demux #{const WEBP_FF_CANVAS_HEIGHT}
       when (width > maxSide || height > maxSide) $ throwE "image side exceeds 16384"
@@ -46,12 +45,13 @@ decodeWebp DecodeOptions{maxMemoryMB, outputSize} webp
       flags <- liftIO $ webPDemuxGetI demux #{const WEBP_FF_FORMAT_FLAGS}
       let animated = flags .&. #{const ANIMATION_FLAG} /= 0
       image <-
-        withIterator #{size WebPIterator} (webPDemuxGetFrame demux 1) webPDemuxReleaseIterator (decodeFrame (width, height) (width', height') animated)
+        withIterator #{size WebPIterator} (webPDemuxGetFrame demux 1) webPDemuxReleaseIterator (decodeFrame memory (width, height) (width', height') animated)
           >>= maybe (throwE "invalid WebP container") pure
       let chunk fourcc = withIterator #{size WebPChunkIterator} (getChunk demux fourcc) webPDemuxReleaseChunkIterator (chunkPayload input)
       (image,) <$> (Metadata <$> chunk "ICCP" <*> chunk "EXIF")
   where
-    decodeFrame (width, height) (width', height') animated iter = do
+    limit = fromInteger $ min (toInteger (maxBound :: CSize)) (toInteger maxMemoryMB * 1048576)
+    decodeFrame memory (width, height) (width', height') animated iter = do
       fragment <- liftIO $ #{peek WebPIterator, fragment.bytes} iter
       fragmentSize <- liftIO $ #{peek WebPIterator, fragment.size} iter
       x <- liftIO (#{peek WebPIterator, x_offset} iter :: IO CInt)
@@ -61,7 +61,6 @@ decodeWebp DecodeOptions{maxMemoryMB, outputSize} webp
         frameWidth <- liftIO (#{peek WebPDecoderConfig, input.width} config :: IO CInt)
         frameHeight <- liftIO (#{peek WebPDecoderConfig, input.height} config :: IO CInt)
         hasAlpha <- liftIO (#{peek WebPDecoderConfig, input.has_alpha} config :: IO CInt)
-        format <- liftIO (#{peek WebPDecoderConfig, input.format} config :: IO CInt)
         let (mode, channels, image)
               | animated || hasAlpha /= 0 = (#{const MODE_RGBA}, 4, ImageRGBA8 . Image width' height')
               | otherwise = (#{const MODE_RGB}, 3, ImageRGB8 . Image width' height')
@@ -70,9 +69,11 @@ decodeWebp DecodeOptions{maxMemoryMB, outputSize} webp
             stride = width' * channels
             size = stride * height'
             offset = y' * stride + x' * channels
-        when (decoderMemory format hasAlpha frameWidth frameHeight + toInteger size > toInteger maxMemoryMB * 1048576) $ throwE "image is too large"
+        used <- liftIO $ #{peek HsWebPMemory, used} memory
+        when (toInteger (used :: CSize) + toInteger size > toInteger limit) $ throwE "image is too large"
+        liftIO $ #{poke HsWebPMemory, limit} memory (limit - fromIntegral size)
         pixels <- liftIO $ if animated then MV.replicate size 0 else MV.unsafeNew size
-        checkStatus =<< liftIO (MV.unsafeWith pixels \buf -> do
+        status <- liftIO (MV.unsafeWith pixels \buf -> do
           #{poke WebPDecoderConfig, output.colorspace} config (mode :: CInt)
           #{poke WebPDecoderConfig, output.is_external_memory} config (1 :: CInt)
           #{poke WebPDecoderConfig, output.u.RGBA.rgba} config (buf `plusPtr` offset)
@@ -82,7 +83,8 @@ decodeWebp DecodeOptions{maxMemoryMB, outputSize} webp
             #{poke WebPDecoderConfig, options.use_scaling} config (1 :: CInt)
             #{poke WebPDecoderConfig, options.scaled_width} config (fromIntegral w' :: CInt)
             #{poke WebPDecoderConfig, options.scaled_height} config (fromIntegral h' :: CInt)
-          webPDecode fragment fragmentSize config)
+          hsWebPDecode fragment fragmentSize config memory)
+        when (status /= #{const VP8_STATUS_OK}) $ refusal memory (statusError status)
         image <$> liftIO (V.unsafeFreeze pixels)
     chunkPayload input iter = liftIO do
       bytes <- #{peek WebPChunkIterator, chunk.bytes} iter
@@ -94,26 +96,6 @@ scaledSpan side side' offset size = (start, end - start)
   where
     start = offset * side' `div` side
     end = ((offset + size) * side' + side - 1) `div` side
-
-decoderMemory :: CInt -> CInt -> CInt -> CInt -> Integer
-decoderMemory format hasAlpha width height
-  | format == losslessFormat = rows + lossless
-  | format == lossyFormat && hasAlpha == 0 = rows
-  | otherwise = rows + alphaPlanes + lossless
-  where
-    pixels = toInteger width * toInteger height
-    lossless = 4 * pixels + subsampledImages + huffmanTables
-    subsampledImages = 3 * pixels `div` 4
-    huffmanTables = 2 * maxAllocable + maxAllocable `div` 16
-    alphaPlanes = 2 * pixels
-    rows = 4 * 1048576
-    maxAllocable = #{const WEBP_MAX_ALLOCABLE_MEMORY}
-
-lossyFormat :: CInt
-lossyFormat = 1
-
-losslessFormat :: CInt
-losslessFormat = 2
 
 maxScaleDown :: Int
 maxScaleDown = 256
@@ -131,19 +113,21 @@ data WebPDecoderConfig
 
 data WebPBitstreamFeatures
 
-data WebPData
+data HsWebPMemory
 
-withDemuxer :: ByteString -> (Ptr Word8 -> Ptr WebPDemuxer -> ExceptT String IO a) -> IO (Either String a)
-withDemuxer webp action =
-  BU.unsafeUseAsCStringLen webp \(buf, len) -> do
+withDemuxer :: CSize -> ByteString -> (Ptr Word8 -> Ptr HsWebPMemory -> Ptr WebPDemuxer -> ExceptT String IO a) -> IO (Either String a)
+withDemuxer limit webp action =
+  BU.unsafeUseAsCStringLen webp \(buf, len) -> allocaBytes #{size HsWebPMemory} \memory -> do
     let input = castPtr buf
-    bracket (demux input len) webPDemuxDelete \dmux ->
-      runExceptT $ if dmux == nullPtr then throwE "invalid WebP container" else action input dmux
-  where
-    demux input len = allocaBytes #{size WebPData} \webpData -> do
-      #{poke WebPData, bytes} webpData input
-      #{poke WebPData, size} webpData (fromIntegral len :: CSize)
-      webPDemuxInternal webpData 0 nullPtr #{const WEBP_DEMUX_ABI_VERSION}
+    #{poke HsWebPMemory, limit} memory limit
+    bracket (hsWebPDemux input (fromIntegral len) memory) webPDemuxDelete \dmux -> runExceptT do
+      when (dmux == nullPtr) $ refusal memory "invalid WebP container"
+      action input memory dmux
+
+refusal :: Ptr HsWebPMemory -> String -> ExceptT String IO a
+refusal memory e = do
+  refused <- liftIO (#{peek HsWebPMemory, refused} memory :: IO CInt)
+  throwE $ if refused /= 0 then "image is too large" else e
 
 canvasSide :: Ptr WebPDemuxer -> CInt -> ExceptT String IO Int
 canvasSide demux feature = liftIO $ fromIntegral @Word32 <$> webPDemuxGetI demux feature
@@ -174,7 +158,7 @@ statusError = \case
   #{const VP8_STATUS_NOT_ENOUGH_DATA} -> "not enough data"
   status -> "decoding status " <> show status
 
-foreign import ccall "src/webp/demux.h WebPDemuxInternal" webPDemuxInternal :: Ptr WebPData -> CInt -> Ptr CInt -> CInt -> IO (Ptr WebPDemuxer)
+foreign import ccall "hs_webp.h HsWebPDemux" hsWebPDemux :: Ptr Word8 -> CSize -> Ptr HsWebPMemory -> IO (Ptr WebPDemuxer)
 
 foreign import ccall "src/webp/demux.h WebPDemuxDelete" webPDemuxDelete :: Ptr WebPDemuxer -> IO ()
 
@@ -192,4 +176,4 @@ foreign import ccall "src/webp/decode.h WebPInitDecoderConfigInternal" webPInitD
 
 foreign import ccall "src/webp/decode.h WebPGetFeaturesInternal" webPGetFeaturesInternal :: Ptr Word8 -> CSize -> Ptr WebPBitstreamFeatures -> CInt -> IO CInt
 
-foreign import ccall "src/webp/decode.h WebPDecode" webPDecode :: Ptr Word8 -> CSize -> Ptr WebPDecoderConfig -> IO CInt
+foreign import ccall "hs_webp.h HsWebPDecode" hsWebPDecode :: Ptr Word8 -> CSize -> Ptr WebPDecoderConfig -> Ptr HsWebPMemory -> IO CInt

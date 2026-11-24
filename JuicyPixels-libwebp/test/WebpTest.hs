@@ -4,7 +4,7 @@ import Codec.Picture (DynamicImage(..), Image(..), PixelRGB8(..), PixelRGBA8(..)
 import Codec.Picture.Webp
 import Control.Monad (forM_)
 import Crypto.Hash.MD5 qualified as MD5
-import Data.Bits (shiftR)
+import Data.Bits (shiftL, shiftR, (.&.), (.|.))
 import Data.ByteString qualified as B
 import Data.ByteString.Builder qualified as BB
 import Data.ByteString.Char8 qualified as BC
@@ -13,7 +13,7 @@ import Data.ByteString.Lazy qualified as BL
 import Data.Either (isRight)
 import Data.List (nub, transpose)
 import Data.Vector.Storable qualified as V
-import Data.Word (Word8)
+import Data.Word (Word64, Word8)
 import System.Environment (lookupEnv)
 import Test.Tasty.HUnit (assertBool, assertEqual, assertFailure, (@?=))
 
@@ -85,18 +85,10 @@ unit_limits :: IO ()
 unit_limits = do
   small <- testFile "small_1x1.webp"
   lossless <- testFile "tall-lossless.webp"
-  lossyAlpha <- testFile "tall-lossy-alpha.webp"
   let canvas size = animation size [((0, 0), (1, 1), small)]
-  forM_
-    [ (5, Right, canvas (512, 512), "512x512 canvas of a lossy frame")
-    , (171, Right, lossless, "1024x4096 lossless image")
-    , (159, halfSize, lossless, "1024x4096 lossless image decoded at 512x2048")
-    , (179, Right, lossyAlpha, "1024x4096 lossy image with alpha")
-    ]
-    \(memoryMB, size, webp, image) -> do
-      decodeWebp (DecodeOptions memoryMB size) webp >>= assertBool (image <> " refused within " <> show memoryMB <> " MiB") . isRight
-      decodeWebp (DecodeOptions (memoryMB - 1) size) webp >>= (@?= Left "image is too large") . fmap (samples . fst)
-  decodeWebp (DecodeOptions 5 Right) (canvas (513, 512)) >>= (@?= Left "image is too large") . fmap (samples . fst)
+  forM_ [(2, canvas (512, 512), "512x512 canvas of a lossy frame", 1), (64, lossless, "1024x4096 lossless image", 20)] \(memoryMB, webp, image, refusedMB) -> do
+    decodeWebp (DecodeOptions memoryMB Right) webp >>= assertBool (image <> " refused within " <> show memoryMB <> " MiB") . isRight
+    decodeWebp (DecodeOptions refusedMB Right) webp >>= (@?= Left "image is too large") . fmap (samples . fst)
   decodeWebp options (canvas (16385, 16)) >>= (@?= Left "image side exceeds 16384") . fmap (samples . fst)
   decodeWebp options {maxMemoryMB = 0} small >>= (@?= Left "invalid decode options") . fmap (samples . fst)
   decodeWebp options {outputSize = const $ Left "size refused"} small >>= (@?= Left "size refused") . fmap (samples . fst)
@@ -105,6 +97,14 @@ unit_limits = do
   decodeWebp options {outputSize = const $ Right (4, 16)} lossless >>= assertBool "1024x4096 image refused at 4x16" . isRight
   forM_ [(3, 16), (4, 15)] \size ->
     decodeWebp options {outputSize = const $ Right size} lossless >>= (@?= Left "invalid decode options") . fmap (samples . fst)
+
+unit_memory :: IO ()
+unit_memory = do
+  small <- testFile "small_1x1.webp"
+  let chunks = riff $ [vp8x 0 (1, 1)] <> replicate 1000000 (chunk "ABCD" "") <> [B.drop 12 small]
+  forM_ [(huffmanGroups 65536, "65536 Huffman groups", 256, 512), (chunks, "1000000 chunks", 32, 64)] \(webp, image, refusedMB, memoryMB) -> do
+    decodeWebp options {maxMemoryMB = refusedMB} webp >>= (@?= Left "image is too large") . fmap (samples . fst)
+    decodeWebp options {maxMemoryMB = memoryMB} webp >>= assertBool (image <> " refused within " <> show memoryMB <> " MiB") . isRight
 
 unit_malformed :: IO ()
 unit_malformed = do
@@ -167,3 +167,37 @@ chunk fourcc payload = fourcc <> le 4 (B.length payload) <> payload <> B.replica
 
 le :: Int -> Int -> B.ByteString
 le n v = B.pack [fromIntegral (v `shiftR` (8 * i)) | i <- [0 .. n - 1]]
+
+huffmanGroups :: Int -> B.ByteString
+huffmanGroups groups = riff [chunk "VP8L" $ bits stream <> B.replicate 8 0]
+  where
+    side = 1024
+    stream =
+      [(0x2f, 8), (side - 1, 14), (side - 1, 14), (1, 1), (0, 3)]
+        <> transform 0
+        <> transform 1
+        <> [(0, 1), (0, 1), (1, 1), (0, 3), (0, 1)]
+        <> byteCode
+        <> byteCode
+        <> concatMap simpleCode [0, 0, 0]
+        <> concat [[(reversed (g .&. 0xff), 8), (reversed (g `shiftR` 8), 8)] | i <- [0 .. (side `div` 4) ^ (2 :: Int) - 1], let g = i `mod` groups]
+        <> concatMap (trivialGroup . (.&. 0xff)) [0 .. groups - 1]
+    transform t = [(1, 1), (t, 2), (0, 3), (0, 1)] <> trivialGroup 0
+    trivialGroup green = concatMap simpleCode [green, 64, 32, 255, 0]
+    simpleCode symbol = [(1, 1), (0, 1), (1, 1), (symbol, 8)]
+    byteCode =
+      [(0, 1), (8, 4)]
+        <> [(fromEnum (s == 8 || s == 16), 3) | s <- [17, 18, 0, 1, 2, 3, 4, 5, 16, 6, 7, 8 :: Int]]
+        <> [(1, 1), (2, 3), (42, 6), (0, 1)]
+        <> concat (replicate 42 [(1, 1), (3, 2)])
+        <> [(1, 1), (0, 2)]
+    reversed v = foldl (\r i -> r .|. (((v `shiftR` i) .&. 1) `shiftL` (7 - i))) 0 [0 .. 7]
+
+bits :: [(Int, Int)] -> B.ByteString
+bits = B.pack . go (0 :: Word64) (0 :: Int)
+  where
+    go acc n fields
+      | n >= 8 = fromIntegral acc : go (acc `shiftR` 8) (n - 8) fields
+      | otherwise = case fields of
+          (v, k) : rest -> go (acc .|. (fromIntegral v `shiftL` n)) (n + k) rest
+          [] -> [fromIntegral acc | n > 0]

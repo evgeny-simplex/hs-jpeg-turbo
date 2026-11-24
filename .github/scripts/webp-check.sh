@@ -6,7 +6,7 @@ out=dist-newstyle/webp-check
 package=JuicyPixels-libwebp
 sources=$(sed -n '/^library$/,/^$/p' $package/$package.cabal | grep -oE 'cbits/[^ ]+\.c' | sed "s|^|$package/|")
 options=$(sed -n '/^library$/,/^$/s/^  cc-options: //p' $package/$package.cabal)
-flags="-O2 $options -I $package/cbits/libwebp"
+flags="-O2 $options -I $package/cbits -I $package/cbits/libwebp"
 armv7="-march=armv7-a -mfpu=vfpv3-d16 -mfloat-abi=hard"
 md5s="$WEBP_TEST_DATA/libwebp_tests.md5"
 files=$(sed -n 's|^[0-9a-f]*  \(.*\.webp\)\.pam$|'"$WEBP_TEST_DATA"'/\1|p' "$md5s")
@@ -85,6 +85,18 @@ PY
 for side in 16384 64; do
   "$out/sanitized.exe" fuzz $side $files $tall
 done
+
+{
+  echo "### Counted memory of the tall WebP files, bytes, within 256 MiB"
+  echo '```'
+  for build in armv7 aarch64; do
+    for side in 16384 64; do
+      echo "$build, sides at most $side"
+      "$out/$build.exe" memory 256 $side $tall
+    done
+  done
+  echo '```'
+} | tee -a "${GITHUB_STEP_SUMMARY:-/dev/null}"
 
 objects armv7-objects arm-linux-gnueabihf-gcc "$armv7"
 objects aarch64-objects gcc ""
