@@ -41,7 +41,7 @@ library
       TypeOperators
       TypeFamilies
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
-  cc-options: -DWEBP_USE_THREAD -DWEBP_MAX_ALLOCABLE_MEMORY=536870912
+  cc-options: -DWEBP_USE_THREAD -DWEBP_MAX_ALLOCABLE_MEMORY=67108864
   include-dirs:
       cbits/libwebp
   c-sources:

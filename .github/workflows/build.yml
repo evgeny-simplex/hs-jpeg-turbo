@@ -82,7 +82,7 @@ jobs:
           nm -A -g "$lib" | grep -E 'jsimd\.o.* T _?jsimd_can_'
 
       - &webp-test-data
-        name: Clone libwebp test data, encode WebP files taller than the lossless decoder's window
+        name: Clone libwebp test data, encode tall WebP files with their source pixels
         env:
           CC: ${{ env.ghc_cc }}
           LDFLAGS: ${{ env.ghc_ldflags }}
