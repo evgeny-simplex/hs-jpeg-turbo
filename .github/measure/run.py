@@ -248,10 +248,11 @@ def quality_report(scores):
                 first = next(keyed[(name, v)] for v in present if (name, v) in keyed)
                 body.append([name, f"{first['source_width']}×{first['source_height']}"] + [keyed.get((name, v), {}).get(k) for k in keys for v in present])
             if title == "scores":
-                means = ["mean", ""]
+                means = ["mean", "inputs scored in every variant"]
                 for k in keys:
+                    common = [n for n in names if all((n, v) in keyed and keyed[(n, v)][k] is not None for v in present)]
                     for v in present:
-                        values = [keyed[(n, v)][k] for n in names if (n, v) in keyed and keyed[(n, v)][k] is not None]
+                        values = [keyed[(n, v)][k] for n in common]
                         means.append(sum(values) / len(values) if values else None)
                 body.append(means)
             out += f"### {wanted}: {title}\n\n" + table(header, body) + "\n"
