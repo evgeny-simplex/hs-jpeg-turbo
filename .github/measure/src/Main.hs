@@ -15,7 +15,8 @@ import Data.List (intercalate, isPrefixOf)
 import qualified Data.Vector.Storable as VS
 import Data.Word (Word64, Word8)
 import GHC.Clock (getMonotonicTimeNSec)
-import GHC.Stats (RTSStats (..), getRTSStats, getRTSStatsEnabled)
+import GHC.Stats (GCDetails (..), RTSStats (..), getRTSStats, getRTSStatsEnabled)
+import System.Mem (performMajorGC)
 import Simplex.Chat.Image (ColourProfile, ImageFormat (..), decodeResizable, imageFormat, resizeImage, resizeImageDataUri, scaleRGB8, scaleRGBA8)
 import System.Environment (getArgs)
 
@@ -25,12 +26,20 @@ main =
     ["decode", file] -> do
       (r, ms) <- timed . decodeForced =<< B.readFile file
       putStrLn $ json $ [("mode", str "decode"), ("file", str file), ("decode_ms", show ms)] <> decoded r
-    ["resize", file, out] -> do
-      (r, ms) <- timed . decodeForced =<< B.readFile file
-      resized <- either (const $ pure []) (uncurry $ resize out) r
-      putStrLn $ json $ [("mode", str "resize"), ("file", str file), ("decode_ms", show ms)] <> decoded r <> resized
+    ["resize", file, out] -> resizeFile [ImageBytes, ImageDataUri] file out
+    ["image", file, out] -> resizeFile [ImageBytes] file out
+    ["preview", file, out] -> resizeFile [ImageDataUri] file out
     ["stages", file] -> stages file
-    _ -> fail "usage: resize decode FILE | resize resize FILE OUTDIR | resize stages FILE"
+    _ -> fail "usage: resize decode FILE | resize (resize|image|preview) FILE OUTDIR | resize stages FILE"
+
+data Output = ImageBytes | ImageDataUri
+  deriving (Eq)
+
+resizeFile :: [Output] -> FilePath -> FilePath -> IO ()
+resizeFile outputs file out = do
+  (r, ms) <- timed . decodeForced =<< B.readFile file
+  resized <- either (const $ pure []) (uncurry $ resize outputs out) r
+  putStrLn $ json $ [("mode", str "resize"), ("file", str file), ("decode_ms", show ms)] <> decoded r <> resized
 
 stages :: FilePath -> IO ()
 stages file = do
@@ -43,7 +52,7 @@ stages file = do
       case imageFormat img of
         IFPng -> do
           let scale = scaleRGBA8 (convertRGBA8 img)
-          _ <- stage "premultiply, as the first trial of scaleRGBA8 (1x1 output)" $ forcedImage $ scale (1, 1)
+          _ <- stage "premultiply the image: scaleRGBA8 at 1x1, its time with a resize to 1x1" $ forcedImage $ scale (1, 1)
           trial <- stage ("trial at the largest size " <> show largest <> ": Catmull-Rom, sharpen, unpremultiply") $ forcedImage $ scale largest
           _ <- stage "encode the trial twice, libspng level 9 with and without filters" $ mapM (\f -> Spng.encodePng (Spng.EncodeOptions 9 f Nothing) trial) [False, True]
           pure ()
@@ -69,8 +78,9 @@ stage name action = do
   (r, ms) <- timed action
   rss <- procStatus "VmRSS:"
   hwm <- procStatus "VmHWM:"
-  heap <- getRTSStatsEnabled >>= \enabled -> if enabled then Just . max_mem_in_use_bytes <$> getRTSStats else pure Nothing
-  putStrLn $ json [("stage", str name), ("ms", show ms), ("rss_mib", show rss), ("hwm_mib", show hwm), ("rts_max_mem_in_use_mib", maybe "null" (\b -> show (fromIntegral b / 1048576 :: Double)) heap)]
+  performMajorGC
+  live <- getRTSStatsEnabled >>= \enabled -> if enabled then Just . gcdetails_live_bytes . gc <$> getRTSStats else pure Nothing
+  putStrLn $ json [("stage", str name), ("ms", show ms), ("rss_mib", show rss), ("hwm_mib", show hwm), ("live_after_gc_mib", maybe "null" (\b -> show (fromIntegral b / 1048576 :: Double)) live)]
   pure r
 
 procStatus :: String -> IO Double
@@ -87,13 +97,21 @@ decodeForced bytes =
     Right (img, profile) -> Right (img, profile) <$ evaluate (dynamicMap (VS.length . imageData) img)
     Left e -> pure $ Left e
 
-resize :: FilePath -> DynamicImage -> ColourProfile -> IO [(String, String)]
-resize out img profile = do
-  (image, imageMs) <- timed $ resizeImage (imageFormat img) 261120 img profile >>= forced
-  (uri, previewMs) <- timed $ resizeImageDataUri 14000 img profile >>= forced
-  imageFields <- output "image" image
-  previewFields <- output "preview" $ (LB64.decode . LB.drop 1 . LB.dropWhile (/= ',')) =<< uri
-  pure $ [("image_ms", show imageMs), ("preview_ms", show previewMs), ("preview_chars", either (const "null") (show . LB.length) uri)] <> imageFields <> previewFields
+resize :: [Output] -> FilePath -> DynamicImage -> ColourProfile -> IO [(String, String)]
+resize outputs out img profile = do
+  imageFields <-
+    if ImageBytes `elem` outputs
+      then do
+        (image, imageMs) <- timed $ resizeImage (imageFormat img) 261120 img profile >>= forced
+        (("image_ms", show imageMs) :) <$> output "image" image
+      else pure []
+  previewFields <-
+    if ImageDataUri `elem` outputs
+      then do
+        (uri, previewMs) <- timed $ resizeImageDataUri 14000 img profile >>= forced
+        ([("preview_ms", show previewMs), ("preview_chars", either (const "null") (show . LB.length) uri)] <>) <$> output "preview" ((LB64.decode . LB.drop 1 . LB.dropWhile (/= ',')) =<< uri)
+      else pure []
+  pure $ imageFields <> previewFields
   where
     forced = either (pure . Left) (\b -> Right b <$ evaluate (LB.length b))
     output name = \case

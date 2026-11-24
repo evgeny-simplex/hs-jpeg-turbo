@@ -9,6 +9,7 @@ import tempfile
 
 BACKGROUNDS = {"light": (0xF5, 0xF5, 0xF6), "dark": (0x18, 0x26, 0x2E)}
 MODELS = ["preview", "phone", "large"]
+MODES = ["decode", "image", "preview"]
 
 
 VARIANTS = {
@@ -58,12 +59,12 @@ def memory(binaries, out, files):
     results = []
     for limit in ["512", "1024"]:
         for path in files:
-            for mode in ["decode", "resize"]:
+            for mode in MODES:
                 for version, binary in binaries.items():
                     name = os.path.splitext(os.path.basename(path))[0]
                     directory = os.path.join(out, "memory", version, limit, name)
                     os.makedirs(directory, exist_ok=True)
-                    args = ["decode", path] if mode == "decode" else ["resize", path, directory]
+                    args = ["decode", path] if mode == "decode" else [mode, path, directory]
                     result = run(binary, args, {"MAX_DECODE_MB": limit})
                     result.update(version=version, limit=int(limit), mode=mode, name=name, input_bytes=os.path.getsize(path))
                     print(json.dumps(result), flush=True)
@@ -241,13 +242,13 @@ def table(header, rows):
 
 
 def memory_report(results):
-    out = "## Memory and time\n\nMaximum resident set (MiB) and wall time (s) of one process per row; `decode` is `decodeResizable` alone, `resize` also the image data (261120 bytes) and the preview (14000 characters).\n\n"
+    out = "## Memory and time\n\nMaximum resident set (MiB) and wall time (s) of one process per row, as one call of the C API: `decode` is `decodeResizable` alone; `image`, `decodeResizable` and `resizeImage` of 261120 bytes in the format of `imageFormat` (`chat_resize_image` with png = -1); `preview`, `decodeResizable` and `resizeImageDataUri` of 14000 characters (`chat_resize_image_uri`).\n\n"
     keyed = {(r["name"], r["limit"], r["mode"], r["version"]): r for r in results}
     names = list(dict.fromkeys(r["name"] for r in results))
     rows = []
     for name in names:
         for limit in [512, 1024]:
-            for mode in ["decode", "resize"]:
+            for mode in MODES:
                 row = [name, keyed.get((name, limit, mode, "base"), {}).get("input_bytes"), limit, mode]
                 for version in ["base", "new"]:
                     r = keyed.get((name, limit, mode, version))
@@ -266,9 +267,9 @@ def memory_report(results):
 
 
 def stages_report(results):
-    out = "## Memory by stage\n\nOne process per input, version and limit; after each stage: resident set (`VmRSS`), its peak so far (`VmHWM`) and the RTS maximum of memory in use (`+RTS -T`), MiB. The stages before `resizeImage` repeat its first trial with the exported functions: `scaleRGBA8` of the decoded image at 1×1 premultiplies the whole image, as the first trial of `fitImage` does, and the closure keeps the premultiplied copy for the trial at the largest size; `resizeImage` and `resizeImageDataUri` then run the whole size search, each with its own premultiplied copy.\n\n"
-    rows = [[r["name"], r["limit"], r["version"], r["stage"], r.get("error") or "", r.get("ms"), r.get("rss_mib"), r.get("hwm_mib"), r.get("rts_max_mem_in_use_mib")] for r in results]
-    return out + table(["input", "MAX_DECODE_MB", "version", "stage", "error", "ms", "RSS", "peak RSS", "RTS max in use"], rows)
+    out = "## Memory by stage\n\nOne process per input, version and limit; after each stage: resident set (`VmRSS`) and its peak so far (`VmHWM`), then a major GC and the bytes live after it (`+RTS -T`), MiB. The stages before `resizeImage` repeat its first trial with the exported functions: `scaleRGBA8` of the decoded image at 1×1 premultiplies the whole image, as the first trial of `fitImage` does, and the closure keeps the premultiplied copy for the trial at the largest size; `resizeImage` and `resizeImageDataUri` then run the whole size search, each with its own premultiplied copy. The major GC after each stage lowers the later peaks below those of one uninterrupted call, which \"Memory and time\" measures.\n\n"
+    rows = [[r["name"], r["limit"], r["version"], r["stage"], r.get("error") or "", r.get("ms"), r.get("rss_mib"), r.get("hwm_mib"), r.get("live_after_gc_mib")] for r in results]
+    return out + table(["input", "MAX_DECODE_MB", "version", "stage", "error", "ms", "RSS", "peak RSS", "live after GC"], rows)
 
 
 def equality_report(rows):
