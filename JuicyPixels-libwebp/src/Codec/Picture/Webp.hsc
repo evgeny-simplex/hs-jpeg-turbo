@@ -123,6 +123,7 @@ statusError = \case
   #{const VP8_STATUS_INVALID_PARAM} -> "invalid parameter"
   #{const VP8_STATUS_BITSTREAM_ERROR} -> "bitstream error"
   #{const VP8_STATUS_UNSUPPORTED_FEATURE} -> "unsupported feature"
+  #{const VP8_STATUS_USER_ABORT} -> "output aborted"
   #{const VP8_STATUS_NOT_ENOUGH_DATA} -> "not enough data"
   status -> "decoding status " <> show status
 
