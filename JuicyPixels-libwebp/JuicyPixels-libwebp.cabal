@@ -43,7 +43,7 @@ library
       TypeOperators
       TypeFamilies
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
-  cc-options: -DWEBP_USE_THREAD
+  cc-options: -DWEBP_USE_THREAD -DNDEBUG
   include-dirs:
       cbits
       cbits/libwebp
