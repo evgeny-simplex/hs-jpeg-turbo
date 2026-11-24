@@ -1,4 +1,4 @@
-# Changelog for `JuicyPixels-webp`
+# Changelog for `JuicyPixels-libwebp`
 
 ## Unreleased
 

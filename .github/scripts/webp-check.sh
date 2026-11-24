@@ -3,7 +3,7 @@
 set -euo pipefail
 
 out=dist-newstyle/webp-check
-package=JuicyPixels-webp
+package=JuicyPixels-libwebp
 sources=$(sed -n '/^library$/,/^$/p' $package/$package.cabal | grep -oE 'cbits/[^ ]+\.c' | sed "s|^|$package/|")
 options=$(sed -n '/^library$/,/^$/s/^  cc-options: //p' $package/$package.cabal)
 flags="-O2 $options -I $package/cbits/libwebp"

@@ -24,12 +24,12 @@ window_coverage() {
   done | grep -A1 -E "^Function '(ShiftWindow|ShiftWindow8b|ShiftWindow32b|VP8LShiftWindowBuffer|WebPShiftAlphaWindow)'"
 }
 
-rm -f jpeg-turbo/*.tix JuicyPixels-jpeg-turbo/*.tix JuicyPixels-spng/*.tix JuicyPixels-webp/*.tix
+rm -f jpeg-turbo/*.tix JuicyPixels-jpeg-turbo/*.tix JuicyPixels-spng/*.tix JuicyPixels-libwebp/*.tix
 cabal test all --builddir="$builddir" --ghc-options=-fhpc --ghc-options=-optc--coverage --ghc-options=-optl--coverage
 hpc sum --union --output="$builddir/jpeg-turbo.tix" --include=TurboJPEG2 --include=TurboJPEG3 --include=MozJPEG jpeg-turbo/jpeg-turbo-test.tix JuicyPixels-jpeg-turbo/JuicyPixels-jpeg-turbo-test.tix
 report jpeg-turbo hpc report "$builddir/jpeg-turbo.tix" --hpcdir=jpeg-turbo/.hpc
 report JuicyPixels-jpeg-turbo hpc report JuicyPixels-jpeg-turbo/JuicyPixels-jpeg-turbo-test.tix --hpcdir=JuicyPixels-jpeg-turbo/.hpc --include=Codec.Picture.JPEGTurbo
 report JuicyPixels-spng hpc report JuicyPixels-spng/JuicyPixels-spng-test.tix --hpcdir=JuicyPixels-spng/.hpc --include=Codec.Picture.Spng
-report JuicyPixels-webp hpc report JuicyPixels-webp/JuicyPixels-webp-test.tix --hpcdir=JuicyPixels-webp/.hpc --include=Codec.Picture.Webp
+report JuicyPixels-libwebp hpc report JuicyPixels-libwebp/JuicyPixels-libwebp-test.tix --hpcdir=JuicyPixels-libwebp/.hpc --include=Codec.Picture.Webp
 report jpeg-turbo/cbits/encode.c encode_coverage
-report "libwebp sliding window, JuicyPixels-webp tests" window_coverage
+report "libwebp sliding window, JuicyPixels-libwebp tests" window_coverage
