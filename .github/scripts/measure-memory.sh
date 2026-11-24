@@ -32,10 +32,16 @@ mib2() {
 measure() {
   local name=$1 kind=$2 width=$3 height=$4 image=$5 side heap rss decoded header canvas formula
   for side in 16384 4320; do
+    heap=
     rm -rf "$out/decoded"
     mkdir -p "$out/decoded"
-    /usr/bin/time -f %M -o "$out/rss.txt" "$out/heap.exe" check "$out/decoded" "$side" "$image" 2> "$out/heap.txt"
-    heap=$(sed -n 's/^high-water mark: //p' "$out/heap.txt")
+    case $name in
+      chunks*) ;;
+      *)
+        /usr/bin/time -f %M -o "$out/rss.txt" "$out/heap.exe" check "$out/decoded" "$side" "$image" 2> "$out/heap.txt"
+        heap=$(sed -n 's/^high-water mark: //p' "$out/heap.txt")
+        ;;
+    esac
     rm -rf "$out/decoded"
     mkdir -p "$out/decoded"
     /usr/bin/time -f %M -o "$out/rss.txt" "$out/rss.exe" check "$out/decoded" "$side" "$image"
@@ -51,7 +57,11 @@ measure() {
       *.pam) canvas=$(echo "$header" | awk '{print $3 "x" $5 " " $3 * $5 * 4}') ;;
       *.ppm) canvas=$(echo "$header" | awk '{print $2 "x" $3 " " $2 * $3 * 3}') ;;
     esac
-    echo "| $name | ${width}x${height} | $kind | $side | ${canvas% *} | $(mib2 "${canvas#* }") | $(mib2 "$heap") | $(mib2 "$formula") | $(mib2 $((heap + ${canvas#* }))) | $(mib2 "$rss") |" | tee -a "$summary"
+    if [ -n "$heap" ]; then
+      echo "| $name | ${width}x${height} | $kind | $side | ${canvas% *} | $(mib2 "${canvas#* }") | $(mib2 "$heap") | $(mib2 "$formula") | $(mib2 $((heap + ${canvas#* }))) | $(mib2 "$rss") |" | tee -a "$summary"
+    else
+      echo "| $name | ${width}x${height} | $kind | $side | ${canvas% *} | $(mib2 "${canvas#* }") | - | $(mib2 "$formula") | - | $(mib2 "$rss") |" | tee -a "$summary"
+    fi
   done
   rm -f "$image"
 }
@@ -68,7 +78,7 @@ groups=$((maxAllocable / (4 * 2954)))
 {
   echo "### libwebp 1.6.0 decoding memory, as decodeWebp decodes: at full size (sides up to 16384) and halved while a side exceeds 4320"
   echo
-  echo "Heap: the high-water mark of libwebp's allocations (PRINT_MEM_INFO), the demuxer included. Formula: the decoder memory that decodeWebp checks, without the output image. RSS: the maximum resident set of the process, input and output image included."
+  echo "Heap: the high-water mark of libwebp's allocations (PRINT_MEM_INFO), the demuxer included; for the images with chunks only RSS, as PRINT_MEM_INFO searches a list of all blocks at each free. Formula: the decoder memory that decodeWebp checks, without the output image. RSS: the maximum resident set of the process, input and output image included."
   echo
   echo "| Image | Frame | Kind | Max side | Output | Output MiB | Heap MiB | Formula MiB | Heap + output MiB | RSS MiB |"
   echo "|---|---|---|---|---|---|---|---|---|---|"
