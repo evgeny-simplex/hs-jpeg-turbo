@@ -265,11 +265,14 @@ jobs:
           path: ~/ssimulacra2
           key: ssimulacra2-libjxl-v0.11.1-ubuntu-24.04
 
-      - name: Build ssimulacra2 of libjxl v0.11.1
-        if: steps.ssimulacra2.outputs.cache-hit != 'true'
+      - name: Install the libraries of ssimulacra2
         run: |
           sudo apt-get update
           sudo apt-get install -y cmake ninja-build libpng-dev libgif-dev libjpeg-dev
+
+      - name: Build ssimulacra2 of libjxl v0.11.1
+        if: steps.ssimulacra2.outputs.cache-hit != 'true'
+        run: |
           git clone --quiet --depth 1 --branch v0.11.1 https://github.com/libjxl/libjxl "$RUNNER_TEMP/libjxl"
           git -C "$RUNNER_TEMP/libjxl" submodule update --init --quiet third_party/brotli third_party/highway third_party/skcms
           cmake -S "$RUNNER_TEMP/libjxl" -B "$RUNNER_TEMP/libjxl-build" -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DBUILD_SHARED_LIBS=OFF \
@@ -285,6 +288,7 @@ jobs:
           sources=$(sed -n '/^library$/,/^$/p' $package/$package.cabal | grep -oE 'cbits/libspng/[^ ]+\.c|cbits/miniz/[^ ]+\.c' | sed "s|^|$package/|")
           options=$(sed -n '/^library$/,/^$/s/^  cc-options: //p' $package/$package.cabal)
           gcc -O2 $options -I $package/cbits -I $package/cbits/libspng/spng -I $package/cbits/miniz $sources .github/measure/decode.c -lm -o "$RUNNER_TEMP/decode"
+          ldd ~/ssimulacra2/ssimulacra2
           python3 -m venv "$RUNNER_TEMP/venv"
           "$RUNNER_TEMP/venv/bin/pip" install --quiet pillow==11.0.0
           "$RUNNER_TEMP/venv/bin/python" -I .github/measure/run.py score ~/ssimulacra2/ssimulacra2 "$RUNNER_TEMP/decode" results inputs .github/measure/corpus.tsv results/quality
