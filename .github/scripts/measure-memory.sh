@@ -3,73 +3,99 @@
 set -euo pipefail
 
 out=dist-newstyle/measure
-package=JuicyPixels-webp
-sources=$(sed -n '/^library$/,/^$/p' $package/$package.cabal | grep -oE 'cbits/libwebp/[^ ]+\.c' | sed 's|^cbits/libwebp/||')
+package=JuicyPixels-libwebp
+lib=$package/cbits/libwebp
+sources=$(sed -n '/^library$/,/^$/p' $package/$package.cabal | grep -oE 'cbits/[^ ]+\.c' | sed "s|^|$package/|")
 options=$(sed -n '/^library$/,/^$/s/^  cc-options: //p' $package/$package.cabal)
-main=$package/cbits/libwebp
-old=$RUNNER_TEMP/libwebp-1.6.0
+maxAllocable=$(echo "$options" | grep -oE 'WEBP_MAX_ALLOCABLE_MEMORY=[0-9]+' | cut -d= -f2)
 summary=${GITHUB_STEP_SUMMARY:-/dev/null}
+mib=1048576
 
 build() {
-  gcc -O2 $options $3 -I "$2" $(for source in $sources; do echo "$2/$source"; done) .github/scripts/webp.c -lpthread -lm -o "$out/$1.exe"
+  gcc -O2 $options $2 -I "$lib" $sources .github/scripts/webp.c -lpthread -lm -o "$out/$1.exe"
+}
+
+decoder_memory() {
+  local kind=$1 pixels=$(($2 * $3)) rows=$((4 * mib)) lossless
+  lossless=$((4 * pixels + 3 * pixels / 4 + 2 * maxAllocable + maxAllocable / 16))
+  case $kind in
+    lossy) echo $rows ;;
+    lossless) echo $((rows + lossless)) ;;
+    alpha) echo $((rows + 2 * pixels + lossless)) ;;
+  esac
+}
+
+mib2() {
+  awk -v b="$1" 'BEGIN { printf "%.1f", b / 1048576 }'
 }
 
 measure() {
-  rm -rf "$out/decoded"
-  mkdir -p "$out/decoded"
-  /usr/bin/time -f %M -o "$out/rss.txt" "$out/$1.exe" check "$out/decoded" "$2" 2> "$out/heap.txt"
-  result=$(ls "$out/decoded")
-  heap=$(sed -n 's/^high-water mark: //p' "$out/heap.txt")
-  echo "${heap:--} $(cat "$out/rss.txt") ${result##*.}"
+  local name=$1 kind=$2 width=$3 height=$4 image=$5 side heap rss decoded header canvas formula
+  for side in 16384 4320; do
+    rm -rf "$out/decoded"
+    mkdir -p "$out/decoded"
+    /usr/bin/time -f %M -o "$out/rss.txt" "$out/heap.exe" check "$out/decoded" "$side" "$image" 2> "$out/heap.txt"
+    heap=$(sed -n 's/^high-water mark: //p' "$out/heap.txt")
+    rm -rf "$out/decoded"
+    mkdir -p "$out/decoded"
+    /usr/bin/time -f %M -o "$out/rss.txt" "$out/rss.exe" check "$out/decoded" "$side" "$image"
+    rss=$(($(cat "$out/rss.txt") * 1024))
+    decoded=$(ls "$out/decoded")
+    formula=$(decoder_memory "$kind" "$width" "$height")
+    if [ "${decoded##*.}" = err ]; then
+      echo "| $name | ${width}x${height} | $kind | $side | $(cat "$out/decoded/$decoded") | | $(mib2 "$heap") | $(mib2 "$formula") | | $(mib2 "$rss") |" | tee -a "$summary"
+      continue
+    fi
+    header=$(head -n 3 "$out/decoded/$decoded" | tr '\n' ' ')
+    case $decoded in
+      *.pam) canvas=$(echo "$header" | awk '{print $3 "x" $5 " " $3 * $5 * 4}') ;;
+      *.ppm) canvas=$(echo "$header" | awk '{print $2 "x" $3 " " $2 * $3 * 3}') ;;
+    esac
+    echo "| $name | ${width}x${height} | $kind | $side | ${canvas% *} | $(mib2 "${canvas#* }") | $(mib2 "$heap") | $(mib2 "$formula") | $(mib2 $((heap + ${canvas#* }))) | $(mib2 "$rss") |" | tee -a "$summary"
+  done
+  rm -f "$image"
 }
 
 rm -rf "$out/images" "$out/decoded"
 mkdir -p "$out/images"
-git clone --quiet --depth 1 --branch v1.6.0 https://github.com/webmproject/libwebp "$old"
-echo "v1.6.0 at $(git -C "$old" rev-parse HEAD), main at $(git -C "$main" rev-parse HEAD)"
-echo "$(echo "$sources" | wc -w) C files, cc-options: $options"
-build heap-v1.6.0 "$old" -DPRINT_MEM_INFO
-build heap-f054d0c3 "$main" -DPRINT_MEM_INFO
-build rss-v1.6.0 "$old" ""
-build rss-f054d0c3 "$main" ""
-gcc -O2 -I "$main" -I "$main/src" "$main"/src/*/*.c "$main"/sharpyuv/*.c .github/scripts/measure-encode.c -lm -o "$out/encode.exe"
+echo "libwebp $(git -C "$lib" describe --tags) at $(git -C "$lib" rev-parse HEAD); $(echo "$sources" | wc -w) C files; cc-options: $options"
+build heap -DPRINT_MEM_INFO
+build rss ""
+gcc -O2 -I "$lib" -I "$lib/src" "$lib"/src/*/*.c "$lib"/sharpyuv/*.c .github/scripts/measure-encode.c -lm -o "$out/encode.exe"
+gcc -O2 -I "$lib" -I "$lib/src" "$lib"/src/*/*.c "$lib"/sharpyuv/*.c .github/scripts/measure-craft.c -lm -o "$out/craft.exe"
+groups=$((maxAllocable / (4 * 2954)))
 
 {
-  echo "### libwebp heap high-water mark (PRINT_MEM_INFO) and process maximum RSS while decoding, as decodeWebp decodes"
+  echo "### libwebp 1.6.0 decoding memory, as decodeWebp decodes: at full size (sides up to 16384) and halved while a side exceeds 4320"
   echo
-  echo "| Image | Decoded bytes | Heap v1.6.0 | Heap f054d0c3 | RSS KiB v1.6.0 | RSS KiB f054d0c3 | Output v1.6.0 | Output f054d0c3 |"
-  echo "|---|---|---|---|---|---|---|---|"
+  echo "Heap: the high-water mark of libwebp's allocations (PRINT_MEM_INFO), the demuxer included. Formula: the decoder memory that decodeWebp checks, without the output image. RSS: the maximum resident set of the process, input and output image included."
+  echo
+  echo "| Image | Frame | Kind | Max side | Output | Output MiB | Heap MiB | Formula MiB | Heap + output MiB | RSS MiB |"
+  echo "|---|---|---|---|---|---|---|---|---|---|"
 } | tee -a "$summary"
-while read -r name width height lossless alpha; do
-  image=$out/images/$name.webp
-  "$out/encode.exe" "$image" "$width" "$height" "$lossless" "$alpha"
-  read -r old_heap old_rss old_out <<< "$(measure heap-v1.6.0 "$image")"
-  read -r new_heap new_rss new_out <<< "$(measure heap-f054d0c3 "$image")"
-  channels=$([ "$alpha" = 0 ] && echo 3 || echo 4)
-  echo "| $name ${width}x${height} | $((width * height * channels)) | $old_heap | $new_heap | $old_rss | $new_rss | $old_out | $new_out |" | tee -a "$summary"
-  rm -f "$image"
+
+while read -r name width height lossless alpha kind; do
+  "$out/encode.exe" "$out/images/$name.webp" "$width" "$height" "$lossless" "$alpha"
+  measure "$name" "$kind" "$width" "$height" "$out/images/$name.webp"
 done <<'EOF'
-lossless-opaque-mobile 16383 5461 1 0
-lossless-alpha-mobile 16383 4096 1 1
-lossy-alpha-mobile 16383 4096 0 1
-lossy-alpha-gradient-mobile 16383 4096 0 2
-lossy-opaque-mobile 16383 5461 0 0
-lossless-opaque-desktop 16383 10922 1 0
-lossless-alpha-desktop 16383 8192 1 1
+lossy-16383x16383 16383 16383 0 0 lossy
+lossy-16383x10922 16383 10922 0 0 lossy
+lossless-opaque-4320x3758 4320 3758 1 0 lossless
+lossless-alpha-4320x3328 4320 3328 1 1 lossless
+lossless-alpha-4322x3864 4322 3864 1 1 lossless
+lossy-alpha-4320x2709 4320 2709 0 2 alpha
+lossy-alpha-4322x3746 4322 3746 0 2 alpha
 EOF
 
-{
-  echo
-  echo "### Process maximum RSS while demuxing a file of empty unknown chunks after VP8X"
-  echo
-  echo "| File bytes | Chunks | RSS KiB v1.6.0 | RSS KiB f054d0c3 | Output v1.6.0 | Output f054d0c3 |"
-  echo "|---|---|---|---|---|---|"
-} | tee -a "$summary"
-for size in 5242880 536870912 1073741824; do
-  image=$out/images/flood.webp
-  python3 -I .github/scripts/measure-flood.py "$image" "$size"
-  read -r _ old_rss old_out <<< "$(measure rss-v1.6.0 "$image")"
-  read -r _ new_rss new_out <<< "$(measure rss-f054d0c3 "$image")"
-  echo "| $size | $(((size - 30) / 8)) | $old_rss | $new_rss | $old_out | $new_out |" | tee -a "$summary"
-  rm -f "$image"
-done
+while read -r name kind width height groups bytes; do
+  "$out/craft.exe" "$out/images/$name.webp" "$kind" "$width" "$height" "$groups" "$bytes"
+  measure "$name" "$kind" "$width" "$height" "$out/images/$name.webp"
+done <<EOF
+huffman-lossless-4320x3328 lossless 4320 3328 $groups 0
+huffman-lossless-4322x3864 lossless 4322 3864 $groups 0
+huffman-alpha-4320x2709 alpha 4320 2709 $groups 0
+huffman-alpha-4322x3746 alpha 4322 3746 $groups 0
+chunks-16MiB lossless 16 16 0 16777216
+chunks-16MiB-huffman-lossless-4322x3864 lossless 4322 3864 $groups 16777216
+chunks-16MiB-huffman-alpha-4322x3746 alpha 4322 3746 $groups 16777216
+EOF
