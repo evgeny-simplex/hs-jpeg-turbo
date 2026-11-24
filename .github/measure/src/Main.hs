@@ -3,7 +3,7 @@
 
 module Main (main) where
 
-import Codec.Picture (DynamicImage (..), Image (..), convertRGB8, convertRGBA8, decodeImage, dynamicMap)
+import Codec.Picture (DynamicImage (..), Image (..), Pixel, convertRGB8, convertRGBA8, decodeImage, dynamicMap)
 import Codec.Picture.JPEGTurbo (encodeRGB)
 import qualified Codec.Picture.Spng as Spng
 import Control.Exception (evaluate)
@@ -55,12 +55,14 @@ stages file = do
       _ <- stage "resizeImageDataUri, 14000 characters" $ resizeImageDataUri 14000 img profile >>= either (pure . Left) (\b -> Right b <$ evaluate (LB.length b))
       pure ()
   where
-    forcedImage i = i <$ evaluate (VS.length $ imageData i)
     halved (w, h)
       | w <= 4320 && h <= 4320 = (w, h)
       | otherwise = halved (half w, half h)
     half :: Int -> Int
     half side = round (fromIntegral side / 2 :: Float)
+
+forcedImage :: Pixel a => Image a -> IO (Image a)
+forcedImage i = i <$ evaluate (VS.length $ imageData i)
 
 stage :: String -> IO a -> IO a
 stage name action = do
