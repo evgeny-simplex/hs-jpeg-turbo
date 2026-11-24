@@ -42,7 +42,7 @@ decodeWebp DecodeOptions{maxMemoryMB, outputSize} webp
       height <- canvasSide demux #{const WEBP_FF_CANVAS_HEIGHT}
       when (width > maxSide || height > maxSide) $ throwE "image side exceeds 16384"
       (width', height') <- except $ outputSize (width, height)
-      when (width' < 1 || width' > width || height' < 1 || height' > height) $ throwE "invalid decode options"
+      when (width' * maxScaleDown < width || width' > width || height' * maxScaleDown < height || height' > height) $ throwE "invalid decode options"
       flags <- liftIO $ webPDemuxGetI demux #{const WEBP_FF_FORMAT_FLAGS}
       let animated = flags .&. #{const ANIMATION_FLAG} /= 0
       image <-
@@ -98,8 +98,8 @@ scaledSpan side side' offset size = (start, end - start)
 decoderMemory :: CInt -> CInt -> CInt -> CInt -> Integer
 decoderMemory format hasAlpha width height
   | format == losslessFormat = rows + lossless
-  | hasAlpha /= 0 = rows + alphaPlanes + lossless
-  | otherwise = rows
+  | format == lossyFormat && hasAlpha == 0 = rows
+  | otherwise = rows + alphaPlanes + lossless
   where
     pixels = toInteger width * toInteger height
     lossless = 4 * pixels + subsampledImages + huffmanTables
@@ -109,8 +109,14 @@ decoderMemory format hasAlpha width height
     rows = 4 * 1048576
     maxAllocable = #{const WEBP_MAX_ALLOCABLE_MEMORY}
 
+lossyFormat :: CInt
+lossyFormat = 1
+
 losslessFormat :: CInt
 losslessFormat = 2
+
+maxScaleDown :: Int
+maxScaleDown = 256
 
 maxSide :: Int
 maxSide = 16384

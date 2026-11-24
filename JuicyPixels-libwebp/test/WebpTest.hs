@@ -102,6 +102,9 @@ unit_limits = do
   decodeWebp options {outputSize = const $ Left "size refused"} small >>= (@?= Left "size refused") . fmap (samples . fst)
   forM_ [(0, 1), (1, 0), (2, 1), (1, 2)] \size ->
     decodeWebp options {outputSize = const $ Right size} small >>= (@?= Left "invalid decode options") . fmap (samples . fst)
+  decodeWebp options {outputSize = const $ Right (4, 16)} lossless >>= assertBool "1024x4096 image refused at 4x16" . isRight
+  forM_ [(3, 16), (4, 15)] \size ->
+    decodeWebp options {outputSize = const $ Right size} lossless >>= (@?= Left "invalid decode options") . fmap (samples . fst)
 
 unit_malformed :: IO ()
 unit_malformed = do
