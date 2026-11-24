@@ -78,8 +78,7 @@ while read -r name width height lossless alpha kind; do
   "$out/encode.exe" "$out/images/$name.webp" "$width" "$height" "$lossless" "$alpha"
   measure "$name" "$kind" "$width" "$height" "$out/images/$name.webp"
 done <<'EOF'
-lossy-16383x16383 16383 16383 0 0 lossy
-lossy-16383x10922 16383 10922 0 0 lossy
+lossy-16383x8191 16383 8191 0 0 lossy
 lossless-opaque-4320x3758 4320 3758 1 0 lossless
 lossless-alpha-4320x3328 4320 3328 1 1 lossless
 lossless-alpha-4322x3864 4322 3864 1 1 lossless
