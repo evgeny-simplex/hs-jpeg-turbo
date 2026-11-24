@@ -21,20 +21,15 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       versions: ${{ steps.matrix.outputs.versions }}
-      variants: ${{ steps.matrix.outputs.variants }}
     steps:
       - id: matrix
         env:
           CORE: ${{ inputs.core }}
         run: |
-          base='{"variant": "base-png", "version": "base", "set": "png"}, {"variant": "base-jpeg", "version": "base", "set": "jpeg"}, {"variant": "base-jpeg-sharp", "version": "base", "set": "jpeg"}'
-          new='{"variant": "new-png", "version": "new", "set": "png"}, {"variant": "new-png-sharp", "version": "new", "set": "png"}'
           if [ -n "$CORE" ]; then
             echo 'versions=["base", "new"]' >> "$GITHUB_OUTPUT"
-            echo "variants=[$base, $new]" >> "$GITHUB_OUTPUT"
           else
             echo 'versions=["base"]' >> "$GITHUB_OUTPUT"
-            echo "variants=[$base]" >> "$GITHUB_OUTPUT"
           fi
 
   build:
@@ -137,13 +132,9 @@ jobs:
         run: ls -lR inputs | tee -a "$GITHUB_STEP_SUMMARY"
 
   memory:
-    needs: [setup, build, inputs]
+    needs: [build, inputs]
     runs-on: ubuntu-24.04
     timeout-minutes: 240
-    strategy:
-      fail-fast: false
-      matrix:
-        version: ${{ fromJSON(needs.setup.outputs.versions) }}
     steps:
       - uses: actions/checkout@v6
 
@@ -155,28 +146,29 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          name: resize-${{ matrix.version }}
+          pattern: resize-*
           path: bin
+          merge-multiple: true
 
       - name: Measure decoding and resizing at the limits of mobile and desktop builds
         run: |
           sudo apt-get install -y time
           chmod +x bin/*
-          python3 -I .github/measure/run.py memory "bin/resize-${{ matrix.version }}" ${{ matrix.version }} results inputs .github/measure/corpus.tsv
+          python3 -I .github/measure/run.py memory bin results inputs .github/measure/corpus.tsv
 
       - uses: actions/upload-artifact@v4
         with:
-          name: memory-${{ matrix.version }}
-          path: results/memory-${{ matrix.version }}.json
+          name: memory
+          path: results/memory.json
 
   quality:
-    needs: [setup, build, inputs]
+    needs: [build, inputs]
     runs-on: ubuntu-24.04
     timeout-minutes: 240
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJSON(needs.setup.outputs.variants) }}
+        set: [png, jpeg]
     steps:
       - uses: actions/checkout@v6
 
@@ -188,22 +180,23 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          name: resize-${{ matrix.version }}
+          pattern: resize-*
           path: bin
+          merge-multiple: true
 
-      - name: Resize the corpus, ${{ matrix.variant }}
+      - name: Resize the ${{ matrix.set }} corpus with each variant
         run: |
           sudo apt-get install -y time
           chmod +x bin/*
-          python3 -I .github/measure/run.py resize "bin/resize-${{ matrix.version }}" ${{ matrix.variant }} results inputs .github/measure/corpus.tsv ${{ matrix.set }}
+          python3 -I .github/measure/run.py resize bin ${{ matrix.set }} results inputs .github/measure/corpus.tsv
 
       - uses: actions/upload-artifact@v4
         with:
-          name: quality-${{ matrix.variant }}
+          name: quality-${{ matrix.set }}
           path: results
 
   equality:
-    needs: [setup, build, inputs]
+    needs: [build, inputs]
     if: inputs.core != ''
     runs-on: ubuntu-24.04
     steps:
@@ -257,9 +250,8 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          pattern: memory-*
+          name: memory
           path: results/memory
-          merge-multiple: true
 
       - uses: actions/download-artifact@v4
         if: inputs.core != ''

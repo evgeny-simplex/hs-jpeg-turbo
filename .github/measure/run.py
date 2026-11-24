@@ -11,6 +11,17 @@ BACKGROUNDS = {"light": (0xF5, 0xF5, 0xF6), "dark": (0x18, 0x26, 0x2E)}
 MODELS = ["preview", "phone", "large"]
 
 
+VARIANTS = {
+    "png": [("base-png", "base", "4096", False), ("new-png", "new", "1024", False), ("new-png-sharp", "new", "1024", True)],
+    "jpeg": [("base-jpeg", "base", "1024", False), ("base-jpeg-sharp", "base", "1024", True)],
+}
+
+
+def cpu():
+    with open("/proc/cpuinfo") as f:
+        return next((line.split(":", 1)[1].strip() for line in f if line.startswith("model name")), "?")
+
+
 def run(binary, args, env):
     with tempfile.NamedTemporaryFile("r") as timing:
         process = subprocess.run(
@@ -22,37 +33,46 @@ def run(binary, args, env):
         rss_kb, wall = timing.read().split()[-2:]
     lines = process.stdout.strip().splitlines()
     result = json.loads(lines[-1]) if process.returncode == 0 and lines else {"exit": process.returncode, "stderr": process.stderr[-2000:]}
-    result.update(rss_mib=round(int(rss_kb) / 1024, 1), wall_s=float(wall))
+    result.update(rss_mib=round(int(rss_kb) / 1024, 1), wall_s=float(wall), cpu=cpu())
     return result
 
 
-def resize(binary, variant, out, files, env):
+def resize(binaries, wanted, out, files):
     results = []
-    for path in files:
-        name = os.path.splitext(os.path.basename(path))[0]
-        directory = os.path.join(out, variant, name)
-        os.makedirs(directory, exist_ok=True)
-        result = run(binary, ["resize", path, directory], env)
-        result.update(variant=variant, name=name, input_bytes=os.path.getsize(path))
-        print(json.dumps(result), flush=True)
-        results.append(result)
+    for variant, version, limit, sharpen in VARIANTS[wanted]:
+        if version not in binaries:
+            continue
+        env = {"MAX_DECODE_MB": limit, **({"SHARPEN_KEPT": "1"} if sharpen else {})}
+        for path in files:
+            name = os.path.splitext(os.path.basename(path))[0]
+            directory = os.path.join(out, variant, name)
+            os.makedirs(directory, exist_ok=True)
+            result = run(binaries[version], ["resize", path, directory], env)
+            result.update(variant=variant, name=name, input_bytes=os.path.getsize(path))
+            print(json.dumps(result), flush=True)
+            results.append(result)
     return results
 
 
-def memory(binary, version, out, files):
+def memory(binaries, out, files):
     results = []
     for limit in ["512", "1024"]:
         for path in files:
             for mode in ["decode", "resize"]:
-                name = os.path.splitext(os.path.basename(path))[0]
-                directory = os.path.join(out, "memory", version, limit, name)
-                os.makedirs(directory, exist_ok=True)
-                args = ["decode", path] if mode == "decode" else ["resize", path, directory]
-                result = run(binary, args, {"MAX_DECODE_MB": limit})
-                result.update(version=version, limit=int(limit), mode=mode, name=name, input_bytes=os.path.getsize(path))
-                print(json.dumps(result), flush=True)
-                results.append(result)
+                for version, binary in binaries.items():
+                    name = os.path.splitext(os.path.basename(path))[0]
+                    directory = os.path.join(out, "memory", version, limit, name)
+                    os.makedirs(directory, exist_ok=True)
+                    args = ["decode", path] if mode == "decode" else ["resize", path, directory]
+                    result = run(binary, args, {"MAX_DECODE_MB": limit})
+                    result.update(version=version, limit=int(limit), mode=mode, name=name, input_bytes=os.path.getsize(path))
+                    print(json.dumps(result), flush=True)
+                    results.append(result)
     return results
+
+
+def binaries(directory):
+    return {version: path for version in ["base", "new"] if os.path.exists(path := os.path.join(directory, f"resize-{version}"))}
 
 
 def equality(base, new, out, files):
@@ -171,7 +191,7 @@ def score(tool, decoder, out, sources, results, root):
         for result in variants:
             row = {"name": name, "variant": result["variant"], "source_width": source_size[0], "source_height": source_size[1]}
             row.update({model: lowest.get((result["variant"], model)) for model in MODELS})
-            for key in ["image_width", "image_height", "image_bytes", "preview_width", "preview_height", "preview_chars", "decode_ms", "image_ms", "preview_ms", "error", "rss_mib", "wall_s"]:
+            for key in ["image_width", "image_height", "image_bytes", "preview_width", "preview_height", "preview_chars", "decode_ms", "image_ms", "preview_ms", "error", "rss_mib", "wall_s", "cpu"]:
                 row[key] = result.get(key)
             print(json.dumps(row), flush=True)
             scores.append(row)
@@ -217,9 +237,10 @@ def memory_report(results):
                         outcome = outcome[0] if outcome else None
                     if outcome is None:
                         outcome = f"{r.get('width')}×{r.get('height')}"
-                    row += [outcome, r["rss_mib"], r["wall_s"]]
+                    row += [outcome, r["rss_mib"], f"{r['wall_s']:.2f}"]
                 rows.append(row)
-    return out + table(["input", "bytes", "MAX_DECODE_MB", "mode", "base result", "base MiB", "base s", "new result", "new MiB", "new s"], rows)
+    cpus = ", ".join(sorted({r.get("cpu", "?") for r in results}))
+    return out + f"Base and new ran one after the other on one runner: {cpus}.\n\n" + table(["input", "bytes", "MAX_DECODE_MB", "mode", "base result", "base MiB", "base s", "new result", "new MiB", "new s"], rows)
 
 
 def equality_report(rows):
@@ -241,6 +262,7 @@ def quality_report(scores):
         present = [v for v in variants if any(s["variant"] == v for s in rows)]
         keyed = {(s["name"], s["variant"]): s for s in rows}
         names = list(dict.fromkeys(s["name"] for s in rows))
+        out += f"{wanted}: the variants ran one after the other on one runner: {', '.join(sorted({s.get('cpu') or '?' for s in rows}))}.\n\n"
         for title, keys in [("scores", MODELS), ("output", ["image_width", "image_bytes", "preview_width", "preview_chars"]), ("milliseconds", ["decode_ms", "image_ms", "preview_ms"])]:
             header = ["input", "source"] + [f"{v} {k}" for k in keys for v in present]
             body = []
@@ -260,22 +282,18 @@ def quality_report(scores):
 
 
 def environment_report():
-    cpu = subprocess.run(["sh", "-c", "lscpu | sed -n 's/^Model name: *//p'"], capture_output=True, text=True).stdout.strip()
-    return f"Runner: {os.environ.get('ImageOS', '?')}, {os.cpu_count()} CPUs, {cpu}. Image.hs is compiled with two replacements read from the environment: `maxDecodeMemoryMB` from `MAX_DECODE_MB` (1024 when unset, as in desktop builds) and sharpening at the kept size when `SHARPEN_KEPT` is set; with `SHARPEN_KEPT` unset and `MAX_DECODE_MB` at 512 or 1024, the code equals the commit's code of mobile or desktop builds.\n\n"
+    return "Each measurement process runs alone on a GitHub ubuntu-24.04 runner with 4 CPUs. Image.hs is compiled with two replacements read from the environment: `maxDecodeMemoryMB` from `MAX_DECODE_MB` (1024 when unset, as in desktop builds) and sharpening at the kept size when `SHARPEN_KEPT` is set; with `SHARPEN_KEPT` unset and `MAX_DECODE_MB` at 512 or 1024, the code equals the commit's code of mobile or desktop builds.\n\n"
 
 
 def main():
     command, *args = sys.argv[1:]
     if command == "memory":
-        binary, version, out, inputs, corpus_file = args
+        directory, out, inputs, corpus_file = args
         files = sorted(glob.glob(os.path.join(inputs, "generated", "*"))) + corpus(corpus_file, inputs, "png")
-        write_json(os.path.join(out, f"memory-{version}.json"), memory(binary, version, out, files))
+        write_json(os.path.join(out, "memory.json"), memory(binaries(directory), out, files))
     elif command == "resize":
-        binary, variant, out, inputs, corpus_file, wanted = args
-        env = {"MAX_DECODE_MB": "4096" if variant == "base-png" else "1024"}
-        if variant.endswith("-sharp"):
-            env["SHARPEN_KEPT"] = "1"
-        write_json(os.path.join(out, f"resize-{variant}.json"), resize(binary, variant, out, corpus(corpus_file, inputs, wanted), env))
+        directory, wanted, out, inputs, corpus_file = args
+        write_json(os.path.join(out, f"resize-{wanted}.json"), resize(binaries(directory), wanted, out, corpus(corpus_file, inputs, wanted)))
     elif command == "equality":
         base, new, out, inputs, corpus_file = args
         files = corpus(corpus_file, inputs, "equal") + sorted(glob.glob(os.path.join(inputs, "fixtures", "*.png"))) + sorted(glob.glob("JuicyPixels-spng/cbits/libspng/tests/images/*.png"))
@@ -288,7 +306,7 @@ def main():
     elif command == "report":
         out, = args
         report = environment_report()
-        memories = [r for f in sorted(glob.glob(os.path.join(out, "**", "memory-*.json"), recursive=True)) for r in json.load(open(f))]
+        memories = [r for f in sorted(glob.glob(os.path.join(out, "**", "memory.json"), recursive=True)) for r in json.load(open(f))]
         if memories:
             report += memory_report(memories) + "\n"
         equalities = glob.glob(os.path.join(out, "**", "equality.json"), recursive=True)
