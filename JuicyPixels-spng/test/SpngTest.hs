@@ -1,7 +1,7 @@
 module SpngTest where
 
 import Codec.Compression.Zlib qualified as Z
-import Codec.Picture (DynamicImage(..), Image(..), PixelRGBA8(..), convertRGB8, convertRGBA8, generateImage)
+import Codec.Picture (DynamicImage(..), Image(..), PixelRGBA8(..), convertRGB8, convertRGBA8, dynamicMap, generateImage)
 import Codec.Picture qualified as JP
 import Codec.Picture.Spng
 import Control.Monad (forM_)
@@ -18,7 +18,7 @@ import Test.Tasty.HUnit (assertBool, assertFailure, (@?=))
 unit_header :: IO ()
 unit_header = do
   headers <- mapM (\name -> B.readFile (suiteImage name) >>= readPngHeader) ["basn6a16", "basi3p08", "basn0g08"]
-  headers @?= map Right [PngHeader 32 32 16 6, PngHeader 32 32 8 3, PngHeader 32 32 8 0]
+  headers @?= map Right [PngHeader 32 32 16 6 0, PngHeader 32 32 8 3 1, PngHeader 32 32 8 0 0]
 
 unit_sameAsJuicyPixels :: IO ()
 unit_sameAsJuicyPixels = forM_ suite \(name, transparent) -> do
@@ -105,8 +105,70 @@ unit_malformed = do
 unit_memoryLimit :: IO ()
 unit_memoryLimit = do
   let header = png [ihdr 16384 16384 16 6, idat (B.replicate 2 0), iend]
-  decodePng (DecodeOptions 1) header >>= (@?= Left "image is too large") . fmap (samples . fst)
-  decodePng (DecodeOptions 0) header >>= (@?= Left "invalid decode options") . fmap (samples . fst)
+  decodePng (DecodeOptions maxBound 1 Right) header >>= (@?= Left "image is too large") . fmap (samples . fst)
+  decodePng (DecodeOptions maxBound 0 Right) header >>= (@?= Left "invalid decode options") . fmap (samples . fst)
+  decodePng (DecodeOptions 0 64 Right) header >>= (@?= Left "invalid decode options") . fmap (samples . fst)
+
+unit_scaledMemoryLimit :: IO ()
+unit_scaledMemoryLimit = forM_ limits \(input, size, accepted) -> do
+  let decode memory = fmap (dimensions . fst) <$> decodePng (DecodeOptions maxBound memory (const $ Right size)) input
+  decode accepted >>= (@?= Right size)
+  decode (accepted - 1) >>= (@?= Left "image is too large")
+  where
+    limits =
+      [ (blank, (2048, 2048), 16)
+      , (blank, (1024, 1024), 4)
+      , (blankInterlaced, (2048, 2048), 16)
+      , (blankInterlaced, (1024, 1024), 20)
+      ]
+    blank = png [ihdr 2048 2048 8 6, idat (B.replicate (2048 * (1 + 2048 * 4)) 0), iend]
+    blankInterlaced = png [interlaced (ihdr 2048 2048 8 6), idat (B.replicate (adam7Bytes 2048 2048 4) 0), iend]
+
+unit_maxPixels :: IO ()
+unit_maxPixels = do
+  let input = png [ihdr 2048 1024 8 0, idat (B.replicate (1024 * (1 + 2048)) 0), iend]
+      decode limit = fmap (dimensions . fst) <$> decodePng (DecodeOptions limit 64 (const $ Right (512, 256))) input
+  decode (2048 * 1024) >>= (@?= Right (512, 256))
+  decode (2048 * 1024 - 1) >>= (@?= Left "image is too large")
+
+unit_outputSize :: IO ()
+unit_outputSize = do
+  bytes <- B.readFile (suiteImage "basn2c08")
+  let decode size = fmap (dimensions . fst) <$> decodePng (DecodeOptions maxBound 64 size) bytes
+  decode (const $ Left "image does not fit") >>= (@?= Left "image does not fit")
+  forM_ [(0, 32), (32, 0), (33, 32), (32, 33)] \size -> decode (const $ Right size) >>= (@?= Left "invalid decode options")
+  decode (\(w, h) -> Right (w `div` 2, h)) >>= (@?= Right (16, 32))
+
+unit_scaledAsAreaAverage :: IO ()
+unit_scaledAsAreaAverage = forM_ suite \(name, _) -> do
+  bytes <- B.readFile (suiteImage name)
+  Right (full, _) <- decodePng options bytes
+  let (format, pixels) = samples full
+      channels = if format == "RGBA8" then 4 else 3
+  forM_ [(16, 16), (11, 7), (1, 1), (32, 5), (3, 31), (31, 32)] \size -> do
+    Right (scaled, _) <- decodePng (DecodeOptions maxBound 64 (const $ Right size)) bytes
+    assertBool (name <> " at " <> show size) $ samples scaled == (format, areaAverage channels (dimensions full) size pixels)
+
+unit_scaledSolidColour :: IO ()
+unit_scaledSolidColour = forM_ inputs \(input, size, pixel) -> do
+  decoded <- decodePng (DecodeOptions maxBound 64 (const $ Right size)) input
+  fmap (first samples) decoded @?= Right ((channelsOf pixel, V.concat (replicate (uncurry (*) size) (V.fromList pixel))), Nothing)
+  where
+    inputs =
+      [ (solid 16384 16 [200, 100, 50, 128], (4096, 4), [200, 100, 50, 128])
+      , (solid 16 16384 [255, 255, 255, 255], (4, 4096), [255, 255, 255, 255])
+      , (solid 16384 16 [200, 100, 50], (4321, 5), [200, 100, 50])
+      , (solid 8641 3 [255, 255, 255], (4320, 1), [255, 255, 255])
+      ]
+    solid width height pixel = png [ihdr width height 8 (if length pixel == 4 then 6 else 2), idat (B.concat $ replicate (fromIntegral height) $ B.pack $ 0 : concat (replicate (fromIntegral width) pixel)), iend]
+    channelsOf pixel = if length pixel == 4 then "RGBA8" else "RGB8"
+
+unit_scaledMalformed :: IO ()
+unit_scaledMalformed = forM_ ["basn2c08", "basi2c08"] \name -> do
+  valid <- B.readFile (suiteImage name)
+  let decode = decodePng (DecodeOptions maxBound 64 (const $ Right (11, 7)))
+  forM_ [B.take n valid | n <- [0 .. B.length valid - 5]] \input -> decode input >>= assertBool (name <> " truncated to " <> show (B.length input)) . isLeft
+  forM_ [B.take n valid | n <- [B.length valid - 4 .. B.length valid]] \input -> decode input >>= assertBool (name <> " IEND CRC truncated to " <> show (B.length input)) . isRight
 
 suite :: [(String, Bool)]
 suite =
@@ -144,13 +206,38 @@ suiteImage :: String -> FilePath
 suiteImage name = "cbits/libspng/tests/images/" <> name <> ".png"
 
 options :: DecodeOptions
-options = DecodeOptions 64
+options = DecodeOptions maxBound 64 Right
 
 samples :: DynamicImage -> (String, V.Vector Word8)
 samples = \case
   ImageRGB8 Image {imageData} -> ("RGB8", imageData)
   ImageRGBA8 Image {imageData} -> ("RGBA8", imageData)
   _ -> ("other", V.empty)
+
+dimensions :: DynamicImage -> (Int, Int)
+dimensions = dynamicMap \image -> (imageWidth image, imageHeight image)
+
+areaAverage :: Int -> (Int, Int) -> (Int, Int) -> V.Vector Word8 -> V.Vector Word8
+areaAverage channels (width, height) (width', height') pixels = V.fromList $ concat [pixel x' y' | y' <- [0 .. height' - 1], x' <- [0 .. width' - 1]]
+  where
+    pixel x' y' = map (fromInteger . rounded) $ take 3 [(colour c, if channels == 4 then weight else area) | c <- [0 ..]] <> [(weight, area) | channels == 4]
+      where
+        covered = [(x, y, wx * wy) | (x, wx) <- overlaps width width' x', (y, wy) <- overlaps height height' y']
+        sample x y c = toInteger $ pixels V.! ((y * width + x) * channels + c)
+        alpha x y = if channels == 4 then sample x y 3 else 1
+        colour c = sum [sample x y c * alpha x y * w | (x, y, w) <- covered]
+        weight = sum [alpha x y * w | (x, y, w) <- covered]
+    area = toInteger $ width * height
+    rounded (s, d) = if d == 0 then 0 else (s + d `div` 2) `div` d
+    overlaps side side' i = [(x, toInteger overlap) | x <- [0 .. side - 1], let overlap = min ((x + 1) * side') ((i + 1) * side) - max (x * side') (i * side), overlap > 0]
+
+interlaced :: (B.ByteString, B.ByteString) -> (B.ByteString, B.ByteString)
+interlaced (name, body) = (name, B.init body <> "\1")
+
+adam7Bytes :: Int -> Int -> Int -> Int
+adam7Bytes width height pixelBytes = sum [h * (1 + w * pixelBytes) | (x0, y0, dx, dy) <- passes, let w = (width - x0 + dx - 1) `div` dx, let h = (height - y0 + dy - 1) `div` dy, w > 0, h > 0]
+  where
+    passes = [(0, 0, 8, 8), (4, 0, 8, 8), (0, 4, 4, 8), (2, 0, 4, 4), (0, 2, 2, 4), (1, 0, 2, 2), (0, 1, 1, 2)]
 
 png :: [(B.ByteString, B.ByteString)] -> B.ByteString
 png chunks = "\x89PNG\r\n\x1a\n" <> foldMap chunk chunks
