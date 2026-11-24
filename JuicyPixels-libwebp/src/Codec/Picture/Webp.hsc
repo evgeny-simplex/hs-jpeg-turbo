@@ -42,7 +42,7 @@ decodeWebp DecodeOptions{maxMemoryMB, outputSize} webp
       height <- canvasSide demux #{const WEBP_FF_CANVAS_HEIGHT}
       when (width > maxSide || height > maxSide) $ throwE "image side exceeds 16384"
       (width', height') <- except $ outputSize (width, height)
-      when (width' < 1 || width' > width || height' < 1 || height' > height) $ throwE "invalid decode options"
+      when (width' * maxScaleDown < width || width' > width || height' * maxScaleDown < height || height' > height) $ throwE "invalid decode options"
       flags <- liftIO $ webPDemuxGetI demux #{const WEBP_FF_FORMAT_FLAGS}
       let animated = flags .&. #{const ANIMATION_FLAG} /= 0
       image <-
@@ -111,6 +111,9 @@ decoderMemory format hasAlpha width height
 
 losslessFormat :: CInt
 losslessFormat = 2
+
+maxScaleDown :: Int
+maxScaleDown = 256
 
 maxSide :: Int
 maxSide = 16384
