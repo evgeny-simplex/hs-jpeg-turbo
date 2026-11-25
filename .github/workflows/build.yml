@@ -2,6 +2,11 @@ name: build
 
 on:
   workflow_dispatch:
+    inputs:
+      probe:
+        description: Run only the compiler flag probe of the sse2 module
+        type: boolean
+        default: false
 
 defaults:
   run:
@@ -67,6 +72,7 @@ jobs:
   measure:
     name: native and wasm2c builds on ${{ matrix.os }}
     needs: generate
+    if: &full ${{ !inputs.probe }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -117,6 +123,7 @@ jobs:
   sanitizers:
     name: wasm2c build with sanitizers, truncated and changed inputs
     needs: generate
+    if: *full
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
@@ -157,9 +164,31 @@ jobs:
           cat "$out/failed"
           grep -q 'failed=0' "$out/failed"
 
+  probe:
+    name: compiler flags of the sse2 module on ubuntu-24.04-arm
+    needs: generate
+    if: ${{ inputs.probe }}
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+
+      - *download-gen
+      - *download-fixtures
+
+      - name: Install clang
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang
+
+      - name: Measure the sse2 module built with each compiler and flags
+        run: bash .github/scripts/wasm-probe.sh
+
   clang-versions:
     name: native and wasm2c builds by clang 14 to 21 on ubuntu-24.04-arm
     needs: generate
+    if: *full
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v6
@@ -183,6 +212,7 @@ jobs:
   armv7:
     name: armv7 native and wasm2c builds on ubuntu-24.04-arm
     needs: generate
+    if: *full
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v6
@@ -210,6 +240,7 @@ jobs:
   haskell:
     name: webp-sandbox on ${{ matrix.os }}, GHC ${{ matrix.ghc }}
     needs: generate
+    if: *full
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
