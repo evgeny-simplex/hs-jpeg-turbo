@@ -59,6 +59,17 @@ main = do
             _ <- forkIO $ putMVar done =<< forM webps (\webp -> samples <$> decodeWebp (Sandboxed 256) 16384 webp)
             pure done
           forM_ results \done -> takeMVar done >>= assertEqual "outputs" expected
+      , testCase "concurrent traps in 8 sandboxes return errors while other sandboxes decode" do
+          webp <- B.readFile (fixtures </> "photo-1280x720-lossy.webp")
+          expected <- samples <$> decodeWebp Native 16384 webp
+          results <- replicateM 8 do
+            done <- newEmptyMVar
+            _ <- forkIO $ putMVar done =<< forM [1 :: Int .. 200] \i ->
+              if even i
+                then (== Left "sandbox trap 1") <$> loadSandboxByte 16 maxBound
+                else (== expected) . samples <$> decodeWebp (Sandboxed 256) 16384 webp
+            pure done
+          forM_ results \done -> takeMVar done >>= assertBool "every load trapped and every decode returned the native output" . and
       ]
   where
     conformanceFile line = case words line of

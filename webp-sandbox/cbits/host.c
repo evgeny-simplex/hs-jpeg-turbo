@@ -11,6 +11,10 @@
 #include <pthread.h>
 #endif
 
+#ifndef WASM_RT_C11_AVAILABLE
+#error "the trap state of wasm2c is thread-local only with C11"
+#endif
+
 #define OUTPUT_SIZE 20
 
 struct w2c_env {
