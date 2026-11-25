@@ -8,41 +8,47 @@
 #include "src/utils/utils.h"
 #include "src/webp/encode.h"
 
-#define BLOCK_HEADER 16
+typedef union {
+  struct {
+    size_t size;
+    HsWebPMemory *owner;
+  } block;
+  unsigned char bytes[16];
+} Header;
 
-static _Thread_local HsWebPMemory *active;
+static HsWebPMemory *active;
 
 static void *allocate(size_t size, int zero)
 {
   HsWebPMemory *memory = active;
-  size_t *block;
+  Header *header;
 
   if (!memory)
     return NULL;
-  if (memory->used > memory->limit || memory->limit - memory->used < BLOCK_HEADER || size > memory->limit - memory->used - BLOCK_HEADER) {
+  if (memory->used > memory->limit || memory->limit - memory->used < sizeof(Header) || size > memory->limit - memory->used - sizeof(Header)) {
     memory->refused = 1;
     return NULL;
   }
-  block = zero ? calloc(1, size + BLOCK_HEADER) : malloc(size + BLOCK_HEADER);
-  if (!block)
+  header = zero ? calloc(1, size + sizeof(Header)) : malloc(size + sizeof(Header));
+  if (!header)
     return NULL;
-  *block = size + BLOCK_HEADER;
-  memory->used += *block;
+  header->block.size = size + sizeof(Header);
+  header->block.owner = memory;
+  memory->used += header->block.size;
   if (memory->used > memory->peak)
     memory->peak = memory->used;
-  return (unsigned char *)block + BLOCK_HEADER;
+  return header + 1;
 }
 
 static void release(void *ptr)
 {
-  size_t *block;
+  Header *header;
 
   if (!ptr)
     return;
-  block = (size_t *)((unsigned char *)ptr - BLOCK_HEADER);
-  if (active)
-    active->used -= *block;
-  free(block);
+  header = (Header *)ptr - 1;
+  header->block.owner->used -= header->block.size;
+  free(header);
 }
 
 #define malloc(size) allocate(size, 0)
