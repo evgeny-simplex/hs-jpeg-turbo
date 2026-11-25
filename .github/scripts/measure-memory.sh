@@ -38,7 +38,7 @@ measure() {
 }
 
 rm -rf "$out/images" "$out/table.md"
-mkdir -p "$out/images" "$out/fixtures"
+mkdir -p "$out/images"
 echo "libwebp $(git -C "$lib" rev-parse HEAD); $(echo "$sources" | wc -w) C files; cc-options: $options"
 gcc -O2 $options -I "$package/cbits" -I "$lib" $sources .github/scripts/webp.c -lpthread -lm -o "$out/webp.exe"
 gcc -O2 -I "$lib" -I "$lib/src" "$lib"/src/*/*.c "$lib"/sharpyuv/*.c .github/scripts/measure-encode.c -lm -o "$out/encode.exe"
@@ -56,19 +56,17 @@ lossless-alpha-16383x16383 16383x16383 lossless,alpha 16383 16383 1 1 4
 lossless-alpha-method6-4320x4320 4320x4320 lossless,alpha 4320 4320 1 1 6
 EOF
 
-while read -r name frame kind width height groups pattern bytes; do
-  "$out/craft.exe" "$out/images/$name.webp" "$kind" "$width" "$height" "$groups" "$pattern" "$bytes"
-  if [ "$name" = transforms-lossless-16384x16384 ]; then
-    cp "$out/images/$name.webp" "$out/fixtures/lossless-transforms-16384x16384.webp"
-  fi
+while read -r name frame kind width height groups pattern bits bytes; do
+  "$out/craft.exe" "$out/images/$name.webp" "$kind" "$width" "$height" "$groups" "$pattern" "$bits" "$bytes"
   measure "$name" "$frame" "$kind" "$out/images/$name.webp"
 done <<'EOF'
-transforms-lossless-16384x16384 16384x16384 lossless 16384 16384 2 last 0
-transforms-alpha-16383x8191 16383x8191 alpha 16383 8191 2 last 0
-huffman-lossless-1024x1024 1024x1024 lossless 1024 1024 65536 cycle 0
-huffman-alpha-1024x1024 1024x1024 alpha 1024 1024 65536 cycle 0
-chunks-16MiB 16x16 lossless 16 16 0 cycle 16777216
-chunks-16MiB-huffman-lossless-1024x1024 1024x1024 lossless 1024 1024 65536 cycle 16777216
+transforms-lossless-16384x16384 16384x16384 lossless 16384 16384 2 last 2 0
+transforms-alpha-16383x8191 16383x8191 alpha 16383 8191 2 last 2 0
+huffman-lossless-1024x1024 1024x1024 lossless 1024 1024 65536 cycle 2 0
+huffman-alpha-1024x1024 1024x1024 alpha 1024 1024 65536 cycle 2 0
+groups-lossless-16384x16384 16384x16384 lossless 16384 16384 65536 cycle 6 0
+chunks-16MiB 16x16 lossless 16 16 0 cycle 2 16777216
+chunks-16MiB-huffman-lossless-1024x1024 1024x1024 lossless 1024 1024 65536 cycle 2 16777216
 EOF
 
 {
@@ -79,8 +77,4 @@ EOF
   echo "| Image | Frame | Kind | Max side | Output MiB | Demuxer MiB | 256 MiB: result | peak MiB | RSS MiB | 4096 MiB: result | peak MiB | RSS MiB |"
   echo "|---|---|---|---|---|---|---|---|---|---|---|---|"
   cat "$out/table.md"
-  echo
-  echo '```'
-  sha256sum "$out/fixtures/lossless-transforms-16384x16384.webp"
-  echo '```'
 } | tee -a "$summary"

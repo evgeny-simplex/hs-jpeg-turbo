@@ -39,15 +39,16 @@ jobs:
           submodules: true
 
       - &later-fixes
-        name: Apply five libwebp commits after 68dd1c30
+        name: Apply the src and sharpyuv changes of five libwebp commits after 68dd1c30
         run: |
           cd JuicyPixels-libwebp/cbits/libwebp
           git log -1 --format='%H %s'
           for commit in 1844042d1ca751e62e61df7617dba19c98588339 85755959324890521629da408901d79c87728e0b 90ffd41238fb645f9793f7353051fd8bf6538c43 f9c049d57323a51b51390bf6a1ad71c4dc008bb2 5c8c69ebd8a5836284b4ed4a01ce8b502db571f1; do
             git fetch --quiet --depth=2 origin "$commit"
-            git -c user.name=ci -c user.email=ci@localhost cherry-pick --no-commit "$commit"
+            git diff --full-index "$commit^" "$commit" -- src sharpyuv | git apply --index
           done
-          git diff --stat HEAD
+          git diff --cached --stat HEAD
+          git diff --cached --full-index HEAD | sha256sum
 
       - id: setup
         uses: simplex-chat/setup-haskell-action@v2

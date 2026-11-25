@@ -99,9 +99,10 @@ static void subsampled_transform(Writer *w, uint32_t type)
   trivial_group(w, 0);
 }
 
-static void image_stream(Writer *w, int width, int height, int groups, int last)
+static void image_stream(Writer *w, int width, int height, int groups, int last, int huffman_bits)
 {
   size_t pixels, i;
+  int block = 1 << huffman_bits;
   if (groups == 0) {
     put(w, 0, 1);
     put(w, 0, 1);
@@ -114,7 +115,7 @@ static void image_stream(Writer *w, int width, int height, int groups, int last)
   put(w, 0, 1);
   put(w, 0, 1);
   put(w, 1, 1);
-  put(w, 0, 3);
+  put(w, huffman_bits - 2, 3);
   put(w, 0, 1);
   if (last) {
     single_symbol_code(w, (uint32_t)(groups - 1) & 0xff);
@@ -126,7 +127,7 @@ static void image_stream(Writer *w, int width, int height, int groups, int last)
   single_symbol_code(w, 0);
   single_symbol_code(w, 0);
   single_symbol_code(w, 0);
-  pixels = (size_t)((width + 3) / 4) * ((height + 3) / 4);
+  pixels = (size_t)((width + block - 1) / block) * ((height + block - 1) / block);
   for (i = 0; i < pixels && !last; i++) {
     put(w, reversed((uint32_t)(i % groups) & 0xff), 8);
     put(w, reversed((uint32_t)(i % groups) >> 8), 8);
@@ -186,11 +187,12 @@ int main(int argc, char **argv)
   WebPMemoryWriter lossy;
   uint8_t vp8x[10] = {0x10};
   size_t fixed, total, filler, i;
-  int width, height, groups, alpha, last;
+  int width, height, groups, alpha, last, huffman_bits;
   FILE *out;
 
-  if (argc != 8 || (strcmp(argv[2], "lossless") && strcmp(argv[2], "alpha")) || (strcmp(argv[6], "cycle") && strcmp(argv[6], "last"))) {
-    fprintf(stderr, "usage: %s OUTPUT lossless|alpha WIDTH HEIGHT GROUPS cycle|last FILE_BYTES\n", argv[0]);
+  if (argc != 9 || (strcmp(argv[2], "lossless") && strcmp(argv[2], "alpha")) || (strcmp(argv[6], "cycle") && strcmp(argv[6], "last")) ||
+      atoi(argv[7]) < 2 || atoi(argv[7]) > 9) {
+    fprintf(stderr, "usage: %s OUTPUT lossless|alpha WIDTH HEIGHT GROUPS cycle|last HUFFMAN_BITS FILE_BYTES\n", argv[0]);
     return 2;
   }
   alpha = !strcmp(argv[2], "alpha");
@@ -198,7 +200,8 @@ int main(int argc, char **argv)
   height = atoi(argv[4]);
   groups = atoi(argv[5]);
   last = !strcmp(argv[6], "last");
-  total = strtoull(argv[7], NULL, 10);
+  huffman_bits = atoi(argv[7]);
+  total = strtoull(argv[8], NULL, 10);
   if (alpha) {
     put_byte(&stream, 1);
   } else {
@@ -208,7 +211,7 @@ int main(int argc, char **argv)
     put(&stream, 1, 1);
     put(&stream, 0, 3);
   }
-  image_stream(&stream, width, height, groups, last);
+  image_stream(&stream, width, height, groups, last, huffman_bits);
   finish(&stream);
   if (alpha)
     lossy_frame(width, height, &lossy);
@@ -240,7 +243,7 @@ int main(int argc, char **argv)
     perror(argv[1]);
     return 1;
   }
-  printf("%s: %s %dx%d, %d Huffman groups, %s, %lu bytes, %lu empty chunks\n", argv[1], argv[2], width, height, groups, argv[6], (unsigned long)file.size,
-         (unsigned long)filler);
+  printf("%s: %s %dx%d, %d Huffman groups, %s, Huffman bits %d, %lu bytes, %lu empty chunks\n", argv[1], argv[2], width, height, groups, argv[6], huffman_bits,
+         (unsigned long)file.size, (unsigned long)filler);
   return 0;
 }
