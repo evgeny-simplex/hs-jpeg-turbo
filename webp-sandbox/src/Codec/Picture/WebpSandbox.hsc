@@ -57,7 +57,7 @@ statusError :: CInt -> Word32 -> String
 statusError status trap = case status of
   #{const WEBP_SANDBOX_TRAP} -> "sandbox trap " <> show trap
   #{const WEBP_SANDBOX_INVALID_OUTPUT} -> "invalid sandbox output"
-  #{const WEBP_SANDBOX_OUT_OF_MEMORY} -> "out of host memory"
+  #{const WEBP_SANDBOX_OUT_OF_MEMORY} -> "out of memory"
   #{const WEBP_SANDBOX_INVALID_ARGUMENT} -> "invalid argument"
   1 -> "out of memory"
   2 -> "invalid parameter"

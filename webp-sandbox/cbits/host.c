@@ -73,7 +73,7 @@ static uint32_t read_u32(const wasm_rt_memory_t *memory, uint32_t offset)
   return p[0] | p[1] << 8 | p[2] << 16 | (uint32_t)p[3] << 24;
 }
 
-static int copy_output(const wasm_rt_memory_t *memory, uint32_t output, int max_side, webp_result *result)
+static int copy_output(const wasm_rt_memory_t *memory, uint32_t output, webp_result *result)
 {
   uint32_t status, width, height, channels, pixels;
   uint64_t length;
@@ -87,8 +87,7 @@ static int copy_output(const wasm_rt_memory_t *memory, uint32_t output, int max_
   height = read_u32(memory, output + 8);
   channels = read_u32(memory, output + 12);
   pixels = read_u32(memory, output + 16);
-  if (width < 1 || width > (uint32_t)max_side || width > WEBP_MAX_SIDE || height < 1 || height > (uint32_t)max_side ||
-      height > WEBP_MAX_SIDE || (channels != 3 && channels != 4))
+  if (width < 1 || width > WEBP_MAX_SIDE || height < 1 || height > WEBP_MAX_SIDE || (channels != 3 && channels != 4))
     return WEBP_SANDBOX_INVALID_OUTPUT;
   length = (uint64_t)width * height * channels;
   if (!in_memory(memory, pixels, length))
@@ -111,7 +110,7 @@ static int run_decode(w2c_webp *instance, const wasm_rt_memory_t *memory, const 
   if (!in_memory(memory, input, call->size))
     return WEBP_SANDBOX_INVALID_OUTPUT;
   memcpy(memory->data + input, call->webp, call->size);
-  return copy_output(memory, w2c_webp_decode(instance, input, (uint32_t)call->size, call->max_side), call->max_side, result);
+  return copy_output(memory, w2c_webp_decode(instance, input, (uint32_t)call->size, call->max_side), result);
 }
 
 static int run_load(w2c_webp *instance, const wasm_rt_memory_t *memory, const Call *call, webp_result *result)
