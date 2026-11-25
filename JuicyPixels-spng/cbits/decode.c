@@ -102,6 +102,8 @@ int juicypixels_spng_decode(spng_ctx *ctx, int fmt, unsigned char *out, uint32_t
     return SPNG_EINVAL;
   if (width == ihdr.width && height == ihdr.height)
     return spng_decode_image(ctx, out, (size_t)width * height * s.channels, fmt, SPNG_DECODE_TRNS);
+  if ((uint64_t)ihdr.width * 255 * 255 > UINT32_MAX)
+    return SPNG_EOVERFLOW;
   s.width = ihdr.width;
   s.height = ihdr.height;
   s.scaled_width = width;

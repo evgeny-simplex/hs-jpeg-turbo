@@ -6,6 +6,11 @@
 
 static const int formats[2] = {SPNG_FMT_RGBA8, SPNG_FMT_RGB8};
 
+static uint32_t half(uint32_t side)
+{
+  return side / 2 + (side % 2 && side / 2 % 2);
+}
+
 static int decode(const unsigned char *png, size_t size, int fmt, uint32_t max_side, unsigned char **image, size_t *len)
 {
   spng_ctx *ctx = spng_ctx_new(0);
@@ -24,10 +29,14 @@ static int decode(const unsigned char *png, size_t size, int fmt, uint32_t max_s
   if (!rc) {
     width = ihdr.width;
     height = ihdr.height;
-    while (width > max_side || height > max_side) {
-      width = (width + 1) / 2;
-      height = (height + 1) / 2;
+    while (!rc && (width > max_side || height > max_side)) {
+      if (width < 2 || height < 2)
+        rc = SPNG_EINVAL;
+      width = half(width);
+      height = half(height);
     }
+  }
+  if (!rc) {
     *len = (size_t)width * height * (fmt == SPNG_FMT_RGBA8 ? 4 : 3);
     if (!(*image = malloc(*len)))
       rc = SPNG_EMEM;
