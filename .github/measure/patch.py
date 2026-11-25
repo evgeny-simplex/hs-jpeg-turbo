@@ -41,9 +41,29 @@ PROVISIONAL = (
     "      | \"\\x89PNG\\r\\n\\x1a\\n\" `B.isPrefixOf` s = ExceptT $ Spng.decodePng (Spng.DecodeOptions (2 ^ (28 :: Int)) (maxDecodeMemoryMB `div` 2) (\\(w, h) -> maybe imageDoesNotFit (Right . snd) $ displaySize w h)) s\n",
 )
 
+CATMULL_ROM = (
+    "      | \"\\x89PNG\\r\\n\\x1a\\n\" `B.isPrefixOf` s = ExceptT $ Spng.decodePng (Spng.DecodeOptions $ maxDecodeMemoryMB `div` 2) s\n",
+    "      | \"\\x89PNG\\r\\n\\x1a\\n\" `B.isPrefixOf` s = do\n"
+    "          (img, profile) <- ExceptT $ Spng.decodePng (Spng.DecodeOptions (2 ^ (28 :: Int)) (maxDecodeMemoryMB `div` 2) Right) s\n"
+    "          size <- maybe (throwError \"image does not fit\") (pure . snd) $ dynamicMap (\\i -> displaySize (imageWidth i) (imageHeight i)) img\n"
+    "          pure (catmullRomTo size img, profile)\n",
+)
+
+CATMULL_ROM_FUNCTION = (
+    "\n"
+    "catmullRomTo :: (Int, Int) -> DynamicImage -> DynamicImage\n"
+    "catmullRomTo size img\n"
+    "  | dynamicMap (hasSize size) img = img\n"
+    "  | otherwise = case img of\n"
+    "      ImageRGBA8 rgba -> ImageRGBA8 $ pixelMap unpremultiply $ catmullRom [STBIR.flag_ALPHA_PREMULTIPLIED] size $ pixelMap premultiply rgba\n"
+    "      _ -> ImageRGB8 $ catmullRom [] size $ convertRGB8 img\n"
+)
+
 path, *options = sys.argv[1:]
-if options == ["--provisional"]:
+if "--provisional" in options:
     REPLACEMENTS.append(PROVISIONAL)
+if "--catmull-rom" in options:
+    REPLACEMENTS.append(CATMULL_ROM)
 with open(path) as f:
     source = f.read()
 for old, new in REPLACEMENTS:
@@ -51,6 +71,8 @@ for old, new in REPLACEMENTS:
     if count != 1:
         sys.exit(f"{path}: {count} occurrences of {old!r}, 1 expected")
     source = source.replace(old, new)
+if "--catmull-rom" in options:
+    source += CATMULL_ROM_FUNCTION
 with open(path, "w") as f:
     f.write(source)
 print(f"{path}: {len(REPLACEMENTS)} replacements applied")

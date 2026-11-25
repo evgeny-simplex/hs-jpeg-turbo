@@ -27,7 +27,7 @@ jobs:
           CORE: ${{ inputs.core }}
         run: |
           if [ -n "$CORE" ]; then
-            echo 'versions=["base", "new"]' >> "$GITHUB_OUTPUT"
+            echo 'versions=["base", "new", "cr"]' >> "$GITHUB_OUTPUT"
           else
             echo 'versions=["base"]' >> "$GITHUB_OUTPUT"
           fi
@@ -70,6 +70,11 @@ jobs:
             git clone --quiet https://github.com/simplex-chat/hs-jpeg-turbo "$project/hjt"
             git -C "$project/hjt" checkout --quiet "$BASE_BINDING"
             git -C "$project/hjt" submodule update --init --quiet
+          elif [ "$VERSION" = cr ]; then
+            repository=simplex-chat/simplex-chat
+            commit=$BASE_CORE
+            options=--catmull-rom
+            ln -s "$GITHUB_WORKSPACE" "$project/hjt"
           elif [ "$CORE" = provisional ]; then
             repository=simplex-chat/simplex-chat
             commit=$BASE_CORE
@@ -96,7 +101,7 @@ jobs:
               location: https://github.com/simplex-chat/JuicyPixels-stbir.git
               tag: e0090e14f6348a33b53c11b377cb69df766b02b4
           EOF
-          echo "Image.hs of $repository at $commit ${options:+with the PNG decoding of the plan, provisional}, hs-jpeg-turbo $(git -C "$project/hjt" rev-parse HEAD)" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "$VERSION: Image.hs of $repository at $commit ${options:+patched with $options}, hs-jpeg-turbo $(git -C "$project/hjt" rev-parse HEAD)" | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Build
         working-directory: ${{ runner.temp }}/${{ matrix.version }}

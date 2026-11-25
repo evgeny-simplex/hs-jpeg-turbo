@@ -13,7 +13,7 @@ MODES = ["decode", "image", "preview"]
 
 
 VARIANTS = {
-    "png": [("base-png", "base", "4096", False), ("new-png", "new", "1024", False), ("new-png-sharp", "new", "1024", True)],
+    "png": [("base-png", "base", "4096", False), ("new-png", "new", "1024", False), ("new-png-sharp", "new", "1024", True), ("cr-png", "cr", "4096", False), ("cr-png-sharp", "cr", "4096", True)],
     "jpeg": [("base-jpeg", "base", "1024", False), ("base-jpeg-sharp", "base", "1024", True)],
 }
 
@@ -94,8 +94,8 @@ def stages(binaries, files):
     return results
 
 
-def binaries(directory):
-    return {version: path for version in ["base", "new"] if os.path.exists(path := os.path.join(directory, f"resize-{version}"))}
+def binaries(directory, versions=("base", "new", "cr")):
+    return {version: path for version in versions if os.path.exists(path := os.path.join(directory, f"resize-{version}"))}
 
 
 def equality(base, new, out, files):
@@ -284,7 +284,7 @@ def equality_report(rows):
 
 def quality_report(scores):
     out = "## Quality, SSIMULACRA2 at display size\n\nLower of the light and dark bubble backgrounds; reference: the source resized with premultiplied Lanczos3; candidate: the output resized bilinear.\n\n"
-    for wanted, variants in [("png", ["base-png", "new-png", "new-png-sharp"]), ("jpeg", ["base-jpeg", "base-jpeg-sharp"])]:
+    for wanted, variants in [("png", ["base-png", "new-png", "new-png-sharp", "cr-png", "cr-png-sharp"]), ("jpeg", ["base-jpeg", "base-jpeg-sharp"])]:
         rows = [s for s in scores if s["variant"] in variants]
         if not rows:
             continue
@@ -319,7 +319,8 @@ def environment_report():
     else:
         new = "new: not measured"
     base = f"base: Image.hs of simplex-chat/simplex-chat at {os.environ.get('BASE_CORE')}, with simplex-chat/hs-jpeg-turbo at {os.environ.get('BASE_BINDING')}"
-    return f"{base}; {new}.\n\nEach measurement process runs alone on a GitHub ubuntu-24.04 runner with 4 CPUs. Image.hs is compiled with two replacements read from the environment: `maxDecodeMemoryMB` from `MAX_DECODE_MB` (1024 when unset, as in desktop builds) and sharpening at the kept size when `SHARPEN_KEPT` is set; with `SHARPEN_KEPT` unset and `MAX_DECODE_MB` at 512 or 1024, the code equals the commit's code of mobile or desktop builds.\n\n"
+    cr = "cr: master's Image.hs with its PNG line of `decodeResizable` replaced by a full-size decode with the binding of this branch, then `catmullRom` to the display size without sharpening (colour premultiplied by alpha, then divided out), the output that a Catmull-Rom resampler streamed in the decoder would return"
+    return f"{base}; {new}; {cr}.\n\nEach measurement process runs alone on a GitHub ubuntu-24.04 runner with 4 CPUs. Image.hs is compiled with two replacements read from the environment: `maxDecodeMemoryMB` from `MAX_DECODE_MB` (1024 when unset, as in desktop builds) and sharpening at the kept size when `SHARPEN_KEPT` is set; with `SHARPEN_KEPT` unset and `MAX_DECODE_MB` at 512 or 1024, the code equals the commit's code of mobile or desktop builds.\n\n"
 
 
 def main():
@@ -327,8 +328,8 @@ def main():
     if command == "memory":
         directory, out, inputs, corpus_file = args
         files = sorted(glob.glob(os.path.join(inputs, "generated", "*"))) + corpus(corpus_file, inputs, "png")
-        write_json(os.path.join(out, "stages.json"), stages(binaries(directory), files))
-        write_json(os.path.join(out, "memory.json"), memory(binaries(directory), out, files))
+        write_json(os.path.join(out, "stages.json"), stages(binaries(directory, ("base", "new")), files))
+        write_json(os.path.join(out, "memory.json"), memory(binaries(directory, ("base", "new")), out, files))
     elif command == "resize":
         directory, wanted, out, inputs, corpus_file = args
         write_json(os.path.join(out, f"resize-{wanted}.json"), resize(binaries(directory), wanted, out, corpus(corpus_file, inputs, wanted)))
