@@ -5,6 +5,7 @@ module Codec.Picture.Webp
   ) where
 
 import Codec.Picture (DynamicImage(..), Image(..))
+import Control.Concurrent.MVar (MVar, newMVar, withMVar)
 import Control.Exception (bracket)
 import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO)
@@ -19,6 +20,7 @@ import Data.Word (Word32, Word8)
 import Foreign (Ptr, allocaBytes, castPtr, minusPtr, nullPtr, peekByteOff, plusPtr, pokeByteOff)
 import Foreign.C.String (CString)
 import Foreign.C.Types (CInt(..), CSize(..))
+import System.IO.Unsafe (unsafePerformIO)
 
 #include "hs_webp.h"
 
@@ -83,7 +85,7 @@ decodeWebp DecodeOptions{maxMemoryMB, outputSize} webp
             #{poke WebPDecoderConfig, options.use_scaling} config (1 :: CInt)
             #{poke WebPDecoderConfig, options.scaled_width} config (fromIntegral w' :: CInt)
             #{poke WebPDecoderConfig, options.scaled_height} config (fromIntegral h' :: CInt)
-          hsWebPDecode fragment fragmentSize config memory)
+          counted $ hsWebPDecode fragment fragmentSize config memory)
         when (status /= #{const VP8_STATUS_OK}) $ refusal memory (statusError status)
         image <$> liftIO (V.unsafeFreeze pixels)
     chunkPayload input iter = liftIO do
@@ -120,9 +122,16 @@ withDemuxer limit webp action =
   BU.unsafeUseAsCStringLen webp \(buf, len) -> allocaBytes #{size HsWebPMemory} \memory -> do
     let input = castPtr buf
     #{poke HsWebPMemory, limit} memory limit
-    bracket (hsWebPDemux input (fromIntegral len) memory) webPDemuxDelete \dmux -> runExceptT do
+    bracket (counted $ hsWebPDemux input (fromIntegral len) memory) webPDemuxDelete \dmux -> runExceptT do
       when (dmux == nullPtr) $ refusal memory "invalid WebP container"
       action input memory dmux
+
+counted :: IO a -> IO a
+counted = withMVar countLock . const
+
+countLock :: MVar ()
+countLock = unsafePerformIO $ newMVar ()
+{-# NOINLINE countLock #-}
 
 refusal :: Ptr HsWebPMemory -> String -> ExceptT String IO a
 refusal memory e = do

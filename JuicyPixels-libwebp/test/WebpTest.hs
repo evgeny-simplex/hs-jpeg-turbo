@@ -2,7 +2,9 @@ module WebpTest where
 
 import Codec.Picture (DynamicImage(..), Image(..), PixelRGB8(..), PixelRGBA8(..), generateImage, pixelAt)
 import Codec.Picture.Webp
-import Control.Monad (forM_)
+import Control.Concurrent (forkIO)
+import Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
+import Control.Monad (forM_, replicateM)
 import Crypto.Hash.MD5 qualified as MD5
 import Data.Bits (shiftL, shiftR, (.&.), (.|.))
 import Data.ByteString qualified as B
@@ -106,6 +108,13 @@ unit_memory = do
   forM_ [(huffmanGroups 65536, "65536 Huffman groups", 256, 512), (chunks, "1000000 chunks", 32, 64)] \(webp, image, refusedMB, memoryMB) -> do
     decodeWebp options {maxMemoryMB = refusedMB} webp >>= (@?= Left "image is too large") . fmap (samples . fst)
     decodeWebp options {maxMemoryMB = memoryMB} webp >>= assertBool (image <> " refused within " <> show memoryMB <> " MiB") . isRight
+
+unit_concurrent :: IO ()
+unit_concurrent = do
+  lossless <- testFile "tall-lossless.webp"
+  results <- replicateM 4 newEmptyMVar
+  forM_ results \result -> forkIO $ decodeWebp (DecodeOptions 25 Right) lossless >>= putMVar result . isRight
+  mapM takeMVar results >>= (@?= replicate 4 True)
 
 unit_malformed :: IO ()
 unit_malformed = do
