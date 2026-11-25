@@ -49,7 +49,25 @@ for variant in scalar simd128 sse2; do
   wasm "wasm-$variant-bounds" $variant "-DWASM_RT_MEMCHECK_BOUNDS_CHECK=1"
   wasm "wasm-$variant-guard" $variant "-DWASM_RT_MEMCHECK_GUARD_PAGES=1"
 done
+if [ "$(uname -m)" = x86_64 ]; then
+  native native-v2 "-march=x86-64-v2"
+  wasm wasm-sse2-bounds-v2 sse2 "-march=x86-64-v2 -DWASM_RT_MEMCHECK_BOUNDS_CHECK=1"
+  builds="$builds native-v2"
+fi
 builds="$builds$wasm_builds"
+cc_builds=$builds
+clang_builds=
+if [ "$(uname -s)" = Linux ]; then
+  cc=clang
+  clang --version | sed -n 1p
+  native native-clang ""
+  wasm wasm-scalar-bounds-clang scalar "-DWASM_RT_MEMCHECK_BOUNDS_CHECK=1"
+  wasm wasm-sse2-bounds-clang sse2 "-DWASM_RT_MEMCHECK_BOUNDS_CHECK=1"
+  wasm wasm-sse2-guard-clang sse2 "-DWASM_RT_MEMCHECK_GUARD_PAGES=1"
+  cc=${CC:-cc}
+  clang_builds="native-clang wasm-scalar-bounds-clang wasm-sse2-bounds-clang wasm-sse2-guard-clang"
+  builds="$builds $clang_builds"
+fi
 
 for build in $builds; do
   mkdir -p "$out/full-$build" "$out/scaled-$build"
@@ -89,7 +107,10 @@ for build in $builds; do
     "$out/$build.exe" time 9 $fixtures
   } > "$out/time-$build.tsv"
 done
-python3 -I .github/scripts/wasm-report.py "$platform" "$out" $builds | tee -a "$summary"
+python3 -I .github/scripts/wasm-report.py "$platform, $("$cc" --version | sed -n 1p)" "$out" $cc_builds | tee -a "$summary"
+if [ -n "$clang_builds" ]; then
+  python3 -I .github/scripts/wasm-report.py "$platform, $(clang --version | sed -n 1p)" "$out" $clang_builds | tee -a "$summary"
+fi
 
 {
   echo "### $platform: maximum resident set of one decode, MiB"

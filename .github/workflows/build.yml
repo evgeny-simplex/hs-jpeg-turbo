@@ -96,11 +96,11 @@ jobs:
           git -C "$RUNNER_TEMP/libwebp-test-data" checkout --quiet 06ddd96e276c2c638a72d39d3c0f340afd61978c
           echo "WEBP_TEST_DATA=$RUNNER_TEMP/libwebp-test-data" >> "$GITHUB_ENV"
 
-      - name: Install GNU time
+      - name: Install GNU time and clang
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y time
+          sudo apt-get install -y time clang
 
       - name: Show the CPU
         run: |
@@ -140,18 +140,22 @@ jobs:
               -o "$out/$check.exe"
           done
           conformance=$(sed -n 's|^[0-9a-f]*  \(.*\.webp\)\.pam$|'"$WEBP_TEST_DATA"'/\1|p' "$WEBP_TEST_DATA/libwebp_tests.md5")
+          failed=0
           {
             echo "### wasm2c scalar build, clang with -fsanitize=address,undefined"
             echo '```'
             for check in bounds guard; do
               echo "== $check"
-              "$out/$check.exe" trap
+              "$out/$check.exe" trap 2>&1 || failed=1
               for side in 16384 64; do
-                "$out/$check.exe" fuzz $side $conformance "$FIXTURES"/*.webp
+                "$out/$check.exe" fuzz $side $conformance "$FIXTURES"/*.webp 2>&1 || failed=1
               done
             done
             echo '```'
+            echo "failed=$failed" > "$out/failed"
           } | tee -a "$GITHUB_STEP_SUMMARY"
+          cat "$out/failed"
+          grep -q 'failed=0' "$out/failed"
 
   armv7:
     name: armv7 native and wasm2c builds on ubuntu-24.04-arm

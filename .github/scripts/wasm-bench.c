@@ -129,7 +129,12 @@ static void time_set(int repeat, int count, char **paths)
   free(times);
 }
 
-static int decode_copy(const unsigned char *webp, size_t size, size_t changed, unsigned char mask, int max_side, int *trapped)
+typedef struct {
+  int runs, decoded, trapped, other;
+} Counts;
+
+static void decode_copy(const char *path, const unsigned char *webp, size_t size, size_t changed, unsigned char mask, int max_side,
+                        Counts *counts)
 {
   unsigned char *copy = malloc(size ? size : 1);
   webp_result r;
@@ -139,25 +144,23 @@ static int decode_copy(const unsigned char *webp, size_t size, size_t changed, u
   if (changed < size)
     copy[changed] ^= mask;
   rc = decode(copy, size, max_side, MEMORY_LIMIT, &r);
-  *trapped += rc == WEBP_SANDBOX_TRAP;
-  if (rc < 0 && rc != WEBP_SANDBOX_TRAP) {
-    fprintf(stderr, "status %d\n", rc);
-    exit(1);
-  }
+  counts->runs++;
+  counts->decoded += rc == 0;
+  counts->trapped += rc == WEBP_SANDBOX_TRAP;
+  if (rc < 0 && rc != WEBP_SANDBOX_TRAP && counts->other++ < 5)
+    printf("%s, %zu bytes, byte %zu changed by 0x%02x: status %d\n", base_name(path), size, changed, mask, rc);
   free(r.pixels);
   free(copy);
-  return rc == 0;
 }
 
-static void fuzz(const char *path, int max_side, int *runs, int *decoded, int *trapped)
+static void fuzz(const char *path, int max_side, Counts *counts)
 {
   size_t size, k;
   unsigned char *webp = read_file(path, &size);
 
   for (k = 0; k < 64; k++) {
-    *decoded += decode_copy(webp, size * k / 64, size, 0, max_side, trapped);
-    *decoded += decode_copy(webp, size, (size - 1) * k / 63, (unsigned char)(1u << (k % 8)), max_side, trapped);
-    *runs += 2;
+    decode_copy(path, webp, size * k / 64, size, 0, max_side, counts);
+    decode_copy(path, webp, size, (size - 1) * k / 63, (unsigned char)(1u << (k % 8)), max_side, counts);
   }
   free(webp);
 }
@@ -215,7 +218,8 @@ static void trap(void)
 
 int main(int argc, char **argv)
 {
-  int i, runs = 0, decoded = 0, trapped = 0;
+  Counts counts = {0, 0, 0, 0};
+  int i;
 
   if (argc >= 5 && !strcmp(argv[1], "check")) {
     for (i = 4; i < argc; i++)
@@ -233,10 +237,11 @@ int main(int argc, char **argv)
   }
   if (argc >= 4 && !strcmp(argv[1], "fuzz")) {
     for (i = 3; i < argc; i++)
-      fuzz(argv[i], atoi(argv[2]), &runs, &decoded, &trapped);
-    printf("%d truncated and changed inputs decoded with sides of at most %s: %d decoded, %d refused, %d trapped\n", runs, argv[2], decoded,
-           runs - decoded - trapped, trapped);
-    return 0;
+      fuzz(argv[i], atoi(argv[2]), &counts);
+    printf("%d truncated and changed inputs decoded with sides of at most %s: %d decoded, %d refused by the decoder, %d trapped, %d refused by "
+           "the host\n",
+           counts.runs, argv[2], counts.decoded, counts.runs - counts.decoded - counts.trapped - counts.other, counts.trapped, counts.other);
+    return counts.other != 0;
   }
   if (argc == 4 && !strcmp(argv[1], "limit")) {
     limit(argv[2], atoi(argv[3]));
