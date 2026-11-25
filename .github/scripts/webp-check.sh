@@ -90,7 +90,7 @@ done
   echo "### Counted memory of the tall WebP files, bytes, within 256 MiB"
   echo '```'
   for build in armv7 aarch64; do
-    for side in 16384 64; do
+    for side in 16384 2048 64; do
       echo "$build, sides at most $side"
       "$out/$build.exe" memory 256 $side $tall
     done
