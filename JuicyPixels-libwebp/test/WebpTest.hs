@@ -85,10 +85,11 @@ unit_limits :: IO ()
 unit_limits = do
   small <- testFile "small_1x1.webp"
   lossless <- testFile "tall-lossless.webp"
+  lossyAlpha <- testFile "tall-lossy-alpha.webp"
   let canvas size = animation size [((0, 0), (1, 1), small)]
-  forM_ [(2, canvas (512, 512), "512x512 canvas of a lossy frame", 1), (64, lossless, "1024x4096 lossless image", 20)] \(memoryMB, webp, image, refusedMB) -> do
+  forM_ [(2, canvas (512, 512), "512x512 canvas of a lossy frame"), (25, lossless, "1024x4096 lossless image"), (19, lossyAlpha, "1024x4096 lossy image with alpha")] \(memoryMB, webp, image) -> do
     decodeWebp (DecodeOptions memoryMB Right) webp >>= assertBool (image <> " refused within " <> show memoryMB <> " MiB") . isRight
-    decodeWebp (DecodeOptions refusedMB Right) webp >>= (@?= Left "image is too large") . fmap (samples . fst)
+    decodeWebp (DecodeOptions (memoryMB - 1) Right) webp >>= (@?= Left "image is too large") . fmap (samples . fst)
   decodeWebp options (canvas (16385, 16)) >>= (@?= Left "image side exceeds 16384") . fmap (samples . fst)
   decodeWebp options {maxMemoryMB = 0} small >>= (@?= Left "invalid decode options") . fmap (samples . fst)
   decodeWebp options {outputSize = const $ Left "size refused"} small >>= (@?= Left "size refused") . fmap (samples . fst)
