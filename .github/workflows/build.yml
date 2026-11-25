@@ -176,11 +176,12 @@ jobs:
 
       - *download-gen
       - *download-fixtures
+      - *test-data
 
-      - name: Install clang
+      - name: Install clang 14 to 20 and the armv7 cross toolchain
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang
+          sudo apt-get install -y clang-14 clang-18 clang-20 gcc-arm-linux-gnueabihf
 
       - name: Measure the sse2 module built with each compiler and flags
         run: bash .github/scripts/wasm-probe.sh
