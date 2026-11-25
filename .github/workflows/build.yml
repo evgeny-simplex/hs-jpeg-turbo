@@ -157,6 +157,29 @@ jobs:
           cat "$out/failed"
           grep -q 'failed=0' "$out/failed"
 
+  clang-versions:
+    name: native and wasm2c builds by clang 14 to 21 on ubuntu-24.04-arm
+    needs: generate
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+
+      - *download-gen
+      - *download-fixtures
+      - *test-data
+
+      - name: Install the clang versions of Ubuntu 24.04
+        run: |
+          sudo apt-get update
+          for version in 14 15 16 17 18 19 20 21; do
+            sudo apt-get install -y clang-$version || echo "clang-$version is not available"
+          done
+
+      - name: Measure decoding by the native and wasm2c builds of each clang version
+        run: bash .github/scripts/wasm-clang.sh
+
   armv7:
     name: armv7 native and wasm2c builds on ubuntu-24.04-arm
     needs: generate
@@ -173,7 +196,7 @@ jobs:
       - name: Install the armv7 cross compiler and GNU time
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-arm-linux-gnueabihf time
+          sudo apt-get install -y gcc-arm-linux-gnueabihf time clang
           arm-linux-gnueabihf-gcc --version
 
       - name: Measure decoding by the armv7 native and wasm2c builds

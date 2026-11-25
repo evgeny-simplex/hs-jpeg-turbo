@@ -48,6 +48,18 @@ for variant in scalar simd128 sse2; do
   wasm "wasm-$variant-mmap" $variant "-DWASM_RT_MEMCHECK_BOUNDS_CHECK=1 -DWASM_RT_USE_MMAP=1"
 done
 file "$out/native-neon.exe"
+gcc_builds=$builds
+clang_builds=
+echo 'int main(void) { return 0; }' > "$out/probe.c"
+if clang --target=arm-linux-gnueabihf -static $neon "$out/probe.c" -o "$out/probe.exe" && "$out/probe.exe"; then
+  clang --version | sed -n 1p
+  cc="clang --target=arm-linux-gnueabihf -static"
+  native native-neon-clang "$neon"
+  wasm wasm-scalar-mmap-clang scalar "-DWASM_RT_MEMCHECK_BOUNDS_CHECK=1 -DWASM_RT_USE_MMAP=1"
+  wasm wasm-sse2-mmap-clang sse2 "-DWASM_RT_MEMCHECK_BOUNDS_CHECK=1 -DWASM_RT_USE_MMAP=1"
+  cc="arm-linux-gnueabihf-gcc -static"
+  clang_builds="native-neon-clang wasm-scalar-mmap-clang wasm-sse2-mmap-clang"
+fi
 
 for build in $builds; do
   mkdir -p "$out/full-$build" "$out/scaled-$build"
@@ -77,7 +89,10 @@ for build in $builds; do
     "$out/$build.exe" time 5 $fixtures
   } > "$out/time-$build.tsv"
 done
-python3 -I .github/scripts/wasm-report.py "$platform" "$out" $builds | tee -a "$summary"
+python3 -I .github/scripts/wasm-report.py "$platform, $(arm-linux-gnueabihf-gcc --version | sed -n 1p)" "$out" $gcc_builds | tee -a "$summary"
+if [ -n "$clang_builds" ]; then
+  python3 -I .github/scripts/wasm-report.py "$platform, $(clang --version | sed -n 1p)" "$out" $clang_builds | tee -a "$summary"
+fi
 
 {
   echo "### $platform: maximum resident set of one decode, MiB"
