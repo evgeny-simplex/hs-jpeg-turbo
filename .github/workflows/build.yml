@@ -387,6 +387,7 @@ jobs:
             "$cc" --version
             echo "cc_$target=$cc" >> "$GITHUB_ENV"
           done
+          echo "ld_aarch64=$(ls "$RUNNER_TEMP"/cc-aarch64/bin/*-ld.lld | head -1)" >> "$GITHUB_ENV"
 
       - name: Check the sandbox objects for thread-local storage
         run: |
@@ -414,7 +415,7 @@ jobs:
           WEBP_TEST_DATA: /nonexistent
         run: |
           bash .github/scripts/sandbox-measure.sh "Android, the core's nix compilers" "ndk-armv7a|$cc_armv7a -static -O2 -Wno-pass-failed" \
-            "ndk-armv7a-neon|$cc_armv7a -static -O2 -mfpu=neon -Wno-pass-failed" "nixpkgs-aarch64|$cc_aarch64 -static -O2 -Wno-pass-failed"
+            "ndk-armv7a-neon|$cc_armv7a -static -O2 -mfpu=neon -Wno-pass-failed" "nixpkgs-aarch64|$cc_aarch64 -static -O2 -Wno-pass-failed --ld-path=$ld_aarch64"
 
       - uses: actions/upload-artifact@v4
         with:
