@@ -412,7 +412,9 @@ jobs:
           SIZE: llvm-size
           FIXTURES: /nonexistent
           WEBP_TEST_DATA: /nonexistent
-        run: bash .github/scripts/sandbox-measure.sh "Android, the core's nix compilers" "ndk-armv7a|$cc_armv7a -static -O2" "nixpkgs-aarch64|$cc_aarch64 -static -O2"
+        run: |
+          bash .github/scripts/sandbox-measure.sh "Android, the core's nix compilers" "ndk-armv7a|$cc_armv7a -static -O2 -Wno-pass-failed" \
+            "ndk-armv7a-neon|$cc_armv7a -static -O2 -mfpu=neon -Wno-pass-failed" "nixpkgs-aarch64|$cc_aarch64 -static -O2 -Wno-pass-failed"
 
       - uses: actions/upload-artifact@v4
         with:
@@ -448,7 +450,7 @@ jobs:
           PREBUILT: 1
           FIXTURES: ${{ runner.temp }}/sandbox-fixtures
           WEBP_TEST_DATA: ${{ runner.temp }}/libwebp-test-data
-        run: bash .github/scripts/sandbox-measure.sh "Android builds on Linux aarch64" "ndk-armv7a|" "nixpkgs-aarch64|"
+        run: bash .github/scripts/sandbox-measure.sh "Android builds on Linux aarch64" "ndk-armv7a|" "ndk-armv7a-neon|" "nixpkgs-aarch64|"
 
   sandbox-ios:
     name: sandbox measurements of the build by the compiler of the core's nix build for iOS
@@ -466,8 +468,13 @@ jobs:
           name: sandbox-fixtures
           path: ${{ runner.temp }}/sandbox-fixtures
 
-      - name: Install Nix with the caches of the core's builds
-        run: bash .github/scripts/sandbox-nix.sh
+      - uses: cachix/install-nix-action@v31
+        with:
+          install_url: https://releases.nixos.org/nix/nix-2.22.0/install
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            substituters = https://cache.nixos.org https://cache.zw3rk.com https://cache.iog.io
+            trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= loony-tools:pr9m4BkM/5/eSTZlkQyRt57Jz7OMBxNSUiMC4FkcNfk= hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ=
 
       - name: Fetch the C compiler of the core's iOS build
         run: |

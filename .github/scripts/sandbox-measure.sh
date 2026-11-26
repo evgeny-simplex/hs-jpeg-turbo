@@ -30,9 +30,12 @@ jpeg_native() {
   cabal_sources jpeg-turbo/jpeg-turbo.cabal 'wrapper/[a-z0-9_-]*\.c'
   case $arch in
     aarch64) sed -n '/if arch(aarch64)/,/if arch(arm)/p' jpeg-turbo/jpeg-turbo.cabal | sed -n "s|^ *cbits/\\(.*\\.c\\)$|$jpeg/\\1|p" ;;
-    arm) echo $jpeg/mozjpeg/simd/arm/aarch32/jsimd.c
-      sed -n '/^library neon/,/^test-suite/p' jpeg-turbo/jpeg-turbo.cabal | sed -n "s|^ *cbits/\\(.*\\.c\\)$|$jpeg/\\1|p" ;;
+    arm) echo $jpeg/mozjpeg/simd/arm/aarch32/jsimd.c ;;
   esac
+}
+
+jpeg_neon() {
+  sed -n '/^library neon/,/^test-suite/p' jpeg-turbo/jpeg-turbo.cabal | sed -n "s|^ *cbits/\\(.*\\.c\\)$|$jpeg/\\1|p"
 }
 
 build() {
@@ -43,12 +46,17 @@ build() {
     arm*) arch=arm ;;
   esac
   if [ "$variant" = native ]; then
-    local jpeg_sources webp_sources
+    local jpeg_sources webp_sources neon_sources
     jpeg_sources=$(jpeg_native $arch | sed "s|^|$root/|")
+    neon_sources=$(jpeg_neon | sed "s|^|$root/|")
     webp_sources=$(cabal_sources JuicyPixels-libwebp/JuicyPixels-libwebp.cabal 'libwebp/src/.*\.c' | sed "s|^|$root/|")
     mkdir -p "$out/obj-jpeg" "$out/obj-png" "$out/obj-webp"
     (cd "$out/obj-jpeg" && $command -DBMP_SUPPORTED -DPPM_SUPPORTED $([ $arch = x86_64 ] || echo -DNEON_INTRINSICS) -iquote "$root/$package/guest" \
       -I "$root/$jpeg" -I "$root/$jpeg/mozjpeg" -c $jpeg_sources "$root/$package/guest/jpeg.c") &
+    if [ $arch = arm ]; then
+      mkdir -p "$out/obj-neon"
+      (cd "$out/obj-neon" && $command -mfpu=neon -DNEON_INTRINSICS -I "$root/$jpeg" -I "$root/$jpeg/mozjpeg" -c $neon_sources) &
+    fi
     (cd "$out/obj-png" && $command -DSPNG_STATIC -DSPNG_USE_MINIZ -DMINIZ_NO_STDIO -DMINIZ_NO_TIME -DMINIZ_NO_ARCHIVE_APIS -iquote "$root/$package/guest" \
       -I "$root/$spng" -I "$root/$spng/libspng/spng" -I "$root/$spng/miniz" -c "$root/$spng/libspng/spng/spng.c" "$root/$spng/miniz/miniz.c" \
       "$root/$spng/miniz/miniz_tdef.c" "$root/$spng/miniz/miniz_tinfl.c" "$root/$spng/decode.c" "$root/$package/guest/png.c") &
