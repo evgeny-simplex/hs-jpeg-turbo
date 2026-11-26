@@ -95,10 +95,10 @@ unit_limits = do
   sandboxedWith defaultLimits {timeoutMs = 1} Right png >>= (@?= Left "deadline exceeded") . void'
   counted <- decodeImageCounted defaultBudget {base = 1000, perByte = 0, perPixel = const 0} (options defaultLimits Right) png
   void' (decoded counted) @?= Left "budget exceeded"
-  sandboxed (\(w, h) -> Right (w + 1, h)) png >>= (@?= Left "invalid decode options") . void'
+  sandboxedWith defaultLimits (\(w, h) -> Right (w + 1, h)) png >>= (@?= Left "invalid decode options") . void'
   jpeg <- B.readFile $ jpegDir </> "testorig.jpg"
-  sandboxed (\(w, h) -> Right (w - 1, h)) jpeg >>= (@?= Left "invalid decode options") . void'
-  sandboxed Right "GIF89a" >>= (@?= Left "unsupported image format") . void'
+  sandboxedWith defaultLimits (\(w, h) -> Right (w - 1, h)) jpeg >>= (@?= Left "invalid decode options") . void'
+  sandboxedWith defaultLimits Right "GIF89a" >>= (@?= Left "unsupported image format") . void'
   ok <- decodeImageCounted defaultBudget (options defaultLimits Right) jpeg
   assertBool "iterations counted" $ iterations ok > 0
   where
@@ -124,13 +124,13 @@ unit_neverEnding = do
 unit_concurrent :: IO ()
 unit_concurrent = do
   inputs <- mapM B.readFile . take 8 =<< testFiles pngDir ".png"
-  expected <- forM inputs \input -> fmap (samples . fst) <$> sandboxed Right input
+  expected <- forM inputs \input -> fmap (samples . fst) <$> sandboxedWith defaultLimits Right input
   results <- replicateM 8 do
     done <- newEmptyMVar
     _ <- forkIO $ putMVar done =<< forM [1 :: Int .. 40] \i ->
       if even i
         then (== Left "sandbox trap 1") <$> loadSandboxByte defaultLimits {memoryLimitMB = 16} maxBound
-        else (== expected) <$> forM inputs \input -> fmap (samples . fst) <$> sandboxed Right input
+        else (== expected) <$> forM inputs \input -> fmap (samples . fst) <$> sandboxedWith defaultLimits Right input
     pure done
   forM_ results \done -> takeMVar done >>= assertBool "every trap and decode as expected" . and
 
