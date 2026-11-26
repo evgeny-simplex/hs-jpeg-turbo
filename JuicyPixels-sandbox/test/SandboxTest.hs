@@ -1,6 +1,7 @@
 module SandboxTest where
 
-import Codec.Picture (DynamicImage(..), Image(..), PixelRGBA8(..), generateImage)
+import Codec.Picture (DynamicImage(..), Image(..), PixelCMYK8, PixelRGBA8(..), convertImage, extractLumaPlane, generateImage)
+import Codec.Picture.Jpg (encodeDirectJpegAtQualityWithMetadata)
 import Codec.Picture.JPEGTurbo qualified as JPEG
 import Codec.Picture.Sandbox
 import Codec.Picture.Spng qualified as Spng
@@ -11,6 +12,7 @@ import Control.Monad (forM, forM_, replicateM, unless)
 import Data.Bits (shiftL, xor)
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as B
+import Data.ByteString.Lazy qualified as BL
 import Data.Either (isLeft)
 import Data.List (isSuffixOf, sort)
 import Data.Vector.Storable qualified as V
@@ -26,9 +28,15 @@ type Samples = (String, Int, Int, V.Vector Word8)
 unit_jpeg :: IO ()
 unit_jpeg = do
   files <- testFiles jpegDir ".jpg"
-  assertBool "JPEG test images" $ length files >= 5
-  forM_ files \file -> do
-    jpeg <- B.readFile file
+  assertBool "JPEG test images" $ length files >= 4
+  original <- B.readFile $ jpegDir </> "testorig.jpg"
+  Right (ImageRGB8 rgb) <- JPEG.decodeJpeg (JPEG.DecodeOptions JPEG.Full maxImagePixels 1024) original
+  let generated =
+        [ ("grey", BL.toStrict $ encodeDirectJpegAtQualityWithMetadata 90 mempty $ extractLumaPlane rgb)
+        , ("CMYK", BL.toStrict $ encodeDirectJpegAtQualityWithMetadata 90 mempty (convertImage rgb :: Image PixelCMYK8))
+        ]
+  inputs <- (<> generated) <$> mapM (\file -> (file,) <$> B.readFile file) files
+  forM_ inputs \(file, jpeg) ->
     JPEG.readJpegHeader jpeg >>= \case
       Left e -> sandboxed (fullSize jpeg) jpeg >>= assertBool (file <> ": refused natively, " <> e) . isLeft
       Right JPEG.JpegHeader {JPEG.jpegWidth, JPEG.jpegHeight} ->
