@@ -15,13 +15,19 @@ CHECK = [
     "end",
 ]
 
+IMPORTS = {
+    "refuel": '  (import "env" "refuel" (func $__refuel (result i32)))',
+    "fill": '  (import "env" "fill" (func $__fill (param i32 i32 i32)))',
+    "copy": '  (import "env" "copy" (func $__copy (param i32 i32 i32)))',
+}
+
 
 def balance(line):
     return line.count("(") - line.count(")")
 
 
-def instrument(lines, entries):
-    out, loops, functions, pending = [], 0, 0, None
+def instrument(lines, entries, bulk):
+    out, counts, pending = [], {"loops": 0, "functions": 0, "bulk": 0}, None
     for line in lines:
         stripped = line.lstrip()
         if pending is not None:
@@ -31,16 +37,19 @@ def instrument(lines, entries):
                     pending = None
                 continue
             out.extend(pending + check for check in CHECK)
-            functions += 1
+            counts["functions"] += 1
             pending = None
+        if bulk:
+            line, replaced = re.subn(r"^(\s*)memory\.(fill|copy)\b", r"\1call $__\2", line)
+            counts["bulk"] += replaced
         out.append(line)
         if re.match(r"loop\b", stripped):
             indent = line[: len(line) - len(stripped)] + "  "
             out.extend(indent + check for check in CHECK)
-            loops += 1
+            counts["loops"] += 1
         elif entries and stripped.startswith("(func ") and balance(line) > 0:
             pending = line[: len(line) - len(stripped)] + "  "
-    return out, loops, functions
+    return out, counts
 
 
 def last_index(lines, prefix):
@@ -51,17 +60,22 @@ def last_index(lines, prefix):
 def main():
     mode, source, target = sys.argv[1:]
     text = open(source).read()
-    if "$__fuel" in text or "$__refuel" in text:
-        sys.exit("the module already names $__fuel or $__refuel")
-    lines, loops, functions = instrument(text.split("\n"), mode == "calls")
+    if re.search(r"\$__(fuel|refuel|fill|copy)\b", text):
+        sys.exit("the module already names $__fuel, $__refuel, $__fill or $__copy")
+    lines, counts = instrument(text.split("\n"), mode in ("calls", "bulk"), mode == "bulk")
     imports = last_index(lines, "  (import ")
-    lines.insert(imports + 1, '  (import "env" "refuel" (func $__refuel (result i32)))')
+    for name in ["refuel", "fill", "copy"] if mode == "bulk" else ["refuel"]:
+        imports += 1
+        lines.insert(imports, IMPORTS[name])
     globals_ = last_index(lines, "  (global ")
     lines.insert(globals_ + 1, "  (global $__fuel (mut i32) (i32.const 0))")
     exports = last_index(lines, "  (export ")
     lines.insert(exports + 1, '  (export "fuel" (global $__fuel))')
     open(target, "w").write("\n".join(lines))
-    print(f"{mode}: budget checks at {loops} loop headers and {functions} function entries")
+    print(
+        f"{mode}: budget checks at {counts['loops']} loop headers and {counts['functions']} function entries, "
+        f"{counts['bulk']} memory.fill and memory.copy through the host"
+    )
 
 
 main()

@@ -41,7 +41,7 @@ variant() {
 
 budget_variants() {
   local text=$out/texts mode
-  mkdir -p "$text" "$out/sse2-loops" "$out/sse2-calls" "$out/sse2-log"
+  mkdir -p "$text" "$out/sse2-log"
   "$WABT/bin/wasm2wat" --disable-annotations --generate-names "$out/sse2/webp.wasm" -o "$text/sse2.wat"
   "$WABT/bin/wat2wasm" --debug-names "$text/sse2.wat" -o "$text/roundtrip.wasm"
   "$WABT/bin/wasm2wat" --disable-annotations --generate-names "$text/roundtrip.wasm" -o "$text/roundtrip.wat"
@@ -50,13 +50,16 @@ budget_variants() {
     exit 1
   fi
   echo "wasm2wat and wat2wasm reproduce the text of the sse2 module, $(wc -l < "$text/sse2.wat") lines" | tee -a "$summary"
-  for mode in loops calls; do
+  for mode in loops calls bulk; do
+    mkdir -p "$out/sse2-$mode"
     python3 -I .github/scripts/wasm-fuel.py $mode "$text/sse2.wat" "$text/sse2-$mode.wat" | tee -a "$summary"
     "$WABT/bin/wat2wasm" --debug-names "$text/sse2-$mode.wat" -o "$out/sse2-$mode/webp.wasm"
-    translate "sse2-$mode" "budget checks by \`wasm-fuel.py $mode\`" 1
+    translate "sse2-$mode" "budget checks by \`wasm-fuel.py $mode\`" $([ $mode = bulk ] && echo 3 || echo 1)
     grep -q 'u32 w2c_env_refuel(struct w2c_env\*)' "$out/sse2-$mode/webp-wasm.h"
     grep -q 'u32\* w2c_webp_fuel(w2c_webp\*' "$out/sse2-$mode/webp-wasm.h"
   done
+  grep -q 'void w2c_env_fill(struct w2c_env\*, u32, u32, u32)' "$out/sse2-bulk/webp-wasm.h"
+  grep -q 'void w2c_env_copy(struct w2c_env\*, u32, u32, u32)' "$out/sse2-bulk/webp-wasm.h"
   "$BINARYEN/bin/wasm-opt" --version
   "$BINARYEN/bin/wasm-opt" $binaryen_features --log-execution -g "$out/sse2/webp.wasm" -o "$out/sse2-log/webp.wasm"
   translate sse2-log "binaryen \`wasm-opt --log-execution\`" 1

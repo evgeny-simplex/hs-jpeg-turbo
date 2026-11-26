@@ -20,7 +20,7 @@ env:
   GEN: dist-newstyle/wasm-gen
   FIXTURES: dist-newstyle/wasm-fixtures
   CRAFTED: dist-newstyle/wasm-crafted
-  WASM_VARIANT: sse2-calls
+  WASM_VARIANT: sse2-bulk
 
 jobs:
   generate:
