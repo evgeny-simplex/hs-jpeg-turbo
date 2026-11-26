@@ -19,6 +19,8 @@
 #define OUTPUT_SIZE 20
 #define PROBE_SIZE 24
 #define MAX_RATE (1ull << 32)
+#define BULK_CHUNK (1u << 20)
+#define BULK_BYTES_PER_ITERATION_BITS 8
 
 typedef struct {
   const uint8_t *webp;
@@ -44,19 +46,26 @@ wasm_rt_memory_t *w2c_env_memory(struct w2c_env *env)
   return &env->memory;
 }
 
+static void stop(struct w2c_env *env, int reason)
+{
+  env->stopped = reason;
+  wasm_rt_trap(WASM_RT_TRAP_UNREACHABLE);
+}
+
+static void check_deadline(struct w2c_env *env)
+{
+  if (env->deadline_ns && webp_sandbox_now_ns() >= env->deadline_ns)
+    stop(env, WEBP_SANDBOX_DEADLINE);
+}
+
 uint32_t w2c_env_refuel(struct w2c_env *env)
 {
   uint64_t grant = env->interval;
 
-  if (env->deadline_ns && webp_sandbox_now_ns() >= env->deadline_ns) {
-    env->stopped = WEBP_SANDBOX_DEADLINE;
-    wasm_rt_trap(WASM_RT_TRAP_UNREACHABLE);
-  }
+  check_deadline(env);
   if (env->limited) {
-    if (env->remaining == 0) {
-      env->stopped = WEBP_SANDBOX_BUDGET;
-      wasm_rt_trap(WASM_RT_TRAP_UNREACHABLE);
-    }
+    if (env->remaining == 0)
+      stop(env, WEBP_SANDBOX_BUDGET);
     if (grant > env->remaining)
       grant = env->remaining;
     env->remaining -= grant;
@@ -64,6 +73,63 @@ uint32_t w2c_env_refuel(struct w2c_env *env)
   env->granted += grant;
   env->refuels++;
   return (uint32_t)grant;
+}
+
+static uint8_t *bulk_range(struct w2c_env *env, uint32_t offset, uint32_t length)
+{
+  if ((uint64_t)offset + length > env->memory.size)
+    wasm_rt_trap(WASM_RT_TRAP_OOB);
+  return env->memory.data + offset;
+}
+
+static void charge_bulk(struct w2c_env *env, uint32_t length)
+{
+  const uint64_t iterations = length >> BULK_BYTES_PER_ITERATION_BITS;
+
+  if (env->limited) {
+    if (env->remaining < iterations)
+      stop(env, WEBP_SANDBOX_BUDGET);
+    env->remaining -= iterations;
+  }
+  env->charged += iterations;
+}
+
+void w2c_env_fill(struct w2c_env *env, uint32_t destination, uint32_t value, uint32_t length)
+{
+  uint8_t *d = bulk_range(env, destination, length);
+
+  charge_bulk(env, length);
+  while (length > BULK_CHUNK) {
+    memset(d, (int)value, BULK_CHUNK);
+    d += BULK_CHUNK;
+    length -= BULK_CHUNK;
+    check_deadline(env);
+  }
+  memset(d, (int)value, length);
+}
+
+void w2c_env_copy(struct w2c_env *env, uint32_t destination, uint32_t source, uint32_t length)
+{
+  uint8_t *d = bulk_range(env, destination, length), *s = bulk_range(env, source, length);
+
+  charge_bulk(env, length);
+  if (d <= s) {
+    while (length > BULK_CHUNK) {
+      memmove(d, s, BULK_CHUNK);
+      d += BULK_CHUNK;
+      s += BULK_CHUNK;
+      length -= BULK_CHUNK;
+      check_deadline(env);
+    }
+    memmove(d, s, length);
+  } else {
+    while (length > BULK_CHUNK) {
+      length -= BULK_CHUNK;
+      memmove(d + length, s + length, BULK_CHUNK);
+      check_deadline(env);
+    }
+    memmove(d, s, length);
+  }
 }
 
 #ifdef _WIN32
@@ -265,7 +331,8 @@ static int run_in_sandbox(const webp_limits *limits, Run run, const Call *call, 
   result->memory_bytes = session->env.memory.size;
   result->refuels = session->env.refuels;
   if (instantiated) {
-    result->iterations = (uint64_t)((int64_t)(session->env.granted + session->env.refuels) - fuel_counter(&session->instance, &session->env));
+    result->iterations = (uint64_t)((int64_t)(session->env.granted + session->env.refuels + session->env.charged) -
+                                    fuel_counter(&session->instance, &session->env));
     wasm2c_webp_free(&session->instance);
   }
   wasm_rt_free_memory(&session->env.memory);
