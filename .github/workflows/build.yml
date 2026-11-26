@@ -66,13 +66,22 @@ jobs:
 
       - run: cabal build --enable-tests all
 
-      - name: Report the size of the WebP library
+      - name: Report the sizes of the WebP and sandbox libraries
         run: |
-          lib=$(find dist-newstyle -name 'libHSJuicyPixels-libwebp-*.a' -not -name '*_p.a')
-          {
-            echo "WebP library, $RUNNER_OS $RUNNER_ARCH, GHC ${{ matrix.ghc }}: $(wc -c < "$lib") bytes"
-            if [ "$RUNNER_OS" = Linux ]; then size -t "$lib" | sed -n '1p;$p'; fi
-          } | tee -a "$GITHUB_STEP_SUMMARY"
+          for package in JuicyPixels-libwebp JuicyPixels-sandbox; do
+            lib=$(find dist-newstyle -name "libHS$package-*.a" -not -name '*_p.a')
+            {
+              echo "$package library, $RUNNER_OS $RUNNER_ARCH, GHC ${{ matrix.ghc }}: $(wc -c < "$lib") bytes"
+              if [ "$RUNNER_OS" = Linux ]; then size -t "$lib" | sed -n '1p;$p'; fi
+            } | tee -a "$GITHUB_STEP_SUMMARY"
+          done
+
+      - name: Check that the sandbox library uses no thread-local storage
+        if: runner.os == 'Linux'
+        run: |
+          lib=$(find dist-newstyle -name 'libHSJuicyPixels-sandbox-*.a' -not -name '*_p.a')
+          if readelf -S -W "$lib" | grep -E '\.t(data|bss)'; then exit 1; fi
+          if nm -A "$lib" | grep -E '__tls_get_addr|__emutls|_tlv_'; then exit 1; fi
 
       - name: Show Neon symbols in the library
         if: runner.arch == 'ARM64'

@@ -40,7 +40,7 @@ compile() {
   done
 }
 
-rm -rf "$work" "$gen/image-wasm.c" "$gen/image-wasm.h" "$gen/wasm2c"
+rm -rf "$work" "$gen/image-wasm.c" "$gen/image-wasm.h" "$gen/wasm2c" "$gen/licenses"
 mkdir -p "$work" "$gen/wasm2c/simde/wasm"
 "$WASI_SDK/bin/clang" --version | sed -n 1p
 "$WABT/bin/wasm2c" --version
@@ -84,6 +84,11 @@ cp "$WABT_SRC"/third_party/simde/simde/*.h "$gen/wasm2c/simde/"
 cp "$WABT_SRC"/third_party/simde/simde/wasm/simd128.h "$gen/wasm2c/simde/wasm/"
 cp "$WABT_SRC"/third_party/simde/COPYING "$gen/wasm2c/simde/COPYING"
 cp "$WABT_SRC"/LICENSE "$gen/wasm2c/LICENSE"
+mkdir -p "$gen/licenses/mozjpeg" "$gen/licenses/libspng" "$gen/licenses/miniz" "$gen/licenses/libwebp"
+cp $jpeg/mozjpeg/LICENSE.md $jpeg/mozjpeg/README.ijg "$gen/licenses/mozjpeg/"
+cp $spng/libspng/LICENSE "$gen/licenses/libspng/"
+cp $spng/miniz/LICENSE "$gen/licenses/miniz/"
+cp $webp/COPYING $webp/PATENTS "$gen/licenses/libwebp/"
 {
   echo "| File | Bytes |"
   echo "|---|---|"
