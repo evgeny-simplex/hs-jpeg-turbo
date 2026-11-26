@@ -14,13 +14,13 @@ fixtures=$(ls "$FIXTURES"/*.webp)
 neon="-march=armv7-a -mfpu=neon -mfloat-abi=hard"
 
 native() {
-  $2 $native_flags $sources $package/cbits/canvas.c $package/cbits/native.c .github/scripts/wasm-bench.c -lpthread -lm -o "$out/$1.exe"
+  $2 $native_flags $sources $package/cbits/canvas.c $package/cbits/native.c $package/cbits/clock.c .github/scripts/wasm-bench.c -lpthread -lm -o "$out/$1.exe"
   builds="${builds:+$builds }$1"
 }
 
 wasm() {
   $3 -Wno-pass-failed -DWASM_RT_MEMCHECK_BOUNDS_CHECK=1 -DSANDBOX -I "$GEN" -I "$GEN/$2" -I "$GEN/simde" -I $package/cbits \
-    "$GEN/$2/webp-wasm.c" $runtime $package/cbits/host.c .github/scripts/wasm-bench.c -lpthread -lm -o "$out/$1.exe"
+    "$GEN/$2/webp-wasm.c" $runtime $package/cbits/host.c $package/cbits/clock.c .github/scripts/wasm-bench.c -lpthread -lm -o "$out/$1.exe"
   builds="${builds:+$builds }$1"
 }
 

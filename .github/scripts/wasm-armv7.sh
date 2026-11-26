@@ -18,13 +18,13 @@ fixtures=$(ls "$FIXTURES"/*.webp)
 builds=
 
 native() {
-  $cc $2 $native_flags $sources $package/cbits/canvas.c $package/cbits/native.c .github/scripts/wasm-bench.c -lpthread -lm -o "$out/$1.exe"
+  $cc $2 $native_flags $sources $package/cbits/canvas.c $package/cbits/native.c $package/cbits/clock.c .github/scripts/wasm-bench.c -lpthread -lm -o "$out/$1.exe"
   builds="$builds $1"
 }
 
 wasm() {
   $cc $neon -O2 $3 -DSANDBOX -I "$GEN" -I "$GEN/$2" -I "$GEN/simde" -I $package/cbits "$GEN/$2/webp-wasm.c" $runtime $package/cbits/host.c \
-    .github/scripts/wasm-bench.c -lpthread -lm -o "$out/$1.exe"
+    $package/cbits/clock.c .github/scripts/wasm-bench.c -lpthread -lm -o "$out/$1.exe"
   builds="$builds $1"
 }
 

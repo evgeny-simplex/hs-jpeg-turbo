@@ -19,11 +19,11 @@ for version in 14 15 16 17 18 19 20 21; do
   cc=clang-$version
   command -v "$cc" > /dev/null || continue
   "$cc" --version | sed -n 1p
-  "$cc" $native_flags $sources $package/cbits/canvas.c $package/cbits/native.c .github/scripts/wasm-bench.c -lpthread -lm -o "$out/native-clang$version.exe"
+  "$cc" $native_flags $sources $package/cbits/canvas.c $package/cbits/native.c $package/cbits/clock.c .github/scripts/wasm-bench.c -lpthread -lm -o "$out/native-clang$version.exe"
   builds="native-clang$version"
   for variant in scalar sse2; do
     "$cc" -O2 -Wno-pass-failed -DWASM_RT_MEMCHECK_BOUNDS_CHECK=1 -DSANDBOX -I "$GEN" -I "$GEN/$variant" -I "$GEN/simde" -I $package/cbits \
-      "$GEN/$variant/webp-wasm.c" $runtime $package/cbits/host.c .github/scripts/wasm-bench.c -lpthread -lm -o "$out/wasm-$variant-bounds-clang$version.exe"
+      "$GEN/$variant/webp-wasm.c" $runtime $package/cbits/host.c $package/cbits/clock.c .github/scripts/wasm-bench.c -lpthread -lm -o "$out/wasm-$variant-bounds-clang$version.exe"
     builds="$builds wasm-$variant-bounds-clang$version"
   done
   for build in $builds; do

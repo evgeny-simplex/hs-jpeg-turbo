@@ -17,12 +17,12 @@ builds="native native-scalar"
 wasm_builds=
 
 native() {
-  $cc $native_flags $2 $sources $package/cbits/canvas.c $package/cbits/native.c .github/scripts/wasm-bench.c -lpthread -lm -o "$out/$1.exe"
+  $cc $native_flags $2 $sources $package/cbits/canvas.c $package/cbits/native.c $package/cbits/clock.c .github/scripts/wasm-bench.c -lpthread -lm -o "$out/$1.exe"
 }
 
 wasm() {
   $cc -O2 $3 -DSANDBOX -I "$GEN" -I "$GEN/$2" -I "$GEN/simde" -I $package/cbits "$GEN/$2/webp-wasm.c" $runtime $package/cbits/host.c \
-    .github/scripts/wasm-bench.c -lpthread -lm -o "$out/$1.exe"
+    $package/cbits/clock.c .github/scripts/wasm-bench.c -lpthread -lm -o "$out/$1.exe"
   wasm_builds="$wasm_builds $1"
 }
 

@@ -7,7 +7,7 @@ platform, directory, *builds = sys.argv[1:]
 def read(build):
     rows = {}
     for line in open(os.path.join(directory, f"time-{build}.tsv")):
-        name, width, height, channels, size, minimum, median, memory = line.rstrip("\n").split("\t")
+        name, width, height, channels, size, minimum, median, memory = line.rstrip("\n").split("\t")[:8]
         rows[name] = (int(width), int(height), int(channels), int(size), float(minimum), float(median), int(memory))
     return rows
 

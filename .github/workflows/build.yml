@@ -7,6 +7,10 @@ on:
         description: Run only the compiler flag probe of the sse2 module
         type: boolean
         default: false
+      fuel:
+        description: Run only the budget check measurements and the Haskell package
+        type: boolean
+        default: false
 
 defaults:
   run:
@@ -15,7 +19,8 @@ defaults:
 env:
   GEN: dist-newstyle/wasm-gen
   FIXTURES: dist-newstyle/wasm-fixtures
-  WASM_VARIANT: sse2
+  CRAFTED: dist-newstyle/wasm-crafted
+  WASM_VARIANT: sse2-loops
 
 jobs:
   generate:
@@ -26,13 +31,14 @@ jobs:
         with:
           submodules: true
 
-      - name: Download wasi-sdk 34, wabt 1.0.42 and the SSE2 headers of Emscripten 6.0.13
+      - name: Download wasi-sdk 34, wabt 1.0.42, binaryen 133 and the SSE2 headers of Emscripten 6.0.13
         run: |
           tools=$RUNNER_TEMP/tools
-          mkdir -p "$tools/wasi-sdk" "$tools/wabt" "$tools/wabt-src" "$tools/emscripten"
+          mkdir -p "$tools/wasi-sdk" "$tools/wabt" "$tools/wabt-src" "$tools/binaryen" "$tools/emscripten"
           curl -fsSL -o "$tools/wasi-sdk.tar.gz" https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-34/wasi-sdk-34.0-x86_64-linux.tar.gz
           curl -fsSL -o "$tools/wabt.tar.gz" https://github.com/WebAssembly/wabt/releases/download/1.0.42/wabt-1.0.42-linux-x64.tar.gz
           curl -fsSL -o "$tools/wabt-src.tar.xz" https://github.com/WebAssembly/wabt/releases/download/1.0.42/wabt-1.0.42.tar.xz
+          curl -fsSL -o "$tools/binaryen.tar.gz" https://github.com/WebAssembly/binaryen/releases/download/version_133/binaryen-version_133-x86_64-linux.tar.gz
           for header in xmmintrin.h emmintrin.h; do
             curl -fsSL -o "$tools/emscripten/$header" "https://raw.githubusercontent.com/emscripten-core/emscripten/e13ee988ce3d87a738dd8f3661d02223308c412a/system/include/compat/$header"
           done
@@ -40,24 +46,42 @@ jobs:
           b761e3a0721dbae9c09a0059e5fdb2bf917d1b4a8a7b430fb3b5aafb0984b2c4  $tools/wasi-sdk.tar.gz
           84895407a6bbb80e918f33b16b2fb2206021c150b6bc9ff6f761263a745ab131  $tools/wabt.tar.gz
           a76cda3c174a43097863a07fc0b0c202f770f53e21806ea2636f167d1ffb1e30  $tools/wabt-src.tar.xz
+          2dc9c7813f5375db93d96ead4b78222fcc3e2677bbb832297af4797782a37489  $tools/binaryen.tar.gz
           9d3ebd5ec58e07bc97a788cd0ef21559adcbbc5f11bb779eb1864f45f8d167b9  $tools/emscripten/xmmintrin.h
           ca357b61aa173bd5e617bc0b149c0165b57d21210787eeff5367175dfe63c947  $tools/emscripten/emmintrin.h
           EOF
           tar -xzf "$tools/wasi-sdk.tar.gz" -C "$tools/wasi-sdk" --strip-components=1
           tar -xzf "$tools/wabt.tar.gz" -C "$tools/wabt" --strip-components=1
           tar -xJf "$tools/wabt-src.tar.xz" -C "$tools/wabt-src" --strip-components=1
+          tar -xzf "$tools/binaryen.tar.gz" -C "$tools/binaryen" --strip-components=1
           {
             echo "WASI_SDK=$tools/wasi-sdk"
             echo "WABT=$tools/wabt"
             echo "WABT_SRC=$tools/wabt-src"
+            echo "BINARYEN=$tools/binaryen"
             echo "EMSCRIPTEN_COMPAT=$tools/emscripten"
           } >> "$GITHUB_ENV"
 
-      - name: Compile libwebp to WebAssembly and translate it to C
+      - name: Compile libwebp to WebAssembly, add budget checks and translate it to C
         run: bash .github/scripts/wasm-generate.sh "$GEN"
 
       - name: Encode the WebP fixtures
         run: bash .github/scripts/wasm-fixtures.sh "$FIXTURES"
+
+      - name: Encode the crafted WebP images with the most Huffman groups and empty chunks, by the generator of ep/webp-measure
+        run: |
+          lib=webp-sandbox/cbits/libwebp
+          mkdir -p "$CRAFTED"
+          gcc -O2 -I "$lib" -I "$lib/src" "$lib"/src/*/*.c "$lib"/sharpyuv/*.c .github/scripts/wasm-craft.c -lm -o "$RUNNER_TEMP/craft.exe"
+          "$RUNNER_TEMP/craft.exe" "$CRAFTED/huffman-lossless-1024x1024.webp" lossless 1024 1024 5679 0
+          "$RUNNER_TEMP/craft.exe" "$CRAFTED/huffman-alpha-1024x1024.webp" alpha 1024 1024 5679 0
+          "$RUNNER_TEMP/craft.exe" "$CRAFTED/chunks-1MiB-16x16.webp" lossless 16 16 0 1048576
+          "$RUNNER_TEMP/craft.exe" "$CRAFTED/chunks-1MiB-huffman-lossless-1024x1024.webp" lossless 1024 1024 5679 1048576
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wasm-crafted
+          path: ${{ env.CRAFTED }}
 
       - uses: actions/upload-artifact@v4
         with:
@@ -72,7 +96,7 @@ jobs:
   measure:
     name: native and wasm2c builds on ${{ matrix.os }}
     needs: generate
-    if: &full ${{ !inputs.probe }}
+    if: &full ${{ !inputs.probe && !inputs.fuel }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -143,7 +167,7 @@ jobs:
             mode=$([ $check = bounds ] && echo BOUNDS_CHECK || echo GUARD_PAGES)
             clang -g -O1 -fsanitize=address,undefined -fno-sanitize-recover=undefined -DWASM_RT_MEMCHECK_$mode=1 -DSANDBOX \
               -I "$GEN" -I "$GEN/scalar" -I "$GEN/simde" -I webp-sandbox/cbits "$GEN/scalar/webp-wasm.c" "$GEN"/wasm-rt-impl.c \
-              "$GEN"/wasm-rt-mem-impl.c "$GEN"/wasm-rt-exceptions-impl.c webp-sandbox/cbits/host.c .github/scripts/wasm-bench.c -lpthread -lm \
+              "$GEN"/wasm-rt-mem-impl.c "$GEN"/wasm-rt-exceptions-impl.c webp-sandbox/cbits/host.c webp-sandbox/cbits/clock.c .github/scripts/wasm-bench.c -lpthread -lm \
               -o "$out/$check.exe"
           done
           conformance=$(sed -n 's|^[0-9a-f]*  \(.*\.webp\)\.pam$|'"$WEBP_TEST_DATA"'/\1|p' "$WEBP_TEST_DATA/libwebp_tests.md5")
@@ -238,10 +262,83 @@ jobs:
           name: wasm-measure-armv7
           path: dist-newstyle/wasm-armv7/*.tsv
 
+  fuel:
+    name: budget checks on ${{ matrix.platform }}
+    needs: generate
+    if: ${{ inputs.fuel }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: Linux x86-64
+            os: ubuntu-24.04
+            count: 1
+            configs: |
+              gcc|gcc -O2
+              clang|clang -O3 -Wno-pass-failed
+          - platform: Linux aarch64
+            os: ubuntu-24.04-arm
+            configs: |
+              gcc|gcc -O2
+              clang|clang -O3 -Wno-pass-failed
+          - platform: macOS aarch64
+            os: macos-latest
+            configs: |
+              clang|cc -O3 -Wno-pass-failed
+          - platform: armv7 static on ubuntu-24.04-arm
+            os: ubuntu-24.04-arm
+            configs: |
+              gcc|arm-linux-gnueabihf-gcc -static -march=armv7-a -mfpu=neon -mfloat-abi=hard -O2 -DWASM_RT_USE_MMAP=1
+              clang|clang --target=arm-linux-gnueabihf -static -march=armv7-a -mfpu=neon -mfloat-abi=hard -O3 -Wno-pass-failed -DWASM_RT_USE_MMAP=1
+    env:
+      RULE_BASE: 16777216
+      RULE_PER_BYTE: 64
+      RULE_PER_PIXEL: 64
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+
+      - *download-gen
+      - *download-fixtures
+      - &download-crafted
+        uses: actions/download-artifact@v4
+        with:
+          name: wasm-crafted
+          path: ${{ env.CRAFTED }}
+      - *test-data
+
+      - name: Install clang and the armv7 cross compiler
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang gcc-arm-linux-gnueabihf
+
+      - name: Show the CPU
+        run: |
+          if [ "$RUNNER_OS" = Linux ]; then lscpu; else sysctl -n machdep.cpu.brand_string hw.ncpu hw.memsize; fi
+
+      - name: Measure the budget checks
+        env:
+          CONFIGS: ${{ matrix.configs }}
+          COUNT: ${{ matrix.count }}
+        run: |
+          configs=()
+          while IFS= read -r config; do
+            configs+=("$config")
+          done < <(printf '%s\n' "$CONFIGS" | sed '/^$/d')
+          bash .github/scripts/wasm-fuel-measure.sh "${{ matrix.platform }}" "${configs[@]}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wasm-fuel-${{ matrix.os }}-${{ strategy.job-index }}
+          path: dist-newstyle/wasm-fuel/*.tsv
+
   haskell:
     name: webp-sandbox on ${{ matrix.os }}, GHC ${{ matrix.ghc }}
     needs: generate
-    if: *full
+    if: ${{ !inputs.probe }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
