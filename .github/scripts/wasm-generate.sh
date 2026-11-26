@@ -11,7 +11,7 @@ cc="$WASI_SDK/bin/clang --target=wasm32-wasip1 --sysroot=$WASI_SDK/share/wasi-sy
 flags="-O2 -DWEBP_MAX_ALLOCABLE_MEMORY=67108864 -I $lib -I $package/cbits"
 link="-mexec-model=reactor -Wl,--import-memory -Wl,--stack-first -Wl,-z,stack-size=1048576"
 binaryen_features="--enable-simd --enable-bulk-memory --enable-bulk-memory-opt --enable-nontrapping-float-to-int --enable-sign-ext
-  --enable-mutable-globals --enable-multivalue --enable-reference-types --enable-call-indirect-overlong"
+  --enable-mutable-globals --enable-multivalue --enable-reference-types --enable-call-indirect-overlong --enable-extended-const"
 
 translate() {
   local name=$1 extra=$2 imports=$3 dir=$out/$1 found simd
@@ -41,9 +41,9 @@ variant() {
 budget_variants() {
   local text=$out/texts mode
   mkdir -p "$text" "$out/sse2-loops" "$out/sse2-calls" "$out/sse2-log"
-  "$WABT/bin/wasm2wat" --generate-names "$out/sse2/webp.wasm" -o "$text/sse2.wat"
+  "$WABT/bin/wasm2wat" --disable-annotations --generate-names "$out/sse2/webp.wasm" -o "$text/sse2.wat"
   "$WABT/bin/wat2wasm" --debug-names "$text/sse2.wat" -o "$text/roundtrip.wasm"
-  "$WABT/bin/wasm2wat" --generate-names "$text/roundtrip.wasm" -o "$text/roundtrip.wat"
+  "$WABT/bin/wasm2wat" --disable-annotations --generate-names "$text/roundtrip.wasm" -o "$text/roundtrip.wat"
   if ! cmp "$text/sse2.wat" "$text/roundtrip.wat"; then
     diff "$text/sse2.wat" "$text/roundtrip.wat" | sed -n 1,40p
     exit 1
