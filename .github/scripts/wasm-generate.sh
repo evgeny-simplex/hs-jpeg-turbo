@@ -27,6 +27,7 @@ translate() {
   fi
   "$WABT/bin/wasm-objdump" -d "$dir/webp.wasm" > "$dir/webp.dis"
   simd=$(grep -cE '\b(v128|i8x16|i16x8|i32x4|i64x2|f32x4|f64x2)\.' "$dir/webp.dis" || true)
+  echo "$name: $(grep -c 'memory\.fill' "$dir/webp.dis" || true) memory.fill, $(grep -c 'memory\.copy' "$dir/webp.dis" || true) memory.copy, $(grep -cE '\| +loop\b' "$dir/webp.dis" || true) loop instructions" | tee -a "$summary"
   rm "$dir/webp.dis"
   echo "| $name | $extra | $(wc -c < "$dir/webp.wasm") | $(wc -c < "$dir/webp-wasm.c") | $simd |" | tee -a "$summary"
 }
@@ -60,7 +61,7 @@ budget_variants() {
   "$BINARYEN/bin/wasm-opt" $binaryen_features --log-execution -g "$out/sse2/webp.wasm" -o "$out/sse2-log/webp.wasm"
   translate sse2-log "binaryen \`wasm-opt --log-execution\`" 1
   grep -q 'void w2c_env_log_execution(struct w2c_env\*, u32)' "$out/sse2-log/webp-wasm.h"
-  echo "sse2-log: $("$WABT/bin/wasm2wat" "$out/sse2-log/webp.wasm" | grep -c 'call \$log_execution\|call 0 ' || true) calls of log_execution" | tee -a "$summary"
+  echo "sse2-log: $(grep -c 'w2c_env_log_execution(instance->' "$out/sse2-log/webp-wasm.c" || true) calls of log_execution in the C" | tee -a "$summary"
   rm -rf "$text"
 }
 

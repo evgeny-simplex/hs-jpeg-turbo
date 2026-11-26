@@ -20,7 +20,7 @@ env:
   GEN: dist-newstyle/wasm-gen
   FIXTURES: dist-newstyle/wasm-fixtures
   CRAFTED: dist-newstyle/wasm-crafted
-  WASM_VARIANT: sse2-loops
+  WASM_VARIANT: sse2-calls
 
 jobs:
   generate:
@@ -292,8 +292,8 @@ jobs:
               gcc|arm-linux-gnueabihf-gcc -static -march=armv7-a -mfpu=neon -mfloat-abi=hard -O2 -DWASM_RT_USE_MMAP=1
               clang|clang --target=arm-linux-gnueabihf -static -march=armv7-a -mfpu=neon -mfloat-abi=hard -O3 -Wno-pass-failed -DWASM_RT_USE_MMAP=1
     env:
-      RULE_BASE: 16777216
-      RULE_PER_BYTE: 64
+      RULE_BASE: 1048576
+      RULE_PER_BYTE: 16
       RULE_PER_PIXEL: 64
     steps:
       - uses: actions/checkout@v6

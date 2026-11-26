@@ -59,7 +59,7 @@ for config in "$@"; do
     "$out/$variant-$name.exe" check "$out/full-$variant-$name" 16384 $conformance $fixtures $crafted
   done
   mkdir -p "$out/full-rule-$name"
-  env $rule "$out/sse2-loops-$name.exe" check "$out/full-rule-$name" 16384 $conformance $fixtures $crafted
+  env $rule WEBP_INTERVAL=4096 "$out/sse2-calls-$name.exe" check "$out/full-rule-$name" 16384 $conformance $fixtures $crafted
   {
     echo "### $platform, $name \`$command\`: outputs of the builds with budget checks compared with the sse2 build"
     echo
@@ -72,10 +72,10 @@ for config in "$@"; do
   for variant in native sse2 sse2-loops sse2-calls sse2-log; do
     timing "$out/time-$variant-$name.tsv" "$out/$variant-$name.exe"
   done
-  timing "$out/time-sse2-loops-deadline-$name.tsv" "$out/sse2-loops-$name.exe" WEBP_DEADLINE_MS=600000 WEBP_INTERVAL=65536
-  timing "$out/time-sse2-loops-rule-$name.tsv" "$out/sse2-loops-$name.exe" $rule WEBP_INTERVAL=65536
+  timing "$out/time-sse2-calls-deadline-$name.tsv" "$out/sse2-calls-$name.exe" WEBP_DEADLINE_MS=600000 WEBP_INTERVAL=4096
+  timing "$out/time-sse2-calls-rule-$name.tsv" "$out/sse2-calls-$name.exe" $rule WEBP_DEADLINE_MS=600000 WEBP_INTERVAL=4096
   python3 -I .github/scripts/wasm-report.py "$platform, $name \`$command\`, bounds checks" "$out" sse2-$name sse2-loops-$name sse2-calls-$name \
-    sse2-log-$name sse2-loops-deadline-$name sse2-loops-rule-$name native-$name | tee -a "$summary"
+    sse2-log-$name sse2-calls-deadline-$name sse2-calls-rule-$name native-$name | tee -a "$summary"
 
   {
     echo "### $platform, $name: decodes and loops stopped by the budget and by the deadline"
@@ -88,9 +88,11 @@ for config in "$@"; do
         WEBP_DEADLINE_MS=20 WEBP_INTERVAL=$interval "$out/$variant-$name.exe" spin 20
       done
       for image in tall-lossy-alpha.webp tall-lossless.webp photo-2560x1440-lossy.webp; do
-        WEBP_DEADLINE_MS=5 WEBP_INTERVAL=65536 "$out/$variant-$name.exe" stop 20 "$FIXTURES/$image"
+        for interval in 1024 4096 65536; do
+          WEBP_DEADLINE_MS=5 WEBP_INTERVAL=$interval "$out/$variant-$name.exe" stop 20 "$FIXTURES/$image"
+        done
       done
-      WEBP_BUDGET_BASE=1000000 "$out/$variant-$name.exe" tree 26
+      WEBP_BUDGET_BASE=1000000 "$out/$variant-$name.exe" tree 24
     done
     echo '```'
     echo
@@ -104,16 +106,19 @@ if [ "${COUNT:-}" = 1 ]; then
       "$out/$variant-$name.exe" count $side $conformance $fixtures $crafted
     done > "$out/count-$variant.tsv"
   done
-  for side in 16384 64; do
-    "$out/sse2-loops-$name.exe" count-changed $side $conformance $fixtures
-  done >> "$out/count-sse2-loops.tsv"
-  python3 -I .github/scripts/wasm-budget.py "$out" sse2-loops sse2-calls sse2-log | tee -a "$summary"
+  for variant in sse2-loops sse2-calls; do
+    for side in 16384 64; do
+      "$out/$variant-$name.exe" count-changed $side $conformance $fixtures
+    done >> "$out/count-$variant.tsv"
+  done
+  python3 -I .github/scripts/wasm-budget.py "$out" sse2-calls sse2-loops sse2-log | tee -a "$summary"
+  python3 -I .github/scripts/wasm-budget.py "$out" sse2-loops | sed -n '/^### Budget rules/,$p' | tee -a "$summary"
   {
-    echo "### The rule base $RULE_BASE, per byte $RULE_PER_BYTE, per pixel $RULE_PER_PIXEL enforced on truncated and changed inputs"
+    echo "### The rule base $RULE_BASE, per byte $RULE_PER_BYTE, per pixel $RULE_PER_PIXEL enforced on truncated and changed inputs, sse2-calls"
     echo
     echo '```'
     for side in 16384 64; do
-      env $rule WEBP_INTERVAL=65536 "$out/sse2-loops-$name.exe" fuzz $side $conformance $fixtures $crafted
+      env $rule WEBP_INTERVAL=4096 "$out/sse2-calls-$name.exe" fuzz $side $conformance $fixtures $crafted
     done
     echo '```'
     echo
