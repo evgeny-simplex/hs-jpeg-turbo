@@ -12,6 +12,10 @@ on:
         description: Run the full matrix and the armv7 job
         type: boolean
         default: false
+      measure:
+        description: Run the sandbox measurements on every target
+        type: boolean
+        default: false
 
 defaults:
   run:
@@ -275,3 +279,87 @@ jobs:
 
       - name: Compare WebP files decoded by the armv7 and aarch64 builds, decode changed files with sanitizers
         run: bash .github/scripts/webp-check.sh
+
+  sandbox-fixtures:
+    name: sandbox workloads and the largest picked images
+    if: ${{ inputs.measure }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+
+      - name: Encode the workloads and the largest picked images
+        run: bash .github/scripts/sandbox-fixtures.sh "$RUNNER_TEMP/sandbox-fixtures"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sandbox-fixtures
+          path: ${{ runner.temp }}/sandbox-fixtures
+
+  sandbox-measure:
+    name: sandbox measurements on ${{ matrix.platform }}
+    needs: sandbox-fixtures
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: Linux x86-64
+            os: ubuntu-24.04
+            count: 1
+            configs: |
+              gcc|gcc -O2
+              clang|clang -O2
+          - platform: Linux aarch64
+            os: ubuntu-24.04-arm
+            configs: |
+              gcc|gcc -O2
+              clang|clang -O2
+          - platform: macOS aarch64
+            os: macos-latest
+            configs: |
+              clang|cc -O2
+          - platform: armv7 static on ubuntu-24.04-arm
+            os: ubuntu-24.04-arm
+            size: arm-linux-gnueabihf-size
+            configs: |
+              gcc|arm-linux-gnueabihf-gcc -static -march=armv7-a -mfpu=neon -mfloat-abi=hard -O2
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: sandbox-fixtures
+          path: ${{ runner.temp }}/sandbox-fixtures
+
+      - name: Install clang and the armv7 cross compiler
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang gcc-arm-linux-gnueabihf
+
+      - name: Show the CPU
+        run: |
+          if [ "$RUNNER_OS" = Linux ]; then lscpu; else sysctl -n machdep.cpu.brand_string hw.ncpu hw.memsize; fi
+
+      - name: Clone libwebp test data
+        run: |
+          git clone --quiet https://chromium.googlesource.com/webm/libwebp-test-data "$RUNNER_TEMP/libwebp-test-data"
+          git -C "$RUNNER_TEMP/libwebp-test-data" checkout --quiet 06ddd96e276c2c638a72d39d3c0f340afd61978c
+
+      - name: Measure the sandbox against the native decoders
+        env:
+          CONFIGS: ${{ matrix.configs }}
+          COUNT: ${{ matrix.count }}
+          SIZE: ${{ matrix.size }}
+          FIXTURES: ${{ runner.temp }}/sandbox-fixtures
+          WEBP_TEST_DATA: ${{ runner.temp }}/libwebp-test-data
+        run: |
+          configs=()
+          while IFS= read -r config; do
+            configs+=("$config")
+          done < <(printf '%s\n' "$CONFIGS" | sed '/^$/d')
+          bash .github/scripts/sandbox-measure.sh "${{ matrix.platform }}" "${configs[@]}"
