@@ -14,7 +14,7 @@ def read(build):
 
 times = {build: read(build) for build in builds}
 reference = times[builds[0]]
-wasm = [build for build in builds if build.startswith("wasm")]
+wasm = [build for build in builds if not build.startswith("native")]
 
 print(f"### {platform}: decode time, median ms, and the ratio to `{builds[0]}`")
 print()
