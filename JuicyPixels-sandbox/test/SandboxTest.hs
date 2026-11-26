@@ -70,7 +70,7 @@ unit_webp = do
           assertBool (file <> ": samples differ by more than " <> show tolerance) $ closeTo tolerance (samples n) (samples s)
           assertEqual (file <> ": metadata") (Metadata icc payload) metadata
         (Left _, Left _) -> pure ()
-        _ -> assertFailure $ file <> ": " <> show (fst <$> native, fst <$> sandbox)
+        _ -> assertFailure $ file <> ": native " <> outcome native <> ", sandbox " <> outcome sandbox
 
 unit_truncatedAndChanged :: IO ()
 unit_truncatedAndChanged = do
@@ -185,7 +185,10 @@ sameResult :: String -> Either String Samples -> Either String Samples -> IO ()
 sameResult name native sandbox = case (native, sandbox) of
   (Right n, Right s) -> unless (n == s) $ assertFailure $ name <> ": samples differ"
   (Left _, Left _) -> pure ()
-  _ -> assertFailure $ name <> ": native " <> either ("Left " <>) (const "Right") native <> ", sandbox " <> either ("Left " <>) (const "Right") sandbox
+  _ -> assertFailure $ name <> ": native " <> outcome native <> ", sandbox " <> outcome sandbox
+
+outcome :: Either String a -> String
+outcome = either ("Left " <>) (const "Right")
 
 closeTo :: Int -> Samples -> Samples -> Bool
 closeTo tolerance (f, w, h, a) (f', w', h', b) = (f, w, h) == (f', w', h') && V.and (V.zipWith (\x y -> abs (fromIntegral x - fromIntegral y :: Int) <= tolerance) a b)
