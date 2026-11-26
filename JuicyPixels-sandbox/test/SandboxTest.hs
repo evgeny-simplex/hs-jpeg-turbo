@@ -1,7 +1,8 @@
 module SandboxTest where
 
-import Codec.Picture (DynamicImage(..), Image(..), PixelCMYK8, PixelRGBA8(..), convertImage, extractLumaPlane, generateImage)
+import Codec.Picture (DynamicImage(..), Image(..), PixelCMYK8, PixelRGBA8(..), generateImage)
 import Codec.Picture.Jpg (encodeDirectJpegAtQualityWithMetadata)
+import Codec.Picture.Types (convertImage, extractLumaPlane)
 import Codec.Picture.JPEGTurbo qualified as JPEG
 import Codec.Picture.Sandbox
 import Codec.Picture.Spng qualified as Spng
