@@ -5,6 +5,7 @@ packages:
 - JuicyPixels-jpeg-turbo
 - JuicyPixels-spng
 - JuicyPixels-libwebp
+- JuicyPixels-sandbox
 
 # extra-deps: []
 # - acme-missiles-0.3
