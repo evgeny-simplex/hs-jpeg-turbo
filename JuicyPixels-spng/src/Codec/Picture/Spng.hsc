@@ -11,15 +11,14 @@ import Codec.Picture (DynamicImage(..), Image(..), PixelRGBA8)
 import Control.Exception (bracket, mask_)
 import Control.Monad (forM_, unless, when)
 import Control.Monad.IO.Class (liftIO)
-import Control.Monad.Trans.Except (ExceptT(..), runExceptT, throwE)
-import Data.Bits (toIntegralSized)
+import Control.Monad.Trans.Except (ExceptT(..), except, runExceptT, throwE)
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as B
 import Data.ByteString.Unsafe qualified as BU
 import Data.Vector.Storable qualified as V
 import Data.Vector.Storable.Mutable qualified as MV
 import Data.Word (Word32, Word8)
-import Foreign (Ptr, alloca, allocaBytes, castPtr, fillBytes, nullPtr, peek, peekByteOff, plusPtr, pokeArray, pokeByteOff, sizeOf)
+import Foreign (Ptr, alloca, allocaBytes, castPtr, fillBytes, nullPtr, peek, peekByteOff, plusPtr, pokeArray, pokeByteOff)
 import Foreign.C.String (CString, peekCString)
 import Foreign.C.Types (CInt(..), CSize(..))
 
@@ -30,35 +29,42 @@ data PngHeader = PngHeader
   , pngHeight :: Int
   , pngBitDepth :: Int
   , pngColorType :: Int
+  , pngInterlaceMethod :: Int
   }
   deriving (Eq, Show)
 
-newtype DecodeOptions = DecodeOptions
-  { maxMemoryMB :: Int
+data DecodeOptions = DecodeOptions
+  { maxPixels :: Int
+  , maxMemoryMB :: Int
+  , outputSize :: (Int, Int) -> Either String (Int, Int)
   }
-  deriving (Eq, Show)
 
 readPngHeader :: ByteString -> IO (Either String PngHeader)
 readPngHeader png = withDecoder png readHeader
 
 decodePng :: DecodeOptions -> ByteString -> IO (Either String (DynamicImage, Maybe ByteString))
-decodePng DecodeOptions{maxMemoryMB} png
-  | maxMemoryMB < 1 = pure $ Left "invalid decode options"
+decodePng DecodeOptions{maxPixels, maxMemoryMB, outputSize} png
+  | maxPixels < 1 || maxMemoryMB < 1 = pure $ Left "invalid decode options"
   | otherwise = withDecoder png \ctx -> do
-      PngHeader{pngWidth, pngHeight, pngColorType} <- readHeader ctx
+      header@PngHeader{pngWidth, pngHeight, pngColorType} <- readHeader ctx
+      when (toInteger pngWidth * toInteger pngHeight > toInteger maxPixels) $ throwE "image is too large"
+      (width, height) <- except $ outputSize (pngWidth, pngHeight)
+      when (width < 1 || width > pngWidth || height < 1 || height > pngHeight) $ throwE "invalid decode options"
       transparency <- hasTransparency ctx
       image <- if transparency || pngColorType `elem` alphaColorTypes
-        then ImageRGBA8 . Image pngWidth pngHeight <$> decodePixels ctx #{const SPNG_FMT_RGBA8}
-        else ImageRGB8 . Image pngWidth pngHeight <$> decodePixels ctx #{const SPNG_FMT_RGB8}
+        then ImageRGBA8 . Image width height <$> decodePixels ctx header (width, height) #{const SPNG_FMT_RGBA8} 4
+        else ImageRGB8 . Image width height <$> decodePixels ctx header (width, height) #{const SPNG_FMT_RGB8} 3
       (image,) <$> readIccProfile ctx
   where
     alphaColorTypes = [#{const SPNG_COLOR_TYPE_GRAYSCALE_ALPHA}, #{const SPNG_COLOR_TYPE_TRUECOLOR_ALPHA}]
-    decodePixels ctx fmt = do
-      size <- query (sizeOf (0 :: CSize)) (spngDecodedImageSize ctx fmt) peek
-      pixelBytes <- maybe (throwE "image is too large") pure $ toIntegralSized size
-      when (toInteger pixelBytes > toInteger maxMemoryMB * 1048576) $ throwE "image is too large"
+    decodePixels ctx PngHeader{pngWidth, pngHeight, pngInterlaceMethod} (width, height) fmt channels = do
+      let pixelBytes = width * height * channels
+          memory
+            | (width, height) /= (pngWidth, pngHeight) && pngInterlaceMethod /= 0 = toInteger pixelBytes + toInteger pngWidth * toInteger pngHeight * toInteger channels
+            | otherwise = toInteger pixelBytes
+      when (memory > toInteger maxMemoryMB * 1048576) $ throwE "image is too large"
       pixels <- liftIO $ MV.unsafeNew pixelBytes
-      check $ MV.unsafeWith pixels \buf -> spngDecodeImage ctx (castPtr buf) size fmt #{const SPNG_DECODE_TRNS}
+      check $ MV.unsafeWith pixels \buf -> juicypixelsSpngDecode ctx fmt (castPtr buf) (fromIntegral width) (fromIntegral height)
       check $ spngDecodeChunks ctx
       liftIO $ V.unsafeFreeze pixels
 
@@ -117,6 +123,7 @@ readHeader ctx = query #{size struct spng_ihdr} (spngGetIhdr ctx) \ihdr ->
     <*> (fromIntegral @Word32 <$> #{peek struct spng_ihdr, height} ihdr)
     <*> (fromIntegral @Word8 <$> #{peek struct spng_ihdr, bit_depth} ihdr)
     <*> (fromIntegral @Word8 <$> #{peek struct spng_ihdr, color_type} ihdr)
+    <*> (fromIntegral @Word8 <$> #{peek struct spng_ihdr, interlace_method} ihdr)
 
 hasTransparency :: Ptr SpngCtx -> ExceptT String IO Bool
 hasTransparency ctx = do
@@ -160,9 +167,7 @@ foreign import ccall "spng.h spng_get_trns" spngGetTrns :: Ptr SpngCtx -> Ptr ()
 
 foreign import ccall "spng.h spng_get_iccp" spngGetIccp :: Ptr SpngCtx -> Ptr () -> IO CInt
 
-foreign import ccall "spng.h spng_decoded_image_size" spngDecodedImageSize :: Ptr SpngCtx -> CInt -> Ptr CSize -> IO CInt
-
-foreign import ccall "spng.h spng_decode_image" spngDecodeImage :: Ptr SpngCtx -> Ptr () -> CSize -> CInt -> CInt -> IO CInt
+foreign import ccall "juicypixels_spng.h juicypixels_spng_decode" juicypixelsSpngDecode :: Ptr SpngCtx -> CInt -> Ptr () -> Word32 -> Word32 -> IO CInt
 
 foreign import ccall "spng.h spng_decode_chunks" spngDecodeChunks :: Ptr SpngCtx -> IO CInt
 

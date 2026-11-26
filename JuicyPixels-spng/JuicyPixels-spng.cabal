@@ -51,6 +51,7 @@ library
       cbits/libspng/spng
       cbits/miniz
   c-sources:
+      cbits/decode.c
       cbits/libspng/spng/spng.c
       cbits/miniz/miniz.c
       cbits/miniz/miniz_tdef.c

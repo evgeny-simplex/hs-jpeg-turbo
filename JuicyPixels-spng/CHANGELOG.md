@@ -5,5 +5,6 @@
 - PNG decoding and encoding of JuicyPixels images with libspng 0.7.4 and miniz 3.1.2.
 - decodePng returns the ICC profile of the PNG, and encodePng embeds the ICC profile given in EncodeOptions.
 - decodePng refuses a PNG with an iCCP chunk that decompresses to more than 1 MiB, or a zTXt or iTXt chunk that decompresses to more than 512 KiB.
+- decodePng decodes the image at the size that `outputSize` of DecodeOptions returns, each output pixel the average of the area it covers, and refuses images of more than `maxPixels` pixels.
 
 ## 0.1.0.0 - YYYY-MM-DD
