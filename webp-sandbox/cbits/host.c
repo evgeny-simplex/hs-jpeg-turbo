@@ -85,11 +85,30 @@ static uint8_t *bulk_range(struct w2c_env *env, uint32_t offset, uint32_t length
   return env->memory.data + offset;
 }
 
+static void reclaim_grant(struct w2c_env *env)
+{
+#if defined(WEBP_SANDBOX_FUEL_GLOBAL)
+  uint32_t *counter = w2c_webp_fuel(&((Session *)env)->instance);
+  const int64_t unspent = (int32_t)*counter;
+#else
+  int64_t *counter = &env->counter;
+  const int64_t unspent = *counter;
+#endif
+
+  if (unspent > 0) {
+    env->remaining += (uint64_t)unspent;
+    env->granted -= (uint64_t)unspent;
+    *counter = 0;
+  }
+}
+
 static void charge_bulk(struct w2c_env *env, uint32_t length)
 {
   const uint64_t iterations = length >> BULK_BYTES_PER_ITERATION_BITS;
 
   if (env->limited) {
+    if (env->remaining < iterations)
+      reclaim_grant(env);
     if (env->remaining < iterations)
       stop(env, WEBP_SANDBOX_BUDGET, webp_sandbox_now_ns());
     env->remaining -= iterations;
