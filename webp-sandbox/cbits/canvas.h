@@ -10,6 +10,12 @@ typedef struct {
   int width, height, channels;
 } Canvas;
 
+typedef struct {
+  int canvas_width, canvas_height, frame_width, frame_height, channels;
+} Features;
+
+int webp_canvas_features(const unsigned char *webp, size_t size, Features *features);
+
 int webp_canvas_decode(const unsigned char *webp, size_t size, int max_side, Canvas *canvas);
 
 #endif

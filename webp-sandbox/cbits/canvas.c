@@ -15,6 +15,32 @@ static int scaled_end(int end, int side, int scaled_side)
   return (int)(((long long)end * scaled_side + side - 1) / side);
 }
 
+int webp_canvas_features(const unsigned char *webp, size_t size, Features *features)
+{
+  WebPData data = {webp, size};
+  WebPDemuxer *demux = WebPDemux(&data);
+  WebPIterator iter;
+  WebPBitstreamFeatures frame;
+  int animated, rc = VP8_STATUS_BITSTREAM_ERROR;
+
+  features->canvas_width = features->canvas_height = features->frame_width = features->frame_height = features->channels = 0;
+  if (!demux)
+    return rc;
+  features->canvas_width = WebPDemuxGetI(demux, WEBP_FF_CANVAS_WIDTH);
+  features->canvas_height = WebPDemuxGetI(demux, WEBP_FF_CANVAS_HEIGHT);
+  animated = (WebPDemuxGetI(demux, WEBP_FF_FORMAT_FLAGS) & ANIMATION_FLAG) != 0;
+  if (features->canvas_width <= WEBP_MAX_SIDE && features->canvas_height <= WEBP_MAX_SIDE && WebPDemuxGetFrame(demux, 1, &iter)) {
+    if ((rc = WebPGetFeatures(iter.fragment.bytes, iter.fragment.size, &frame)) == VP8_STATUS_OK) {
+      features->frame_width = frame.width;
+      features->frame_height = frame.height;
+      features->channels = animated || frame.has_alpha ? 4 : 3;
+    }
+    WebPDemuxReleaseIterator(&iter);
+  }
+  WebPDemuxDelete(demux);
+  return rc;
+}
+
 int webp_canvas_decode(const unsigned char *webp, size_t size, int max_side, Canvas *canvas)
 {
   WebPData data = {webp, size};

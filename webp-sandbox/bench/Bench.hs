@@ -17,7 +17,7 @@ main = do
   forM_ files \path -> do
     webp <- B.readFile path
     native <- median <$> timeDecodes Native webp
-    sandboxed <- median <$> timeDecodes (Sandboxed 256) webp
+    sandboxed <- median <$> timeDecodes (Sandboxed defaultLimits) webp
     printf "| %s | %.2f | %.2f | %.2fx |\n" (takeFileName path) (native / 1e6) (sandboxed / 1e6) (sandboxed / native)
   where
     median times = sort times !! (length times `div` 2)

@@ -34,7 +34,7 @@ library
       Codec.Picture.WebpSandbox
   hs-source-dirs:
       src
-  cc-options: -O2 -DWEBP_USE_THREAD -DWEBP_MAX_ALLOCABLE_MEMORY=67108864
+  cc-options: -O2 -DWEBP_USE_THREAD -DWEBP_MAX_ALLOCABLE_MEMORY=67108864 -DWEBP_SANDBOX_FUEL_GLOBAL
   if flag(guard-pages)
     cc-options: -DWASM_RT_MEMCHECK_GUARD_PAGES=1
   else
@@ -46,6 +46,7 @@ library
       gen/simde
   c-sources:
       cbits/canvas.c
+      cbits/clock.c
       cbits/native.c
       cbits/host.c
       gen/webp-wasm.c
