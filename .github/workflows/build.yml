@@ -363,3 +363,124 @@ jobs:
             configs+=("$config")
           done < <(printf '%s\n' "$CONFIGS" | sed '/^$/d')
           bash .github/scripts/sandbox-measure.sh "${{ matrix.platform }}" "${configs[@]}"
+
+  sandbox-android-build:
+    name: sandbox builds by the compilers of the core's nix builds for Android
+    if: ${{ inputs.measure }}
+    runs-on: ubuntu-24.04
+    env:
+      SIMPLEX_CHAT_REV: 9c502559140e62c888f4c6af9e2a3ecdf11963bb
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+
+      - name: Install Nix with the caches of the core's Android build
+        run: bash .github/scripts/sandbox-nix.sh
+
+      - name: Fetch the C compilers of the core's armv7a and aarch64 builds
+        run: |
+          for target in armv7a aarch64; do
+            nix build -L --impure --out-link "$RUNNER_TEMP/cc-$target" --expr "import ./.github/scripts/sandbox-cc.nix { rev = \"$SIMPLEX_CHAT_REV\"; target = \"$target\"; }"
+            ls "$RUNNER_TEMP/cc-$target/bin"
+            cc=$(ls "$RUNNER_TEMP/cc-$target"/bin/*-cc | head -1)
+            "$cc" --version
+            echo "cc_$target=$cc" >> "$GITHUB_ENV"
+          done
+
+      - name: Check the sandbox objects for thread-local storage
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y llvm
+          flags="-O2 -DWASM_RT_MEMCHECK_BOUNDS_CHECK=1 -DWASM_RT_USE_MMAP=1 -DWASM_RT_STACK_DEPTH_COUNT=1 -DWASM_RT_MAX_CALL_STACK_DEPTH=128 -DWASM_RT_GROW_FAILED_HANDLER=sandbox_grow_failed -I JuicyPixels-sandbox/cbits -I JuicyPixels-sandbox/cbits/wasm2c"
+          for target in armv7a aarch64; do
+            cc=cc_$target
+            mkdir -p "$RUNNER_TEMP/tls-$target"
+            for source in host module clock; do
+              ${!cc} $flags -c JuicyPixels-sandbox/cbits/$source.c -o "$RUNNER_TEMP/tls-$target/$source.o"
+            done
+            ${!cc} $flags -c JuicyPixels-sandbox/cbits/wasm2c/wasm-rt-mem-impl.c -o "$RUNNER_TEMP/tls-$target/wasm-rt-mem-impl.o"
+            echo "$target: $(llvm-nm -u "$RUNNER_TEMP"/tls-$target/*.o | grep -cE '__emutls|__tls_get_addr' || true) references to thread-local storage" | tee -a "$GITHUB_STEP_SUMMARY"
+            if llvm-nm -u "$RUNNER_TEMP"/tls-$target/*.o | grep -E '__emutls|__tls_get_addr'; then exit 1; fi
+            if llvm-readelf -S -W "$RUNNER_TEMP"/tls-$target/*.o | grep -E '\.t(data|bss)'; then exit 1; fi
+          done
+
+      - name: Build the native and sandboxed decoders
+        env:
+          BUILD_ONLY: 1
+          LIBS: -lm
+          SIZE: llvm-size
+          FIXTURES: /nonexistent
+          WEBP_TEST_DATA: /nonexistent
+        run: bash .github/scripts/sandbox-measure.sh "Android, the core's nix compilers" "ndk-armv7a|$cc_armv7a -static -O2" "nixpkgs-aarch64|$cc_aarch64 -static -O2"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sandbox-android
+          path: dist-newstyle/sandbox-measure/*.exe
+
+  sandbox-android-run:
+    name: sandbox measurements of the Android builds on ubuntu-24.04-arm
+    needs: [sandbox-fixtures, sandbox-android-build]
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: sandbox-fixtures
+          path: ${{ runner.temp }}/sandbox-fixtures
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: sandbox-android
+          path: dist-newstyle/sandbox-measure
+
+      - name: Clone libwebp test data
+        run: |
+          git clone --quiet https://chromium.googlesource.com/webm/libwebp-test-data "$RUNNER_TEMP/libwebp-test-data"
+          git -C "$RUNNER_TEMP/libwebp-test-data" checkout --quiet 06ddd96e276c2c638a72d39d3c0f340afd61978c
+
+      - name: Measure the sandbox against the native decoders
+        env:
+          PREBUILT: 1
+          FIXTURES: ${{ runner.temp }}/sandbox-fixtures
+          WEBP_TEST_DATA: ${{ runner.temp }}/libwebp-test-data
+        run: bash .github/scripts/sandbox-measure.sh "Android builds on Linux aarch64" "ndk-armv7a|" "nixpkgs-aarch64|"
+
+  sandbox-ios:
+    name: sandbox measurements of the build by the compiler of the core's nix build for iOS
+    needs: sandbox-fixtures
+    runs-on: macos-latest
+    env:
+      SIMPLEX_CHAT_REV: 9c502559140e62c888f4c6af9e2a3ecdf11963bb
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: sandbox-fixtures
+          path: ${{ runner.temp }}/sandbox-fixtures
+
+      - name: Install Nix with the caches of the core's builds
+        run: bash .github/scripts/sandbox-nix.sh
+
+      - name: Fetch the C compiler of the core's iOS build
+        run: |
+          nix build -L --impure --out-link "$RUNNER_TEMP/cc-ios" --expr "import ./.github/scripts/sandbox-cc.nix { rev = \"$SIMPLEX_CHAT_REV\"; target = \"ios\"; }"
+          "$RUNNER_TEMP/cc-ios/bin/cc" --version
+
+      - name: Clone libwebp test data
+        run: |
+          git clone --quiet https://chromium.googlesource.com/webm/libwebp-test-data "$RUNNER_TEMP/libwebp-test-data"
+          git -C "$RUNNER_TEMP/libwebp-test-data" checkout --quiet 06ddd96e276c2c638a72d39d3c0f340afd61978c
+
+      - name: Measure the sandbox against the native decoders
+        env:
+          FIXTURES: ${{ runner.temp }}/sandbox-fixtures
+          WEBP_TEST_DATA: ${{ runner.temp }}/libwebp-test-data
+        run: bash .github/scripts/sandbox-measure.sh "macOS aarch64, the compiler of the core's iOS build" "nixpkgs-clang|$RUNNER_TEMP/cc-ios/bin/cc -O2"

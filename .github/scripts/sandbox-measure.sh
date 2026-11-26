@@ -13,8 +13,12 @@ spng=JuicyPixels-spng/cbits
 jpeg=jpeg-turbo/cbits
 sandbox_flags="-DSANDBOX -DWASM_RT_MEMCHECK_BOUNDS_CHECK=1 -DWASM_RT_USE_MMAP=1 -DWASM_RT_STACK_DEPTH_COUNT=1 -DWASM_RT_MAX_CALL_STACK_DEPTH=128 -DWASM_RT_GROW_FAILED_HANDLER=sandbox_grow_failed -I $package/cbits -I $package/cbits/wasm2c"
 sandbox_sources="$package/cbits/host.c $package/cbits/module.c $package/cbits/clock.c $package/cbits/wasm2c/wasm-rt-mem-impl.c"
-corpus=$(ls $jpeg/mozjpeg/testimages/*.jpg $spng/libspng/tests/images/*.png "$WEBP_TEST_DATA"/*.webp "$FIXTURES"/workloads/*)
-workloads=$(ls "$FIXTURES"/workloads/*)
+corpus=
+workloads=
+if [ "${BUILD_ONLY:-}" != 1 ]; then
+  corpus=$(ls $jpeg/mozjpeg/testimages/*.jpg $spng/libspng/tests/images/*.png "$WEBP_TEST_DATA"/*.webp "$FIXTURES"/workloads/*)
+  workloads=$(ls "$FIXTURES"/workloads/*)
+fi
 
 cabal_sources() {
   sed -n "s|^ *cbits/\\($2\\)$|\\1|p" "$1" | sed "s|^|$(dirname "$1")/cbits/|"
@@ -35,17 +39,20 @@ build() {
   local name=$1 command=$2 variant=$3 arch
   arch=$($command -dumpmachine | cut -d- -f1)
   case $arch in
+    arm64) arch=aarch64 ;;
     arm*) arch=arm ;;
   esac
   if [ "$variant" = native ]; then
+    local jpeg_sources webp_sources
+    jpeg_sources=$(jpeg_native $arch | sed "s|^|$root/|")
+    webp_sources=$(cabal_sources JuicyPixels-libwebp/JuicyPixels-libwebp.cabal 'libwebp/src/.*\.c' | sed "s|^|$root/|")
     mkdir -p "$out/obj-jpeg" "$out/obj-png" "$out/obj-webp"
     (cd "$out/obj-jpeg" && $command -DBMP_SUPPORTED -DPPM_SUPPORTED $([ $arch = x86_64 ] || echo -DNEON_INTRINSICS) -iquote "$root/$package/guest" \
-      -I "$root/$jpeg" -I "$root/$jpeg/mozjpeg" -c $(jpeg_native $arch | sed "s|^|$root/|") "$root/$package/guest/jpeg.c") &
+      -I "$root/$jpeg" -I "$root/$jpeg/mozjpeg" -c $jpeg_sources "$root/$package/guest/jpeg.c") &
     (cd "$out/obj-png" && $command -DSPNG_STATIC -DSPNG_USE_MINIZ -DMINIZ_NO_STDIO -DMINIZ_NO_TIME -DMINIZ_NO_ARCHIVE_APIS -iquote "$root/$package/guest" \
       -I "$root/$spng" -I "$root/$spng/libspng/spng" -I "$root/$spng/miniz" -c "$root/$spng/libspng/spng/spng.c" "$root/$spng/miniz/miniz.c" \
       "$root/$spng/miniz/miniz_tdef.c" "$root/$spng/miniz/miniz_tinfl.c" "$root/$spng/decode.c" "$root/$package/guest/png.c") &
-    (cd "$out/obj-webp" && $command -DWEBP_USE_THREAD -DNDEBUG -iquote "$root/$package/guest" -I "$root/$webp" \
-      -c $(cabal_sources JuicyPixels-libwebp/JuicyPixels-libwebp.cabal 'libwebp/src/.*\.c' | sed "s|^|$root/|") "$root/$package/guest/webp.c") &
+    (cd "$out/obj-webp" && $command -DWEBP_USE_THREAD -DNDEBUG -iquote "$root/$package/guest" -I "$root/$webp" -c $webp_sources "$root/$package/guest/webp.c") &
     wait
     $command -iquote $package/guest -I $package/cbits "$out"/obj-*/*.o $package/cbits/clock.c .github/scripts/sandbox-bench.c ${LIBS--lpthread -lm} -o "$out/$name.exe"
     rm -rf "$out"/obj-*
@@ -58,21 +65,30 @@ compare() {
   python3 -I .github/scripts/sandbox-compare.py "$out/check-native-$1-$2" "$out/check-sandbox-$1-$2"
 }
 
-rm -rf "$out"
-mkdir -p "$out"
+if [ "${PREBUILT:-}" = 1 ]; then
+  chmod +x "$out"/*.exe
+else
+  rm -rf "$out"
+  mkdir -p "$out"
+fi
 echo "$platform"
 for config in "$@"; do
   name=${config%%|*}
   command=${config#*|}
-  $command --version | head -1
-  build "native-$name" "$command" native
-  build "sandbox-$name" "$command" sandbox
-  {
-    echo "### $platform, $name \`$command\`: sizes"
-    echo '```'
-    ${SIZE:-size} "$out/native-$name.exe" "$out/sandbox-$name.exe" || true
-    echo '```'
-  } | tee -a "$summary"
+  if [ "${PREBUILT:-}" != 1 ]; then
+    $command --version | head -1
+    build "native-$name" "$command" native
+    build "sandbox-$name" "$command" sandbox
+    {
+      echo "### $platform, $name \`$command\`: sizes"
+      echo '```'
+      ${SIZE:-size} "$out/native-$name.exe" "$out/sandbox-$name.exe" || true
+      echo '```'
+    } | tee -a "$summary"
+  fi
+  if [ "${BUILD_ONLY:-}" = 1 ]; then
+    continue
+  fi
 
   for side in 16384 64; do
     for variant in native sandbox; do
