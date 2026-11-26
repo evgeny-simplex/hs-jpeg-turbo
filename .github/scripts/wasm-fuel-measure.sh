@@ -17,6 +17,10 @@ crafted=$(ls "$CRAFTED"/*.webp)
 rule="WEBP_BUDGET_BASE=$RULE_BASE WEBP_BUDGET_PER_BYTE=$RULE_PER_BYTE WEBP_BUDGET_PER_PIXEL=$RULE_PER_PIXEL"
 variants="sse2 sse2-loops sse2-calls sse2-bulk sse2-log"
 counted="sse2-loops sse2-calls sse2-bulk"
+case $platform in
+  armv7*) size_tool=arm-linux-gnueabihf-size ;;
+  *) size_tool=size ;;
+esac
 
 build() {
   local name=$1 command=$2 variant=$3 unit extra=
@@ -55,6 +59,14 @@ for config in "$@"; do
   for pid in $pids; do
     wait "$pid"
   done
+  {
+    echo "### $platform, $name: sizes of the executables"
+    echo
+    echo '```'
+    (cd "$out" && "$size_tool" $(for variant in native $variants; do echo "$variant-$name.exe"; done))
+    echo '```'
+    echo
+  } | tee -a "$summary"
 
   for variant in $variants; do
     mkdir -p "$out/full-$variant-$name"
