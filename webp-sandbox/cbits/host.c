@@ -46,16 +46,19 @@ wasm_rt_memory_t *w2c_env_memory(struct w2c_env *env)
   return &env->memory;
 }
 
-static void stop(struct w2c_env *env, int reason)
+static void stop(struct w2c_env *env, int reason, uint64_t now)
 {
   env->stopped = reason;
+  env->stopped_ns = now;
   wasm_rt_trap(WASM_RT_TRAP_UNREACHABLE);
 }
 
 static void check_deadline(struct w2c_env *env)
 {
-  if (env->deadline_ns && webp_sandbox_now_ns() >= env->deadline_ns)
-    stop(env, WEBP_SANDBOX_DEADLINE);
+  uint64_t now;
+
+  if (env->deadline_ns && (now = webp_sandbox_now_ns()) >= env->deadline_ns)
+    stop(env, WEBP_SANDBOX_DEADLINE, now);
 }
 
 uint32_t w2c_env_refuel(struct w2c_env *env)
@@ -65,7 +68,7 @@ uint32_t w2c_env_refuel(struct w2c_env *env)
   check_deadline(env);
   if (env->limited) {
     if (env->remaining == 0)
-      stop(env, WEBP_SANDBOX_BUDGET);
+      stop(env, WEBP_SANDBOX_BUDGET, webp_sandbox_now_ns());
     if (grant > env->remaining)
       grant = env->remaining;
     env->remaining -= grant;
@@ -88,7 +91,7 @@ static void charge_bulk(struct w2c_env *env, uint32_t length)
 
   if (env->limited) {
     if (env->remaining < iterations)
-      stop(env, WEBP_SANDBOX_BUDGET);
+      stop(env, WEBP_SANDBOX_BUDGET, webp_sandbox_now_ns());
     env->remaining -= iterations;
   }
   env->charged += iterations;
@@ -330,6 +333,7 @@ static int run_in_sandbox(const webp_limits *limits, Run run, const Call *call, 
   }
   result->memory_bytes = session->env.memory.size;
   result->refuels = session->env.refuels;
+  result->stopped_ns = session->env.stopped_ns;
   if (instantiated) {
     result->iterations = (uint64_t)((int64_t)(session->env.granted + session->env.refuels + session->env.charged) -
                                     fuel_counter(&session->instance, &session->env));

@@ -11,6 +11,7 @@ struct w2c_env {
   uint64_t charged;
   uint64_t per_pixel;
   uint64_t deadline_ns;
+  uint64_t stopped_ns;
   int64_t counter;
   uint32_t interval;
   uint32_t refuels;

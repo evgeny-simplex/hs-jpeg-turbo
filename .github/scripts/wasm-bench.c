@@ -285,7 +285,8 @@ static void trap(void)
     exit(1);
 }
 
-static void report_stops(const char *what, int repeat, double *elapsed, double *late, int expected, int *statuses, webp_result *r)
+static void report_stops(const char *what, int repeat, double *elapsed, double *late, double *found, double *returned, int expected,
+                         int *statuses, webp_result *r)
 {
   int i, unexpected = 0;
 
@@ -293,15 +294,19 @@ static void report_stops(const char *what, int repeat, double *elapsed, double *
     unexpected += statuses[i] != expected;
   qsort(elapsed, repeat, sizeof(double), compare_doubles);
   qsort(late, repeat, sizeof(double), compare_doubles);
+  qsort(found, repeat, sizeof(double), compare_doubles);
+  qsort(returned, repeat, sizeof(double), compare_doubles);
   printf("%s\tinterval %u\tstatus %d\t%d of %d calls with another status\titerations %llu\trefuels %u\telapsed ms min %.3f median %.3f max %.3f"
-         "\tafter the deadline us min %.1f median %.1f max %.1f\n",
+         "\tafter the deadline us min %.1f median %.1f max %.1f\tdeadline to stop us median %.1f max %.1f\tstop to return us median %.1f max %.1f\n",
          what, limits.check_interval, statuses[repeat - 1], unexpected, repeat, (unsigned long long)r->iterations, r->refuels, elapsed[0] / 1e6,
-         elapsed[repeat / 2] / 1e6, elapsed[repeat - 1] / 1e6, late[0] / 1e3, late[repeat / 2] / 1e3, late[repeat - 1] / 1e3);
+         elapsed[repeat / 2] / 1e6, elapsed[repeat - 1] / 1e6, late[0] / 1e3, late[repeat / 2] / 1e3, late[repeat - 1] / 1e3,
+         found[repeat / 2] / 1e3, found[repeat - 1] / 1e3, returned[repeat / 2] / 1e3, returned[repeat - 1] / 1e3);
 }
 
 static void stop(const char *what, int repeat, const char *path)
 {
   double *elapsed = malloc(sizeof(double) * repeat), *late = malloc(sizeof(double) * repeat);
+  double *found = malloc(sizeof(double) * repeat), *returned = malloc(sizeof(double) * repeat);
   int *statuses = malloc(sizeof(int) * repeat);
   const int expected = deadline_ms ? WEBP_SANDBOX_DEADLINE : WEBP_SANDBOX_BUDGET;
   unsigned char *webp = NULL;
@@ -319,10 +324,14 @@ static void stop(const char *what, int repeat, const char *path)
     free(r.pixels);
     elapsed[i] = (double)(end - start);
     late[i] = deadline_ms ? (double)end - (double)(start + deadline_ms * 1000000u) : 0;
+    found[i] = deadline_ms && r.stopped_ns ? (double)r.stopped_ns - (double)(start + deadline_ms * 1000000u) : 0;
+    returned[i] = r.stopped_ns ? (double)end - (double)r.stopped_ns : 0;
   }
-  report_stops(what, repeat, elapsed, late, expected, statuses, &r);
+  report_stops(what, repeat, elapsed, late, found, returned, expected, statuses, &r);
   free(webp);
   free(statuses);
+  free(returned);
+  free(found);
   free(late);
   free(elapsed);
 }

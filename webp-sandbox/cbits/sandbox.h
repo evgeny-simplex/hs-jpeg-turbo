@@ -30,6 +30,7 @@ typedef struct {
   uint32_t trap;
   uint64_t memory_bytes;
   uint64_t iterations;
+  uint64_t stopped_ns;
   uint32_t refuels;
   uint32_t frame_width;
   uint32_t frame_height;
