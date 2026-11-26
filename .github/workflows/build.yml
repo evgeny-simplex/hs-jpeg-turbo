@@ -158,6 +158,55 @@ jobs:
         if: matrix.os == 'ubuntu-22.04' && matrix.ghc == '9.6.3'
         run: bash .github/scripts/coverage.sh
 
+  sandbox-generate:
+    name: image decoders to WebAssembly and C, compared with the committed C
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+
+      - name: Download wasi-sdk 34, wabt 1.0.42 and the SSE2 headers of Emscripten 6.0.13
+        run: |
+          tools=$RUNNER_TEMP/tools
+          mkdir -p "$tools/wasi-sdk" "$tools/wabt" "$tools/wabt-src" "$tools/emscripten"
+          curl -fsSL -o "$tools/wasi-sdk.tar.gz" https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-34/wasi-sdk-34.0-x86_64-linux.tar.gz
+          curl -fsSL -o "$tools/wabt.tar.gz" https://github.com/WebAssembly/wabt/releases/download/1.0.42/wabt-1.0.42-linux-x64.tar.gz
+          curl -fsSL -o "$tools/wabt-src.tar.xz" https://github.com/WebAssembly/wabt/releases/download/1.0.42/wabt-1.0.42.tar.xz
+          for header in xmmintrin.h emmintrin.h; do
+            curl -fsSL -o "$tools/emscripten/$header" "https://raw.githubusercontent.com/emscripten-core/emscripten/e13ee988ce3d87a738dd8f3661d02223308c412a/system/include/compat/$header"
+          done
+          sha256sum --check <<EOF
+          b761e3a0721dbae9c09a0059e5fdb2bf917d1b4a8a7b430fb3b5aafb0984b2c4  $tools/wasi-sdk.tar.gz
+          84895407a6bbb80e918f33b16b2fb2206021c150b6bc9ff6f761263a745ab131  $tools/wabt.tar.gz
+          a76cda3c174a43097863a07fc0b0c202f770f53e21806ea2636f167d1ffb1e30  $tools/wabt-src.tar.xz
+          9d3ebd5ec58e07bc97a788cd0ef21559adcbbc5f11bb779eb1864f45f8d167b9  $tools/emscripten/xmmintrin.h
+          ca357b61aa173bd5e617bc0b149c0165b57d21210787eeff5367175dfe63c947  $tools/emscripten/emmintrin.h
+          EOF
+          tar -xzf "$tools/wasi-sdk.tar.gz" -C "$tools/wasi-sdk" --strip-components=1
+          tar -xzf "$tools/wabt.tar.gz" -C "$tools/wabt" --strip-components=1
+          tar -xJf "$tools/wabt-src.tar.xz" -C "$tools/wabt-src" --strip-components=1
+          {
+            echo "WASI_SDK=$tools/wasi-sdk"
+            echo "WABT=$tools/wabt"
+            echo "WABT_SRC=$tools/wabt-src"
+            echo "EMSCRIPTEN_COMPAT=$tools/emscripten"
+          } >> "$GITHUB_ENV"
+
+      - name: Compile the decoders to WebAssembly, add budget checks and translate them to C
+        run: bash .github/scripts/wasm-generate.sh
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sandbox-generated
+          path: JuicyPixels-sandbox/cbits
+
+      - name: Compare the generated files with the committed files
+        run: |
+          git add --intent-to-add JuicyPixels-sandbox/cbits
+          git diff --stat --exit-code -- JuicyPixels-sandbox/cbits
+
   build-full:
     name: ${{ matrix.os }}, GHC ${{ matrix.ghc }}
     if: &full-run ${{ !((github.event_name == 'workflow_dispatch' && !inputs.full) || github.event.pull_request.draft == true || (github.event_name == 'push' && github.repository != 'simplex-chat/hs-jpeg-turbo')) }}
