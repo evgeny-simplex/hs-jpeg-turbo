@@ -83,6 +83,10 @@ main = do
           (result, elapsed) <- timed $ spinSandbox unlimited {timeoutMs = 100}
           assertEqual "result" (Left "deadline exceeded") result
           assertBool ("elapsed " <> show elapsed) (elapsed >= 0.1 && elapsed < 1)
+      , testCase "a recursion of 2^31 calls through a function pointer, without loops, stops at the budget" do
+          (result, elapsed) <- timed $ treeSandbox unlimited {budgetBase = 1000000} 30
+          assertEqual "result" (Left "budget exceeded") result
+          assertBool ("elapsed " <> show elapsed) (elapsed < 1)
       , testCase "loops that never end in 8 sandboxes stop at their deadlines" do
           results <- replicateM 8 do
             done <- newEmptyMVar

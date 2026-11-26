@@ -66,16 +66,25 @@ __attribute__((export_name("spin"))) void guest_spin(void)
     sink++;
 }
 
-__attribute__((export_name("tree"))) uint32_t guest_tree(uint32_t depth)
+static uint32_t tree(uint32_t depth);
+
+static uint32_t (*volatile branch)(uint32_t) = tree;
+
+static uint32_t tree(uint32_t depth)
 {
   uint32_t left, right;
 
   sink++;
   if (depth == 0)
     return 1;
-  left = guest_tree(depth - 1);
-  right = guest_tree(depth - 1);
+  left = branch(depth - 1);
+  right = branch(depth - 1);
   return left - right + 1;
+}
+
+__attribute__((export_name("tree"))) uint32_t guest_tree(uint32_t depth)
+{
+  return branch(depth);
 }
 
 _Noreturn void __assert_fail(const char *expr, const char *file, int line, const char *func)

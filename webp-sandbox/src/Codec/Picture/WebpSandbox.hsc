@@ -6,6 +6,7 @@ module Codec.Picture.WebpSandbox
   , decodeWebp
   , loadSandboxByte
   , spinSandbox
+  , treeSandbox
   ) where
 
 import Codec.Picture (DynamicImage (..), Image (..))
@@ -45,11 +46,11 @@ defaultLimits :: Limits
 defaultLimits =
   Limits
     { memoryLimitMB = 256
-    , budgetBase = 16777216
-    , budgetPerByte = 64
+    , budgetBase = 1048576
+    , budgetPerByte = 16
     , budgetPerPixel = 64
     , timeoutMs = 0
-    , checkInterval = 65536
+    , checkInterval = 4096
     }
 
 decodeWebp :: Decoder -> Int -> ByteString -> IO (Either String Decoded)
@@ -87,6 +88,13 @@ spinSandbox limits =
     status <- withLimits limits \l -> webpSandboxSpin l result
     trap <- #{peek webp_result, trap} result
     if status /= 0 then pure $ Left $ statusError status trap else Right <$> #{peek webp_result, iterations} result
+
+treeSandbox :: Limits -> Word32 -> IO (Either String Word32)
+treeSandbox limits depth =
+  with 0 \value -> allocaBytes #{size webp_result} \result -> do
+    status <- withLimits limits \l -> webpSandboxTree depth l value result
+    trap <- #{peek webp_result, trap} result
+    if status /= 0 then pure $ Left $ statusError status trap else Right <$> peek value
 
 withLimits :: Limits -> (Ptr WebpLimits -> IO a) -> IO a
 withLimits Limits {memoryLimitMB, budgetBase, budgetPerByte, budgetPerPixel, timeoutMs, checkInterval} action =
@@ -126,3 +134,5 @@ foreign import ccall safe "webp_sandbox_decode" webpSandboxDecode :: Ptr Word8 -
 foreign import ccall safe "webp_sandbox_load" webpSandboxLoad :: Word32 -> Ptr WebpLimits -> Ptr Word32 -> Ptr WebpResult -> IO CInt
 
 foreign import ccall safe "webp_sandbox_spin" webpSandboxSpin :: Ptr WebpLimits -> Ptr WebpResult -> IO CInt
+
+foreign import ccall safe "webp_sandbox_tree" webpSandboxTree :: Word32 -> Ptr WebpLimits -> Ptr Word32 -> Ptr WebpResult -> IO CInt
