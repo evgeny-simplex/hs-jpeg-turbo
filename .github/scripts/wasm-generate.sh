@@ -40,8 +40,8 @@ compile() {
   done
 }
 
-rm -rf "$work"
-mkdir -p "$work"
+rm -rf "$work" "$gen/image-wasm.c" "$gen/image-wasm.h" "$gen/wasm2c"
+mkdir -p "$work" "$gen/wasm2c/simde/wasm"
 "$WASI_SDK/bin/clang" --version | sed -n 1p
 "$WABT/bin/wasm2c" --version
 {
@@ -60,10 +60,24 @@ cmp "$work/image.wat" "$work/roundtrip.wat"
 python3 -I .github/scripts/wasm-fuel.py "$work/image.wat" "$work/checked.wat" | tee -a "$summary"
 "$WABT/bin/wat2wasm" --debug-names "$work/checked.wat" -o "$work/checked.wasm"
 "$WABT/bin/wasm-objdump" -x -j Import "$work/checked.wasm" | sed -n '/^Import\[/,$p' | tee -a "$summary"
+"$WABT/bin/wasm-objdump" -x -j Import "$work/checked.wasm" | sed -n 's/^.* <- //p' | sort > "$work/imports.txt"
+sort > "$work/expected-imports.txt" <<EOF
+env.copy
+env.fill
+env.memory
+env.refuel
+wasi_snapshot_preview1.clock_time_get
+wasi_snapshot_preview1.fd_close
+wasi_snapshot_preview1.fd_prestat_dir_name
+wasi_snapshot_preview1.fd_prestat_get
+wasi_snapshot_preview1.fd_seek
+wasi_snapshot_preview1.fd_write
+wasi_snapshot_preview1.proc_exit
+EOF
+diff "$work/expected-imports.txt" "$work/imports.txt"
 "$WABT/bin/wasm-objdump" -x -j Export "$work/checked.wasm" | sed -n '/^Export\[/,$p' | tee -a "$summary"
 "$WABT/bin/wasm2c" --module-name=image -o "$gen/image-wasm.c" "$work/checked.wasm"
 
-mkdir -p "$gen/wasm2c/simde/wasm"
 cp "$WABT_SRC"/wasm2c/wasm-rt.h "$WABT_SRC"/wasm2c/wasm-rt-impl.h "$WABT_SRC"/wasm2c/wasm-rt-impl-tableops.inc \
   "$WABT_SRC"/wasm2c/wasm-rt-mem-impl.c "$WABT_SRC"/wasm2c/wasm-rt-mem-impl-helper.inc "$gen/wasm2c/"
 cp "$WABT_SRC"/third_party/simde/simde/*.h "$gen/wasm2c/simde/"
