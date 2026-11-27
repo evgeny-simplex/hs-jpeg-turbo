@@ -173,6 +173,46 @@ unit_traps = do
   loadSandboxByte defaultLimits {memoryLimitMB = 16} 0 >>= (@?= Right 0)
   loadSandboxByte defaultLimits {memoryLimitMB = 16} maxBound >>= (@?= Left "sandbox trap 1")
 
+unit_moduleOutputChecks :: IO ()
+unit_moduleOutputChecks = do
+  header [0, 1, 100, 200] "" >>= (@?= Right (ImageHeader JPEG 100 200))
+  header [at + 16, 1, 1, 1] "unsupported image format\0" >>= (@?= Left "unsupported image format")
+  forM_ [[0, 0, 1, 1], [0, 4, 1, 1], [0, 3, 0, 1], [0, 3, 65536, 1], [0, 3, 1, 0], [0, 3, 1, 65536], [maxBound, 1, 1, 1], [at + 16, 1, 1, 1]] \fields ->
+    header fields "\0" >>= (@?= Left "invalid sandbox output")
+  readSandboxHeader limits maxBound (words32 [0, 1, 1, 1]) >>= (@?= Left "invalid sandbox output")
+  forM_ [(1, 1), (1, 2), (1, 4), (2, 2), (2, 3), (3, 2), (3, 3)] \(format, layout) ->
+    output 0 format (2, 3) [0, 2, 3, layout, pixels, 0, 0, 0, 0] "" >>= (@?= Right ())
+  output 16 3 (2, 3) [0, 2, 3, 2, pixels, pixels, 16, pixels, 16] "" >>= (@?= Right ())
+  output 0 1 (2, 3) [at + 36, 2, 3, 2, pixels, 0, 0, 0, 0] "invalid decode options\0" >>= (@?= Left "invalid decode options")
+  forM_
+    [ (0, 1, (2, 3), [0, 2, 3, 3, pixels, 0, 0, 0, 0])
+    , (0, 2, (2, 3), [0, 2, 3, 1, pixels, 0, 0, 0, 0])
+    , (0, 2, (2, 3), [0, 2, 3, 4, pixels, 0, 0, 0, 0])
+    , (0, 3, (2, 3), [0, 2, 3, 1, pixels, 0, 0, 0, 0])
+    , (0, 3, (2, 3), [0, 2, 3, 4, pixels, 0, 0, 0, 0])
+    , (0, 1, (2, 3), [0, 2, 3, 0, pixels, 0, 0, 0, 0])
+    , (0, 1, (2, 3), [0, 2, 3, 5, pixels, 0, 0, 0, 0])
+    , (0, 2, (3, 3), [0, 2, 3, 2, pixels, 0, 0, 0, 0])
+    , (0, 2, (2, 2), [0, 2, 3, 2, pixels, 0, 0, 0, 0])
+    , (0, 2, (2, 3), [0, 2, 3, 2, maxBound - 8, 0, 0, 0, 0])
+    , (0, 3, (65535, 65535), [0, 65535, 65535, 3, pixels, 0, 0, 0, 0])
+    , (0, 2, (2, 3), [0, 2, 3, 2, pixels, pixels, 64 * 1048576 + 1, 0, 0])
+    , (0, 2, (2, 3), [0, 2, 3, 2, pixels, maxBound, 16, 0, 0])
+    , (15, 3, (2, 3), [0, 2, 3, 2, pixels, 0, 0, pixels, 16])
+    , (16, 3, (2, 3), [0, 2, 3, 2, pixels, 0, 0, maxBound, 16])
+    , (0, 1, (2, 3), [maxBound, 2, 3, 2, pixels, 0, 0, 0, 0])
+    , (0, 1, (2, 3), [at + 36, 2, 3, 2, pixels, 0, 0, 0, 0])
+    ]
+    \(size, format, request, fields) -> output size format request fields "\0" >>= (@?= Left "invalid sandbox output")
+  readSandboxOutput limits 0 2 (2, 3) maxBound (words32 [0, 2, 3, 2, pixels, 0, 0, 0, 0]) >>= (@?= Left "invalid sandbox output")
+  where
+    limits = defaultLimits {memoryLimitMB = 16}
+    at = 65536
+    pixels = at + 64
+    header fields text = readSandboxHeader limits at (words32 fields <> text)
+    output size format request fields text = readSandboxOutput limits size format request at (words32 fields <> text)
+    words32 = foldMap (le 4 . fromIntegral)
+
 unit_neverEnding :: IO ()
 unit_neverEnding = do
   (budget, t1) <- timed $ spinSandbox defaultLimits {timeoutMs = 0} 100000000

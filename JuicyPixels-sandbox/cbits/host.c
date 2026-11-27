@@ -669,14 +669,50 @@ static void tree(sandbox *session, void *argument)
   call->value = w2c_image_tree(&session->instance, call->argument);
 }
 
-static int run_test(const sandbox_limits *limits, Call call, Test *test, char *message)
+typedef struct {
+  uint32_t address, length, format, width, height;
+  const uint8_t *data;
+  sandbox_header header;
+  int status;
+} Placed;
+
+static void place(sandbox *session, const Placed *placed)
+{
+  if (in_memory(session, placed->address, placed->length))
+    memcpy(session->env.memory.data + placed->address, placed->data, placed->length);
+}
+
+static void read_placed_header(sandbox *session, void *argument)
+{
+  Placed *placed = argument;
+
+  place(session, placed);
+  placed->status = read_header(session, placed->address, &placed->header);
+}
+
+static void read_placed_output(sandbox *session, void *argument)
+{
+  Placed *placed = argument;
+  sandbox_image image;
+
+  place(session, placed);
+  session->header.format = placed->format;
+  placed->status = read_output(session, placed->address, placed->width, placed->height, &image);
+  if (placed->status == 0) {
+    free(image.pixels);
+    free(image.icc);
+    free(image.exif);
+  }
+}
+
+static int run_test(const sandbox_limits *limits, size_t size, Call call, void *argument, char *message)
 {
   sandbox *session;
-  int status = start(limits, 0, &session);
+  int status = start(limits, size, &session);
 
   message[0] = 0;
   if (status == 0)
-    status = guarded(session, call, test);
+    status = guarded(session, call, argument);
   if (session)
     memcpy(message, session->message, SANDBOX_MESSAGE_SIZE);
   sandbox_close(session);
@@ -686,7 +722,7 @@ static int run_test(const sandbox_limits *limits, Call call, Test *test, char *m
 int sandbox_load(const sandbox_limits *limits, uint32_t address, uint32_t *value, char *message)
 {
   Test test = {address, 0};
-  int status = run_test(limits, load, &test, message);
+  int status = run_test(limits, 0, load, &test, message);
 
   *value = test.value;
   return status;
@@ -696,14 +732,32 @@ int sandbox_spin(const sandbox_limits *limits, char *message)
 {
   Test test = {0, 0};
 
-  return run_test(limits, spin, &test, message);
+  return run_test(limits, 0, spin, &test, message);
 }
 
 int sandbox_tree(const sandbox_limits *limits, uint32_t depth, uint32_t *value, char *message)
 {
   Test test = {depth, 0};
-  int status = run_test(limits, tree, &test, message);
+  int status = run_test(limits, 0, tree, &test, message);
 
   *value = test.value;
   return status;
+}
+
+int sandbox_read_header(const sandbox_limits *limits, uint32_t address, const uint8_t *data, uint32_t length, sandbox_header *header, char *message)
+{
+  Placed placed = {.address = address, .length = length, .data = data};
+  int status = run_test(limits, 0, read_placed_header, &placed, message);
+
+  *header = placed.header;
+  return status ? status : placed.status;
+}
+
+int sandbox_read_output(const sandbox_limits *limits, uint32_t size, uint32_t format, uint32_t width, uint32_t height, uint32_t address,
+                        const uint8_t *data, uint32_t length, char *message)
+{
+  Placed placed = {.address = address, .length = length, .format = format, .width = width, .height = height, .data = data};
+  int status = run_test(limits, size, read_placed_output, &placed, message);
+
+  return status ? status : placed.status;
 }

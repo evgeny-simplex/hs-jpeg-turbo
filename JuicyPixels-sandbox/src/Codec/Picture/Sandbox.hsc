@@ -14,6 +14,8 @@ module Codec.Picture.Sandbox
   , loadSandboxByte
   , spinSandbox
   , treeSandbox
+  , readSandboxHeader
+  , readSandboxOutput
   ) where
 
 import Codec.Picture (DynamicImage(..), Image(..))
@@ -220,6 +222,15 @@ treeSandbox limits budget depth = with 0 \value -> do
   r <- testCall limits budget \l message -> sandboxTree l depth value message
   traverse (const $ peek value) r
 
+readSandboxHeader :: Limits -> Word32 -> ByteString -> IO (Either String ImageHeader)
+readSandboxHeader limits address bytes = BU.unsafeUseAsCStringLen bytes \(buf, len) -> allocaBytes #{size sandbox_header} \header -> do
+  r <- testCall limits 0 \l message -> sandboxReadHeader l address (castPtr buf) (fromIntegral len) header message
+  either (pure . Left) (const $ readHeader header) r
+
+readSandboxOutput :: Limits -> Word32 -> Word32 -> (Word32, Word32) -> Word32 -> ByteString -> IO (Either String ())
+readSandboxOutput limits size format (width, height) address bytes = BU.unsafeUseAsCStringLen bytes \(buf, len) ->
+  testCall limits 0 \l message -> sandboxReadOutput l size format width height address (castPtr buf) (fromIntegral len) message
+
 data Sandbox
 
 foreign import ccall unsafe "sandbox_now_ns" sandboxNowNs :: IO Word64
@@ -241,3 +252,7 @@ foreign import ccall safe "sandbox_load" sandboxLoad :: Ptr () -> Word32 -> Ptr 
 foreign import ccall safe "sandbox_spin" sandboxSpin :: Ptr () -> CString -> IO CInt
 
 foreign import ccall safe "sandbox_tree" sandboxTree :: Ptr () -> Word32 -> Ptr Word32 -> CString -> IO CInt
+
+foreign import ccall safe "sandbox_read_header" sandboxReadHeader :: Ptr () -> Word32 -> Ptr Word8 -> Word32 -> Ptr () -> CString -> IO CInt
+
+foreign import ccall safe "sandbox_read_output" sandboxReadOutput :: Ptr () -> Word32 -> Word32 -> Word32 -> Word32 -> Word32 -> Ptr Word8 -> Word32 -> CString -> IO CInt
