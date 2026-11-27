@@ -7,6 +7,8 @@ shift
 out=dist-newstyle/sandbox-measure
 root=$PWD
 summary=${GITHUB_STEP_SUMMARY:-/dev/null}
+python=${PYTHON:-python3}
+libs=${LIBS:--lpthread -lm}
 package=JuicyPixels-sandbox
 webp=JuicyPixels-libwebp/cbits/libwebp
 spng=JuicyPixels-spng/cbits
@@ -64,15 +66,15 @@ build() {
       "$root/$spng/miniz/miniz_tdef.c" "$root/$spng/miniz/miniz_tinfl.c" "$root/$spng/decode.c" "$root/$package/guest/png.c") &
     (cd "$out/obj-webp" && $command -DWEBP_USE_THREAD -DNDEBUG -iquote "$root/$package/guest" -I "$root/$webp" -c $webp_sources "$root/$package/guest/webp.c") &
     wait
-    $command -iquote $package/guest -I $package/cbits "$out"/obj-*/*.o $package/cbits/clock.c .github/scripts/sandbox-bench.c ${LIBS--lpthread -lm} -o "$out/$name.exe"
+    $command -iquote $package/guest -I $package/cbits "$out"/obj-*/*.o $package/cbits/clock.c .github/scripts/sandbox-bench.c $libs -o "$out/$name.exe"
     rm -rf "$out"/obj-*
   else
-    $command $sandbox_flags $sandbox_sources .github/scripts/sandbox-bench.c ${LIBS--lpthread -lm} -o "$out/$name.exe"
+    $command $sandbox_flags $sandbox_sources .github/scripts/sandbox-bench.c $libs -o "$out/$name.exe"
   fi
 }
 
 compare() {
-  python3 -I .github/scripts/sandbox-compare.py "$out/check-native-$1-$2" "$out/check-sandbox-$1-$2"
+  $python -I .github/scripts/sandbox-compare.py "$out/check-native-$1-$2" "$out/check-sandbox-$1-$2"
 }
 
 if [ "${PREBUILT:-}" = 1 ]; then
@@ -117,7 +119,7 @@ for config in "$@"; do
   for variant in native sandbox; do
     SANDBOX_DEADLINE_MS=600000 "$out/$variant-$name.exe" time 9 16384 $workloads > "$out/time-$variant-$name.tsv"
   done
-  python3 -I .github/scripts/sandbox-report.py "$platform, $name \`$command\`" "$out/time-native-$name.tsv" "$out/time-sandbox-$name.tsv" | tee -a "$summary"
+  $python -I .github/scripts/sandbox-report.py "$platform, $name \`$command\`" "$out/time-native-$name.tsv" "$out/time-sandbox-$name.tsv" | tee -a "$summary"
 
   {
     echo "### $platform, $name: the largest picked images at the display size (4320), one decode each"
@@ -164,5 +166,5 @@ if [ "${COUNT:-}" = 1 ]; then
     "$out/sandbox-$name.exe" count-changed $side $(ls $jpeg/mozjpeg/testimages/*.jpg $spng/libspng/tests/images/*.png "$WEBP_TEST_DATA"/*.webp | head -400)
     SANDBOX_MEMORY_MB=1024 "$out/sandbox-$name.exe" count $side $calibration
   done > "$out/count.tsv"
-  python3 -I .github/scripts/sandbox-budget.py "$out/count.tsv" | tee -a "$summary"
+  $python -I .github/scripts/sandbox-budget.py "$out/count.tsv" | tee -a "$summary"
 fi

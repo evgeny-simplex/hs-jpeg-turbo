@@ -340,15 +340,32 @@ jobs:
             configs: |
               gcc|gcc -O2
               clang|clang -O2
+              gcc-O3|gcc -O3
+              clang-O3|clang -O3
           - platform: Linux aarch64
             os: ubuntu-24.04-arm
             configs: |
               gcc|gcc -O2
               clang|clang -O2
+              gcc-O3|gcc -O3
+              clang-O3|clang -O3
           - platform: macOS aarch64
             os: macos-latest
             configs: |
               clang|cc -O2
+              clang-O3|cc -O3
+          - platform: macOS x86-64
+            os: macos-15-intel
+            configs: |
+              clang|cc -O2
+              clang-O3|cc -O3
+          - platform: Windows x86-64
+            os: windows-latest
+            libs: -lm
+            python: python
+            configs: |
+              clang|GHC_CC -O2 -fuse-ld=lld --rtlib=compiler-rt
+              clang-O3|GHC_CC -O3 -fuse-ld=lld --rtlib=compiler-rt
           - platform: armv7 static on ubuntu-24.04-arm
             os: ubuntu-24.04-arm
             size: arm-linux-gnueabihf-size
@@ -370,9 +387,23 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y clang gcc-arm-linux-gnueabihf
 
+      - uses: simplex-chat/setup-haskell-action@v2
+        if: runner.os == 'Windows'
+        with:
+          ghc-version: 9.6.3
+          cabal-version: 3.10.2.0
+
+      - name: Select GHC's C compiler (Windows)
+        if: runner.os == 'Windows'
+        run: echo "ghc_cc=$(cygpath -m "$(ghc --print-libdir)/../mingw/bin/clang.exe")" >> "$GITHUB_ENV"
+
       - name: Show the CPU
         run: |
-          if [ "$RUNNER_OS" = Linux ]; then lscpu; else sysctl -n machdep.cpu.brand_string hw.ncpu hw.memsize; fi
+          case $RUNNER_OS in
+            Linux) lscpu ;;
+            macOS) sysctl -n machdep.cpu.brand_string hw.ncpu hw.memsize ;;
+            Windows) powershell -NoProfile -Command "Get-CimInstance Win32_Processor | Select-Object Name, NumberOfLogicalProcessors" ;;
+          esac
 
       - name: Clone libwebp test data
         run: |
@@ -384,12 +415,14 @@ jobs:
           CONFIGS: ${{ matrix.configs }}
           COUNT: ${{ matrix.count }}
           SIZE: ${{ matrix.size }}
+          LIBS: ${{ matrix.libs }}
+          PYTHON: ${{ matrix.python }}
           FIXTURES: ${{ runner.temp }}/sandbox-fixtures
           WEBP_TEST_DATA: ${{ runner.temp }}/libwebp-test-data
         run: |
           configs=()
           while IFS= read -r config; do
-            configs+=("$config")
+            configs+=("${config/GHC_CC/${ghc_cc:-}}")
           done < <(printf '%s\n' "$CONFIGS" | sed '/^$/d')
           bash .github/scripts/sandbox-measure.sh "${{ matrix.platform }}" "${configs[@]}"
 
@@ -433,8 +466,14 @@ jobs:
           FIXTURES: /nonexistent
           WEBP_TEST_DATA: /nonexistent
         run: |
-          bash .github/scripts/sandbox-measure.sh "Android, the core's nix compilers" "ndk-armv7a|$cc_armv7a -static -O2 -Wno-pass-failed" \
-            "ndk-armv7a-neon|$cc_armv7a -static -O2 -mfpu=neon -Wno-pass-failed" "nixpkgs-aarch64|$cc_aarch64 -static -O2 -Wno-pass-failed --ld-path=$ld_aarch64"
+          configs=()
+          for level in O2 O3; do
+            suffix=${level/O2/}
+            configs+=("ndk-armv7a${suffix:+-$suffix}|$cc_armv7a -static -$level -Wno-pass-failed")
+            configs+=("ndk-armv7a-neon${suffix:+-$suffix}|$cc_armv7a -static -$level -mfpu=neon -Wno-pass-failed")
+            configs+=("nixpkgs-aarch64${suffix:+-$suffix}|$cc_aarch64 -static -$level -Wno-pass-failed --ld-path=$ld_aarch64")
+          done
+          bash .github/scripts/sandbox-measure.sh "Android, the core's nix compilers" "${configs[@]}"
 
       - uses: actions/upload-artifact@v4
         with:
@@ -470,7 +509,9 @@ jobs:
           PREBUILT: 1
           FIXTURES: ${{ runner.temp }}/sandbox-fixtures
           WEBP_TEST_DATA: ${{ runner.temp }}/libwebp-test-data
-        run: bash .github/scripts/sandbox-measure.sh "Android builds on Linux aarch64" "ndk-armv7a|" "ndk-armv7a-neon|" "nixpkgs-aarch64|"
+        run: |
+          bash .github/scripts/sandbox-measure.sh "Android builds on Linux aarch64" "ndk-armv7a|" "ndk-armv7a-neon|" "nixpkgs-aarch64|" \
+            "ndk-armv7a-O3|" "ndk-armv7a-neon-O3|" "nixpkgs-aarch64-O3|"
 
   sandbox-ios:
     name: sandbox measurements of the build by the compiler of the core's nix build for iOS
@@ -508,4 +549,6 @@ jobs:
         env:
           FIXTURES: ${{ runner.temp }}/sandbox-fixtures
           WEBP_TEST_DATA: ${{ runner.temp }}/libwebp-test-data
-        run: bash .github/scripts/sandbox-measure.sh "macOS aarch64, the compiler of the core's iOS build" "nixpkgs-clang|$RUNNER_TEMP/cc-ios/bin/cc -O2"
+        run: |
+          bash .github/scripts/sandbox-measure.sh "macOS aarch64, the compiler of the core's iOS build" "nixpkgs-clang|$RUNNER_TEMP/cc-ios/bin/cc -O2" \
+            "nixpkgs-clang-O3|$RUNNER_TEMP/cc-ios/bin/cc -O3"
