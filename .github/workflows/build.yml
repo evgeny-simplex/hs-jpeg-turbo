@@ -507,6 +507,21 @@ jobs:
           git clone --quiet https://chromium.googlesource.com/webm/libwebp-test-data "$RUNNER_TEMP/libwebp-test-data"
           git -C "$RUNNER_TEMP/libwebp-test-data" checkout --quiet 06ddd96e276c2c638a72d39d3c0f340afd61978c
 
+      - name: Show the last system calls of the Android builds on one image
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y strace
+          chmod +x dist-newstyle/sandbox-measure/*.exe
+          mkdir -p "$RUNNER_TEMP/one"
+          for exe in dist-newstyle/sandbox-measure/native-ndk-armv7a.exe dist-newstyle/sandbox-measure/sandbox-ndk-armv7a.exe dist-newstyle/sandbox-measure/native-nixpkgs-aarch64.exe dist-newstyle/sandbox-measure/sandbox-nixpkgs-aarch64.exe; do
+            echo "== $exe"
+            file "$exe"
+            status=0
+            strace -f -o "$RUNNER_TEMP/trace" "$exe" check "$RUNNER_TEMP/one" 64 jpeg-turbo/cbits/mozjpeg/testimages/testorig.jpg || status=$?
+            echo "exit status $status"
+            tail -25 "$RUNNER_TEMP/trace"
+          done
+
       - name: Measure the sandbox against the native decoders
         env:
           PREBUILT: 1
