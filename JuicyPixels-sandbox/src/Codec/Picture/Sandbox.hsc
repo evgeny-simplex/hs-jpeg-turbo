@@ -134,21 +134,16 @@ readImage format input image = do
   layout <- #{peek sandbox_image, layout} image :: IO Word32
   icc <- bytes #{peek sandbox_image, icc} #{peek sandbox_image, icc_size}
   exifTiff <- bytes #{peek sandbox_image, exif} #{peek sandbox_image, exif_size}
-  let channels = case layout of
-        1 -> 1
-        4 -> 4
-        3 -> 4
-        _ -> 3
+  let (channels, dynamic) = case layout of
+        1 -> (1, ImageY8 . Image width height)
+        3 -> (4, ImageRGBA8 . Image width height)
+        4 -> (4, ImageCMYK8 . Image width height)
+        _ -> (3, ImageRGB8 . Image width height)
   samples <- (\fp -> V.unsafeFromForeignPtr0 fp (width * height * channels)) <$> newForeignPtr finalizerFree (pixels :: Ptr Word8)
-  let dynamic = case layout of
-        1 -> ImageY8 (Image width height samples)
-        3 -> ImageRGBA8 (Image width height samples)
-        4 -> ImageCMYK8 (Image width height samples)
-        _ -> ImageRGB8 (Image width height samples)
-      metadata = case format of
+  let metadata = case format of
         JPEG -> Metadata {iccProfile = jpegIccProfile segments, exif = jpegExif segments}
         _ -> Metadata {iccProfile = icc, exif = exifTiff}
-  pure (dynamic, metadata)
+  pure (dynamic samples, metadata)
   where
     segments = jpegSegments $ B.drop 2 input
     bytes peekAddress peekSize = do
