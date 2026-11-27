@@ -489,7 +489,8 @@ static void probe(sandbox *session, void *argument)
     session->input = 0;
     return;
   }
-  memcpy(session->env.memory.data + session->input, call->data, session->size);
+  if (session->size)
+    memcpy(session->env.memory.data + session->input, call->data, session->size);
   call->header = w2c_image_probe(&session->instance, session->input, session->size);
 }
 
@@ -681,7 +682,7 @@ typedef struct {
 
 static void place(sandbox *session, const Placed *placed)
 {
-  if (in_memory(session, placed->address, placed->length))
+  if (placed->length && in_memory(session, placed->address, placed->length))
     memcpy(session->env.memory.data + placed->address, placed->data, placed->length);
 }
 
