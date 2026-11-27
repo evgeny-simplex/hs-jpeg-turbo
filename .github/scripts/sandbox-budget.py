@@ -2,31 +2,59 @@ import sys
 
 FORMATS = {"1": "JPEG", "2": "PNG", "3": "WebP"}
 BASE, PER_BYTE = 1048576, 16
+RATES = [16, 32, 64, 128, 256, 512, 1024]
+
+
+def kind(name):
+    if "#" in name:
+        return "changed"
+    if name.startswith("worst-"):
+        return "worst case"
+    if name.startswith("crafted-"):
+        return "crafted"
+    return "corpus"
+
 
 rows = []
 for line in open(sys.argv[1]):
     name, fmt, side, size, image, output, status, iterations, elapsed, *_ = line.rstrip("\n").split("\t")
     if status == "0":
-        rows.append((FORMATS.get(fmt, "?"), name, int(side), int(size), int(image) + int(output), int(iterations), int(elapsed)))
+        pixels = int(image) + int(output)
+        need = (int(iterations) - BASE - PER_BYTE * int(size)) / pixels
+        rows.append((FORMATS.get(fmt, "?"), kind(name), name, int(side), int(size), pixels, int(iterations), int(elapsed), need))
 
 print("### Iterations of decodes without a budget, by format")
 print()
-print("| Format | Decodes | Most iterations | Most per pixel beyond the base and 16 per byte | Smallest per-pixel rate without refusals | Median ns per iteration |")
+print(f"Needed rate: (iterations − {BASE} − {PER_BYTE} × bytes) ÷ (image pixels + output pixels).")
+print()
+print("| Format | Set | Decodes | Most iterations | Largest needed rate per pixel | Median ns per iteration |")
 print("|---|---|---|---|---|---|")
 for fmt in ["JPEG", "PNG", "WebP"]:
-    group = [r for r in rows if r[0] == fmt]
-    if not group:
-        continue
-    need = max(group, key=lambda r: (r[5] - BASE - PER_BYTE * r[3]) / r[4])
-    rate = max(0, (need[5] - BASE - PER_BYTE * need[3]) / need[4])
-    ns = sorted(r[6] / r[5] for r in group if r[5] > 0)
-    most = max(group, key=lambda r: r[5])
-    print(f"| {fmt} | {len(group)} | {most[5]} ({most[1]}) | {rate:.2f} ({need[1]}, side {need[2]}) | {rate:.2f} | {ns[len(ns) // 2]:.2f} |")
+    for group_kind in ["corpus", "changed", "worst case", "crafted"]:
+        group = [r for r in rows if r[0] == fmt and r[1] == group_kind]
+        if not group:
+            continue
+        most = max(group, key=lambda r: r[6])
+        need = max(group, key=lambda r: r[8])
+        ns = sorted(r[7] / r[6] for r in group if r[6] > 0)
+        print(f"| {fmt} | {group_kind} | {len(group)} | {most[6]} ({most[2]}, side {most[3]}) | {max(0, need[8]):.2f} ({need[2]}, side {need[3]}) | {ns[len(ns) // 2]:.2f} |")
 print()
-for rate in [16, 32, 64, 128]:
-    refused = {}
-    for fmt, name, side, size, pixels, iterations, _ in rows:
-        if iterations > BASE + PER_BYTE * size + rate * pixels:
-            refused.setdefault(fmt, []).append(f"{name}@{side}")
-    print(f"- per pixel {rate}: refused " + (", ".join(f"{fmt} {len(v)} ({', '.join(v[:3])})" for fmt, v in refused.items()) or "none"))
+print("Decodes refused at each per-pixel rate, base and per-byte rate as above:")
+print()
+print("| Rate | " + " | ".join(f"{fmt}, {k}" for fmt in ["JPEG", "PNG", "WebP"] for k in ["corpus", "changed", "worst case", "crafted"]) + " |")
+print("|---" * 13 + "|")
+for rate in RATES:
+    cells = []
+    for fmt in ["JPEG", "PNG", "WebP"]:
+        for group_kind in ["corpus", "changed", "worst case", "crafted"]:
+            refused = [r for r in rows if r[0] == fmt and r[1] == group_kind and r[8] > rate]
+            cells.append(str(len(refused)))
+    print(f"| {rate} | " + " | ".join(cells) + " |")
+print()
+print("Worst cases and crafted files, needed rate per pixel at each side:")
+print()
+print("| File | Side | Bytes | Pixels | Iterations | Needed rate |")
+print("|---|---|---|---|---|---|")
+for r in sorted((r for r in rows if r[1] in ("worst case", "crafted")), key=lambda r: (r[0], r[2], r[3])):
+    print(f"| {r[2]} | {r[3]} | {r[4]} | {r[5]} | {r[6]} | {r[8]:.2f} |")
 print()

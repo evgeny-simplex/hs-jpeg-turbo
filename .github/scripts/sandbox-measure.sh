@@ -15,9 +15,11 @@ sandbox_flags="-DSANDBOX -DWASM_RT_MEMCHECK_BOUNDS_CHECK=1 -DWASM_RT_USE_MMAP=1 
 sandbox_sources="$package/cbits/host.c $package/cbits/module.c $package/cbits/clock.c $package/cbits/wasm2c/wasm-rt-mem-impl.c"
 corpus=
 workloads=
+calibration=
 if [ "${BUILD_ONLY:-}" != 1 ]; then
   corpus=$(ls $jpeg/mozjpeg/testimages/*.jpg $spng/libspng/tests/images/*.png "$WEBP_TEST_DATA"/*.webp "$FIXTURES"/workloads/*)
   workloads=$(ls "$FIXTURES"/workloads/*)
+  calibration=$(ls "$FIXTURES"/calibration/*)
 fi
 
 cabal_sources() {
@@ -101,7 +103,7 @@ for config in "$@"; do
   for side in 16384 64; do
     for variant in native sandbox; do
       mkdir -p "$out/check-$variant-$name-$side"
-      "$out/$variant-$name.exe" check "$out/check-$variant-$name-$side" $side $corpus
+      "$out/$variant-$name.exe" check "$out/check-$variant-$name-$side" $side $corpus $calibration
     done
   done
   {
@@ -149,9 +151,10 @@ done
 
 if [ "${COUNT:-}" = 1 ]; then
   name=${1%%|*}
-  for side in 16384 64; do
+  for side in 16384 4320 64; do
     "$out/sandbox-$name.exe" count $side $corpus
     "$out/sandbox-$name.exe" count-changed $side $(ls $jpeg/mozjpeg/testimages/*.jpg $spng/libspng/tests/images/*.png "$WEBP_TEST_DATA"/*.webp | head -400)
+    SANDBOX_MEMORY_MB=1024 "$out/sandbox-$name.exe" count $side $calibration
   done > "$out/count.tsv"
   python3 -I .github/scripts/sandbox-budget.py "$out/count.tsv" | tee -a "$summary"
 fi
