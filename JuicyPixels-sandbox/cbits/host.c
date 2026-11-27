@@ -313,7 +313,15 @@ void w2c_wasi__snapshot__preview1_proc_exit(struct w2c_wasi__snapshot__preview1 
 
 static int allocate_memory(wasm_rt_memory_t *memory, uint64_t initial_pages, uint64_t max_pages)
 {
-  const size_t reserved = (size_t)max_pages * WASM_DEFAULT_PAGE_SIZE, initial = (size_t)initial_pages * WASM_DEFAULT_PAGE_SIZE;
+  const size_t initial = (size_t)initial_pages * WASM_DEFAULT_PAGE_SIZE;
+#if !WASM_RT_USE_MMAP
+  const size_t reserved = initial;
+  uint8_t *data = calloc(initial, 1);
+
+  if (!data)
+    return 0;
+#else
+  const size_t reserved = (size_t)max_pages * WASM_DEFAULT_PAGE_SIZE;
   uint8_t *data;
 
 #ifdef _WIN32
@@ -330,6 +338,7 @@ static int allocate_memory(wasm_rt_memory_t *memory, uint64_t initial_pages, uin
     munmap(data, reserved);
     return 0;
   }
+#endif
 #endif
   memory->data = data;
   memory->data_end = data + reserved;

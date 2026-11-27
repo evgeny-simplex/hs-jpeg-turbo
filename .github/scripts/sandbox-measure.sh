@@ -14,7 +14,7 @@ package=JuicyPixels-sandbox
 webp=JuicyPixels-libwebp/cbits/libwebp
 spng=JuicyPixels-spng/cbits
 jpeg=jpeg-turbo/cbits
-sandbox_flags="-DSANDBOX -DWASM_RT_MEMCHECK_BOUNDS_CHECK=1 -DWASM_RT_USE_MMAP=1 -DWASM_RT_STACK_DEPTH_COUNT=1 -DWASM_RT_MAX_CALL_STACK_DEPTH=128 -DWASM_RT_GROW_FAILED_HANDLER=sandbox_grow_failed -I $package/cbits -I $package/cbits/wasm2c"
+sandbox_flags="-DSANDBOX -DWASM_RT_MEMCHECK_BOUNDS_CHECK=1 -DWASM_RT_USE_MMAP=0 -DWASM_RT_STACK_DEPTH_COUNT=1 -DWASM_RT_MAX_CALL_STACK_DEPTH=128 -DWASM_RT_GROW_FAILED_HANDLER=sandbox_grow_failed -I $package/cbits -I $package/cbits/wasm2c"
 sandbox_sources="$package/cbits/host.c $package/cbits/module.c $package/cbits/clock.c $package/cbits/wasm2c/wasm-rt-mem-impl.c"
 corpus=
 workloads=
