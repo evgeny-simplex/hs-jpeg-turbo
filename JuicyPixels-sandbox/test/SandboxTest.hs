@@ -113,9 +113,10 @@ unit_webp :: IO ()
 unit_webp = do
   files <- webpFiles
   assertBool "libwebp conformance files" $ length files >= 96
+  let scaledTolerance = if nativeNeon then 3 else 0
   forM_ files \file -> do
     webp <- B.readFile file
-    forM_ [(0 :: Int, Right), (3, \(w, h) -> Right ((w + 1) `div` 2, (h + 1) `div` 2)), (3, \(w, h) -> Right (max 1 $ w `div` 7, max 1 $ h `div` 5))] \(tolerance, size) -> do
+    forM_ [(0 :: Int, Right), (scaledTolerance, \(w, h) -> Right ((w + 1) `div` 2, (h + 1) `div` 2)), (scaledTolerance, \(w, h) -> Right (max 1 $ w `div` 7, max 1 $ h `div` 5))] \(tolerance, size) -> do
       native <- Webp.decodeWebp (Webp.DecodeOptions 128 size) webp
       sandbox <- sandboxed (size . headerSize) webp
       case (native, sandbox) of
@@ -281,10 +282,13 @@ fullSize _ = Right . headerSize
 headerSize :: ImageHeader -> (Int, Int)
 headerSize ImageHeader {width, height} = (width, height)
 
+nativeNeon :: Bool
+nativeNeon = arch `elem` ["aarch64", "arm"]
+
 nativeJpegNeon :: IO Bool
 nativeJpegNeon = do
   forceNone <- lookupEnv "JSIMD_FORCENONE"
-  pure $ arch `elem` ["aarch64", "arm"] && forceNone /= Just "1"
+  pure $ nativeNeon && forceNone /= Just "1"
 
 nativeDecode :: ByteString -> IO (Either String Samples)
 nativeDecode input
