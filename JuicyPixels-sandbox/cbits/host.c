@@ -15,6 +15,7 @@
 #define MAX_RATE (1ull << 32)
 #define MAX_METADATA (64u << 20)
 #define MAX_SIDE 65535
+#define MAX_OUTPUT_PIXELS ((1u << 30) - 1)
 #define BULK_CHUNK (1u << 16)
 #define BULK_BYTES_PER_ITERATION_BITS 8
 
@@ -610,6 +611,8 @@ int sandbox_decode(sandbox *session, uint32_t width, uint32_t height, uint64_t b
   if (session->input == 0 || width < 1 || width > session->header.width || height < 1 || height > session->header.height ||
       budget_per_pixel > MAX_RATE)
     return failure(session, SANDBOX_INVALID_ARGUMENT);
+  if ((uint64_t)width * height > MAX_OUTPUT_PIXELS)
+    return failure(session, SANDBOX_MEMORY_LIMIT);
   if (session->env.limited)
     session->env.remaining = add_product(session->env.remaining, budget_per_pixel, pixels);
   if ((status = guarded(session, decode, &call)) != 0)
