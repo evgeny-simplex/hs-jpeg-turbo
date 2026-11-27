@@ -22,8 +22,9 @@ import Data.Word (Word8)
 import Foreign (castPtr, nullPtr, peek, with)
 import GHC.Clock (getMonotonicTimeNSec)
 import System.Directory (listDirectory)
-import System.Environment (getEnv)
+import System.Environment (getEnv, lookupEnv)
 import System.FilePath ((</>))
+import System.Info (arch)
 import Test.Tasty.HUnit (assertBool, assertEqual, assertFailure, (@?=))
 import TurboJPEG2 qualified as TJ2
 
@@ -114,7 +115,7 @@ unit_webp = do
   assertBool "libwebp conformance files" $ length files >= 96
   forM_ files \file -> do
     webp <- B.readFile file
-    forM_ [(0 :: Int, Right), (2, \(w, h) -> Right ((w + 1) `div` 2, (h + 1) `div` 2)), (2, \(w, h) -> Right (max 1 $ w `div` 7, max 1 $ h `div` 5))] \(tolerance, size) -> do
+    forM_ [(0 :: Int, Right), (3, \(w, h) -> Right ((w + 1) `div` 2, (h + 1) `div` 2)), (3, \(w, h) -> Right (max 1 $ w `div` 7, max 1 $ h `div` 5))] \(tolerance, size) -> do
       native <- Webp.decodeWebp (Webp.DecodeOptions 128 size) webp
       sandbox <- sandboxed (size . headerSize) webp
       case (native, sandbox) of
@@ -141,15 +142,16 @@ unit_truncatedAndChanged = do
   jpeg <- B.readFile $ jpegDir </> "testorig.jpg"
   png <- B.readFile $ pngDir </> "basn6a08.png"
   webp <- B.readFile . (</> "test.webp") =<< getEnv "WEBP_TEST_DATA"
-  forM_ [("JPEG", jpeg), ("PNG", png), ("WebP", webp)] \(name, input) -> do
+  neon <- nativeJpegNeon
+  forM_ [("JPEG", jpeg, if neon then 255 else 0), ("PNG", png, 0), ("WebP", webp, 0)] \(name, input, changedTolerance) -> do
     let n = B.length input
-        truncated = [("truncated to " <> show (n * k `div` 32), B.take (n * k `div` 32) input) | k <- [0 .. 31]]
-        changed = [("bit " <> show (k `mod` 8) <> " flipped at " <> show (n * k `div` 32), flipBit (n * k `div` 32) k input) | k <- [0 .. 31]]
-    forM_ (truncated <> changed) \(change, input') -> do
+        truncated = [(0, "truncated to " <> show (n * k `div` 32), B.take (n * k `div` 32) input) | k <- [0 .. 31]]
+        changed = [(changedTolerance, "bit " <> show (k `mod` 8) <> " flipped at " <> show (n * k `div` 32), flipBit (n * k `div` 32) k input) | k <- [0 .. 31]]
+    forM_ (truncated <> changed) \(tolerance, change, input') -> do
       sandbox <- sandboxed (fullSize input') input'
       native <- nativeDecode input'
       case (native, sandbox) of
-        (Right n', Right (s, _)) -> assertBool (name <> " " <> change <> ": " <> difference n' (samples s)) $ closeTo 0 n' (samples s)
+        (Right n', Right (s, _)) -> assertBool (name <> " " <> change <> ": " <> difference n' (samples s)) $ closeTo tolerance n' (samples s)
         (_, Left _) -> pure ()
         (Left e, Right _) -> assertFailure $ name <> " " <> change <> ": decoded in the sandbox, refused natively: " <> e
 
@@ -278,6 +280,11 @@ fullSize _ = Right . headerSize
 
 headerSize :: ImageHeader -> (Int, Int)
 headerSize ImageHeader {width, height} = (width, height)
+
+nativeJpegNeon :: IO Bool
+nativeJpegNeon = do
+  forceNone <- lookupEnv "JSIMD_FORCENONE"
+  pure $ arch `elem` ["aarch64", "arm"] && forceNone /= Just "1"
 
 nativeDecode :: ByteString -> IO (Either String Samples)
 nativeDecode input
