@@ -99,7 +99,7 @@ unit_png = do
 unit_pngGenerated :: IO ()
 unit_pngGenerated = do
   profile <- B.readFile $ jpegDir </> "test3.icc"
-  let images = [((16384, 16), [(4096, 4), (1, 1)], Nothing), ((16, 16384), [(4, 4096)], Nothing), ((8641, 3), [(4320, 1), (4321, 2)], Nothing), ((37, 23), [(11, 7)], Just profile)]
+  let images = [((16384, 16), [(4096, 4), (1, 1)], Nothing), ((16, 16384), [(4, 4096)], Nothing), ((8641, 3), [(4320, 2), (4320, 1), (4321, 2)], Nothing), ((37, 23), [(11, 7)], Just profile)]
   forM_ images \(imageSize, sizes, icc) -> do
     png <- either assertFailure pure =<< Spng.encodePng (Spng.EncodeOptions 6 True icc) (gradient imageSize)
     forM_ (imageSize : sizes) \size -> do
