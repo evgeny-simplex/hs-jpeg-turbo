@@ -91,6 +91,7 @@ test-suite JuicyPixels-sandbox-test
     , bytestring
     , directory
     , filepath
+    , jpeg-turbo
     , tasty
     , tasty-discover
     , tasty-hunit

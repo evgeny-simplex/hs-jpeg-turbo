@@ -9,8 +9,9 @@ import Codec.Picture.Spng qualified as Spng
 import Codec.Picture.Webp qualified as Webp
 import Control.Concurrent (forkIO)
 import Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
+import Control.Exception (bracket)
 import Control.Monad (forM, forM_, replicateM, unless)
-import Data.Bits (shiftL, xor)
+import Data.Bits (shiftL, shiftR, xor)
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as B
 import Data.ByteString.Lazy qualified as BL
@@ -18,11 +19,13 @@ import Data.Either (isLeft)
 import Data.List (isSuffixOf, sort)
 import Data.Vector.Storable qualified as V
 import Data.Word (Word8)
+import Foreign (castPtr, nullPtr, peek, with)
 import GHC.Clock (getMonotonicTimeNSec)
 import System.Directory (listDirectory)
 import System.Environment (getEnv)
 import System.FilePath ((</>))
 import Test.Tasty.HUnit (assertBool, assertEqual, assertFailure, (@?=))
+import TurboJPEG2 qualified as TJ2
 
 type Samples = (String, Int, Int, V.Vector Word8)
 
@@ -32,11 +35,22 @@ unit_jpeg = do
   assertBool "JPEG test images" $ length files >= 4
   original <- B.readFile $ jpegDir </> "testorig.jpg"
   Right (ImageRGB8 rgb) <- JPEG.decodeJpeg (JPEG.DecodeOptions JPEG.Full maxImagePixels 1024) original
-  let generated =
-        [ ("grey", BL.toStrict $ encodeDirectJpegAtQualityWithMetadata 90 mempty $ extractLumaPlane rgb)
-        , ("CMYK", BL.toStrict $ encodeDirectJpegAtQualityWithMetadata 90 mempty (convertImage rgb :: Image PixelCMYK8))
+  let grey = extractLumaPlane rgb
+      cmyk = convertImage rgb :: Image PixelCMYK8
+      turbo name pixelFormat subsamp flags pixels = (name,) <$> turboJpeg pixelFormat subsamp flags (imageWidth rgb, imageHeight rgb) pixels
+      generated =
+        [ ("grey", BL.toStrict $ encodeDirectJpegAtQualityWithMetadata 90 mempty grey)
+        , ("CMYK", BL.toStrict $ encodeDirectJpegAtQualityWithMetadata 90 mempty cmyk)
         ]
-  inputs <- (<> generated) <$> mapM (\file -> (file,) <$> B.readFile file) files
+  encoded <-
+    sequence
+      [ turbo "YCCK" TJ2.TJPF_CMYK TJ2.TJSAMP_444 mempty (imageData cmyk)
+      , turbo "YCCK 4:2:0, progressive" TJ2.TJPF_CMYK TJ2.TJSAMP_420 TJ2.TJFLAG_PROGRESSIVE (imageData cmyk)
+      , turbo "progressive" TJ2.TJPF_RGB TJ2.TJSAMP_420 TJ2.TJFLAG_PROGRESSIVE (imageData rgb)
+      , turbo "4:4:4, progressive" TJ2.TJPF_RGB TJ2.TJSAMP_444 TJ2.TJFLAG_PROGRESSIVE (imageData rgb)
+      , turbo "grey, progressive" TJ2.TJPF_GRAY TJ2.TJSAMP_GRAY TJ2.TJFLAG_PROGRESSIVE (imageData grey)
+      ]
+  inputs <- (<> generated <> encoded) <$> mapM (\file -> (file,) <$> B.readFile file) files
   forM_ inputs \(file, jpeg) ->
     JPEG.readJpegHeader jpeg >>= \case
       Left e -> sandboxed (fullSize jpeg) jpeg >>= assertBool (file <> ": refused natively, " <> e) . isLeft
@@ -48,6 +62,20 @@ unit_jpeg = do
           sameResult (file <> " at 1/" <> show d) native sandbox
   where
     scaled d side = (side + d - 1) `div` d
+
+unit_jpegMetadata :: IO ()
+unit_jpegMetadata = do
+  jpeg <- B.readFile $ jpegDir </> "testorig.jpg"
+  profile <- B.readFile $ jpegDir </> "test3.icc"
+  let (part1, part2) = B.splitAt (B.length profile `div` 2) profile
+      tiff = "MM\0*\0\0\0\8" <> B.replicate 6 0
+      icc n part = (0xE2, "ICC_PROFILE\0" <> B.pack [n, 2] <> part)
+      app0End = 4 + fromIntegral (B.index jpeg 4) * 256 + fromIntegral (B.index jpeg 5)
+      segment (marker, body) = let len = B.length body + 2 in B.pack [0xFF, marker, fromIntegral (len `shiftR` 8), fromIntegral len] <> body
+      metadata segments = fmap snd <$> sandboxed (fullSize jpeg) (B.take app0End jpeg <> foldMap segment segments <> B.drop app0End jpeg)
+  metadata [(0xE1, "Exif\0\0" <> tiff), icc 2 part2, icc 1 part1] >>= (@?= Right (Metadata (Just profile) (Just tiff)))
+  metadata [icc 1 part1] >>= (@?= Right (Metadata Nothing Nothing))
+  metadata [] >>= (@?= Right (Metadata Nothing Nothing))
 
 unit_png :: IO ()
 unit_png = do
@@ -65,6 +93,19 @@ unit_png = do
   where
     pngSizes = [Right, \(w, h) -> Right (max 1 $ w `div` 2, max 1 $ h `div` 2), \(w, h) -> Right (min 11 w, min 7 h), const $ Right (1, 1)]
 
+unit_pngGenerated :: IO ()
+unit_pngGenerated = do
+  profile <- B.readFile $ jpegDir </> "test3.icc"
+  let images = [((16384, 16), [(4096, 4), (1, 1)], Nothing), ((16, 16384), [(4, 4096)], Nothing), ((8641, 3), [(4320, 1), (4321, 2)], Nothing), ((37, 23), [(11, 7)], Just profile)]
+  forM_ images \(imageSize, sizes, icc) -> do
+    png <- either assertFailure pure =<< Spng.encodePng (Spng.EncodeOptions 6 True icc) (gradient imageSize)
+    forM_ (imageSize : sizes) \size -> do
+      native <- Spng.decodePng (Spng.DecodeOptions maxImagePixels 128 (const $ Right size)) png
+      sandbox <- sandboxed (const $ Right size) png
+      sameResult (show imageSize <> " at " <> show size) (samples . fst <$> native) (samples . fst <$> sandbox)
+      fmap snd native @?= Right icc
+      fmap (iccProfile . snd) sandbox @?= Right icc
+
 unit_webp :: IO ()
 unit_webp = do
   files <- webpFiles
@@ -80,6 +121,18 @@ unit_webp = do
           assertEqual (file <> ": metadata") (Metadata icc payload) metadata
         (Left _, Left _) -> pure ()
         _ -> assertFailure $ file <> ": native " <> outcome native <> ", sandbox " <> outcome sandbox
+
+unit_webpMetadata :: IO ()
+unit_webpMetadata = do
+  still <- B.readFile . (</> "test.webp") =<< getEnv "WEBP_TEST_DATA"
+  let profile = B.pack $ take 1001 $ cycle [0 .. 255]
+      payload = B.pack $ take 101 $ cycle [255, 254 .. 0]
+      webp flags = riff [vp8x flags (128, 128), chunk "ICCP" profile, B.drop 12 still, chunk "EXIF" payload]
+  forM_ [(0x28, Metadata (Just profile) (Just payload)), (0, Metadata Nothing Nothing)] \(flags, expected) -> do
+    native <- Webp.decodeWebp (Webp.DecodeOptions 128 Right) (webp flags)
+    sandbox <- sandboxed (fullSize $ webp flags) (webp flags)
+    fmap (\(_, Webp.Metadata icc payload') -> Metadata icc payload') native @?= Right expected
+    fmap snd sandbox @?= Right expected
 
 unit_truncatedAndChanged :: IO ()
 unit_truncatedAndChanged = do
@@ -210,6 +263,33 @@ largePng :: IO ByteString
 largePng = either fail pure =<< Spng.encodePng (Spng.EncodeOptions 1 False Nothing) image
   where
     image = generateImage (\x y -> PixelRGBA8 (fromIntegral x) (fromIntegral y) 0 255) 4096 4096
+
+gradient :: (Int, Int) -> Image PixelRGBA8
+gradient (w, h) = generateImage (\x y -> PixelRGBA8 (fromIntegral $ x * 7 + y * 3) (fromIntegral $ x * y) (fromIntegral $ x + y * 11) (fromIntegral $ x * 5 + y * 13)) w h
+
+turboJpeg :: TJ2.TJPF -> TJ2.TJSAMP -> TJ2.TJFLAG -> (Int, Int) -> V.Vector Word8 -> IO ByteString
+turboJpeg pixelFormat subsamp flags (w, h) pixels =
+  bracket TJ2.tjInitCompress TJ2.tjDestroy \tj -> with nullPtr \jpegPtr -> with 0 \sizePtr -> V.unsafeWith pixels \source -> do
+    rc <- TJ2.tjCompress2 tj (castPtr source) (fromIntegral w) 0 (fromIntegral h) pixelFormat jpegPtr sizePtr subsamp 90 flags
+    jpeg <- peek jpegPtr
+    size <- peek sizePtr
+    bytes <- if rc == 0 then B.packCStringLen (castPtr jpeg, fromIntegral size) else pure B.empty
+    TJ2.tjFree jpeg
+    if rc == 0 then pure bytes else assertFailure "JPEG encoding failed"
+
+riff :: [ByteString] -> ByteString
+riff chunks = "RIFF" <> le 4 (4 + B.length body) <> "WEBP" <> body
+  where
+    body = B.concat chunks
+
+vp8x :: Word8 -> (Int, Int) -> ByteString
+vp8x flags (w, h) = chunk "VP8X" $ B.pack [flags, 0, 0, 0] <> le 3 (w - 1) <> le 3 (h - 1)
+
+chunk :: ByteString -> ByteString -> ByteString
+chunk fourcc payload = fourcc <> le 4 (B.length payload) <> payload <> B.replicate (B.length payload `mod` 2) 0
+
+le :: Int -> Int -> ByteString
+le n v = B.pack [fromIntegral (v `shiftR` (8 * i)) | i <- [0 .. n - 1]]
 
 timed :: IO a -> IO (a, Double)
 timed action = do
