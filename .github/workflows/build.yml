@@ -70,6 +70,14 @@ jobs:
 
       - run: cabal build --enable-tests all
 
+      - name: Build the sandbox library from its source distribution
+        if: matrix.os == 'ubuntu-22.04' && matrix.ghc == '9.6.3'
+        run: |
+          cabal sdist JuicyPixels-sandbox --output-directory="$RUNNER_TEMP/sdist"
+          tar -xzf "$RUNNER_TEMP"/sdist/JuicyPixels-sandbox-*.tar.gz -C "$RUNNER_TEMP/sdist"
+          cd "$RUNNER_TEMP"/sdist/JuicyPixels-sandbox-*/
+          cabal build lib:JuicyPixels-sandbox
+
       - name: Report the sizes of the WebP and sandbox libraries
         run: |
           for package in JuicyPixels-libwebp JuicyPixels-sandbox; do
