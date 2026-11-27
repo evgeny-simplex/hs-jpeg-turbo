@@ -471,7 +471,7 @@ jobs:
             suffix=${level/O2/}
             configs+=("ndk-armv7a${suffix:+-$suffix}|$cc_armv7a -static -$level -Wno-pass-failed")
             configs+=("ndk-armv7a-neon${suffix:+-$suffix}|$cc_armv7a -static -$level -mfpu=neon -Wno-pass-failed")
-            configs+=("nixpkgs-aarch64${suffix:+-$suffix}|$cc_aarch64 -static -$level -Wno-pass-failed --ld-path=$ld_aarch64")
+            configs+=("nixpkgs-aarch64${suffix:+-$suffix}|$cc_aarch64 -static -$level -Wno-pass-failed --ld-path=$ld_aarch64 --unwindlib=none")
           done
           bash .github/scripts/sandbox-measure.sh "Android, the core's nix compilers" "${configs[@]}"
 
