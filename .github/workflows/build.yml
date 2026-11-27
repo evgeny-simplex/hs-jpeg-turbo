@@ -451,6 +451,16 @@ jobs:
           done
           echo "ld_aarch64=$(ls "$RUNNER_TEMP"/cc-aarch64/bin/*-ld.lld | head -1)" >> "$GITHUB_ENV"
 
+      - name: Show the flags of the aarch64 compiler and the command of a static link
+        run: |
+          for file in "$RUNNER_TEMP"/cc-aarch64/nix-support/*; do
+            echo "== $file"
+            cat "$file"
+            echo
+          done
+          printf 'int main(void) { return 0; }\n' > "$RUNNER_TEMP/empty.c"
+          "$cc_aarch64" -v -static -O2 --ld-path="$ld_aarch64" "$RUNNER_TEMP/empty.c" -o "$RUNNER_TEMP/empty" || true
+
       - name: Check the sandbox objects for thread-local storage
         run: |
           sudo apt-get update
@@ -471,7 +481,7 @@ jobs:
             suffix=${level/O2/}
             configs+=("ndk-armv7a${suffix:+-$suffix}|$cc_armv7a -static -$level -Wno-pass-failed")
             configs+=("ndk-armv7a-neon${suffix:+-$suffix}|$cc_armv7a -static -$level -mfpu=neon -Wno-pass-failed")
-            configs+=("nixpkgs-aarch64${suffix:+-$suffix}|$cc_aarch64 -static -$level -Wno-pass-failed --ld-path=$ld_aarch64 --unwindlib=none")
+            configs+=("nixpkgs-aarch64${suffix:+-$suffix}|$cc_aarch64 -static -$level -Wno-pass-failed --ld-path=$ld_aarch64")
           done
           bash .github/scripts/sandbox-measure.sh "Android, the core's nix compilers" "${configs[@]}"
 
