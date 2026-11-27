@@ -1,6 +1,6 @@
 module SandboxTest where
 
-import Codec.Picture (DynamicImage(..), Image(..), PixelCMYK8, PixelRGBA8(..), generateImage)
+import Codec.Picture (DynamicImage(..), Image(..), PixelCMYK8, PixelRGB8(..), PixelRGBA8(..), generateImage)
 import Codec.Picture.Jpg (encodeDirectJpegAtQualityWithMetadata)
 import Codec.Picture.Types (convertImage, extractLumaPlane)
 import Codec.Picture.JPEGTurbo qualified as JPEG
@@ -158,6 +158,10 @@ unit_limits = do
   png <- largePng
   sandboxedWith defaultLimits {memoryLimitMB = 16} Right png >>= (@?= Left "image is too large") . void'
   sandboxedWith defaultLimits Right png >>= assertBool "decoded within 256 MiB" . not . isLeft
+  let rgb = generateImage (\x y -> PixelRGB8 (fromIntegral x) (fromIntegral y) (fromIntegral $ x + y)) 2000 1000
+  progressive <- turboJpeg TJ2.TJPF_RGB TJ2.TJSAMP_444 TJ2.TJFLAG_PROGRESSIVE (2000, 1000) (imageData rgb)
+  sandboxedWith defaultLimits {memoryLimitMB = 16} Right progressive >>= (@?= Left "image is too large") . void'
+  sandboxedWith defaultLimits Right progressive >>= assertBool "progressive JPEG decoded within 256 MiB" . not . isLeft
   sandboxedWith defaultLimits {timeoutMs = 1} Right png >>= (@?= Left "deadline exceeded") . void'
   counted <- decodeImageCounted defaultBudget {base = 1000, perByte = 0, perPixel = const 0} (options defaultLimits Right) png
   void' (decoded counted) @?= Left "budget exceeded"
