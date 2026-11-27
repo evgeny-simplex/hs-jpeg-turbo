@@ -284,6 +284,31 @@ jobs:
       - name: Compare WebP files decoded by the armv7 and aarch64 builds, decode changed files with sanitizers
         run: bash .github/scripts/webp-check.sh
 
+  sandbox-sanitizers:
+    name: sandbox with sanitizers on truncated and changed images
+    if: *full-run
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+
+      - name: Clone libwebp test data
+        run: |
+          git clone --quiet https://chromium.googlesource.com/webm/libwebp-test-data "$RUNNER_TEMP/libwebp-test-data"
+          git -C "$RUNNER_TEMP/libwebp-test-data" checkout --quiet 06ddd96e276c2c638a72d39d3c0f340afd61978c
+
+      - name: Install clang
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-18 libclang-rt-18-dev
+
+      - name: Decode truncated and changed images in the sandbox with address and undefined behaviour sanitizers
+        env:
+          CC: clang-18
+          WEBP_TEST_DATA: ${{ runner.temp }}/libwebp-test-data
+        run: bash .github/scripts/sandbox-sanitize.sh
+
   sandbox-fixtures:
     name: sandbox workloads and the largest picked images
     if: ${{ inputs.measure }}
