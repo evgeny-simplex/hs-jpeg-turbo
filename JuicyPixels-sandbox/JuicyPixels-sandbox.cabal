@@ -69,6 +69,8 @@ library
     , bytestring
     , transformers
     , vector
+  if os(android) || (os(osx) && arch(aarch64))
+    cc-options: -O3
 
 test-suite JuicyPixels-sandbox-test
   import: options
