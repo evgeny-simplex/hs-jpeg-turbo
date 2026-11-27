@@ -78,7 +78,7 @@ diff "$work/expected-imports.txt" "$work/imports.txt"
 "$WABT/bin/wasm-objdump" -x -j Export "$work/checked.wasm" | sed -n '/^Export\[/,$p' | tee -a "$summary"
 "$WABT/bin/wasm2c" --module-name=image -o "$gen/image-wasm.c" "$work/checked.wasm"
 
-cp "$WABT_SRC"/wasm2c/wasm-rt.h "$WABT_SRC"/wasm2c/wasm-rt-impl.h "$WABT_SRC"/wasm2c/wasm-rt-impl-tableops.inc \
+cp "$WABT_SRC"/wasm2c/wasm-rt.h "$WABT_SRC"/wasm2c/wasm-rt-impl.h \
   "$WABT_SRC"/wasm2c/wasm-rt-mem-impl.c "$WABT_SRC"/wasm2c/wasm-rt-mem-impl-helper.inc "$gen/wasm2c/"
 cp "$WABT_SRC"/third_party/simde/simde/*.h "$gen/wasm2c/simde/"
 cp "$WABT_SRC"/third_party/simde/simde/wasm/simd128.h "$gen/wasm2c/simde/wasm/"

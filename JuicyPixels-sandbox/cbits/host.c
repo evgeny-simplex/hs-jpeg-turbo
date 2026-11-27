@@ -134,14 +134,6 @@ void sandbox_grow_failed(void)
     session->grow_failed = 1;
 }
 
-#define WASM_RT_TABLE_OPS_FUNCREF
-#include "wasm-rt-impl-tableops.inc"
-#undef WASM_RT_TABLE_OPS_FUNCREF
-
-#define WASM_RT_TABLE_OPS_EXTERNREF
-#include "wasm-rt-impl-tableops.inc"
-#undef WASM_RT_TABLE_OPS_EXTERNREF
-
 wasm_rt_memory_t *w2c_env_memory(struct w2c_env *env)
 {
   return &env->memory;
@@ -151,6 +143,19 @@ static void stop(struct w2c_env *env, int reason)
 {
   env->stopped = reason;
   wasm_rt_trap(WASM_RT_TRAP_UNREACHABLE);
+}
+
+void wasm_rt_allocate_funcref_table(wasm_rt_funcref_table_t *table, uint32_t elements, uint32_t max_elements)
+{
+  table->size = elements;
+  table->max_size = max_elements;
+  if (!(table->data = calloc(elements, sizeof(*table->data))))
+    stop(&current()->env, SANDBOX_OUT_OF_MEMORY);
+}
+
+void wasm_rt_free_funcref_table(wasm_rt_funcref_table_t *table)
+{
+  free(table->data);
 }
 
 static void check_deadline(struct w2c_env *env)
