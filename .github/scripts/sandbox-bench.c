@@ -5,6 +5,9 @@
 #ifndef SANDBOX
 #include "guest.h"
 #endif
+#ifndef _WIN32
+#include <pthread.h>
+#endif
 
 typedef struct {
   uint8_t *pixels;
@@ -177,7 +180,7 @@ static void check(const char *dir, uint32_t max_side, int count, char **paths)
     data = read_file(paths[k], &size);
     decode(data, size, max_side, &r);
     snprintf(output, sizeof(output), "%s/%s.out", dir, base_name(paths[k]));
-    if (!(out = fopen(output, "wb")) || fprintf(out, "%d %u %u %u\n", r.status == 0 ? 0 : 1, r.width, r.height, r.channels) < 0 ||
+    if (!(out = fopen(output, "wb")) || fprintf(out, "%d %u %u %u\n", r.status, r.width, r.height, r.channels) < 0 ||
         (r.status == 0 && fwrite(r.pixels, (size_t)r.width * r.channels, r.height, out) != r.height) || fclose(out) != 0) {
       perror(output);
       exit(1);
@@ -256,7 +259,7 @@ static void count_files(uint32_t max_side, int changed, int count, char **paths)
 }
 
 #ifdef SANDBOX
-static void report_stops(const char *what, int repeat, double *elapsed, double *late, int *statuses, int expected)
+static int report_stops(const char *what, int repeat, double *elapsed, double *late, int *statuses, int expected)
 {
   int i, unexpected = 0;
 
@@ -267,9 +270,10 @@ static void report_stops(const char *what, int repeat, double *elapsed, double *
   printf("%s\tinterval %u\tstatus %d\t%d of %d with another status\telapsed ms median %.3f max %.3f\tafter the deadline ms median %.3f max %.3f\n", what,
          limits.check_interval, statuses[repeat - 1], unexpected, repeat, elapsed[repeat / 2] / 1e6, elapsed[repeat - 1] / 1e6, late[repeat / 2] / 1e6,
          late[repeat - 1] / 1e6);
+  return unexpected;
 }
 
-static void stop(const char *what, int repeat, const char *path)
+static int stop(const char *what, int repeat, const char *path)
 {
   double *elapsed = malloc(sizeof(double) * repeat), *late = malloc(sizeof(double) * repeat);
   int *statuses = malloc(sizeof(int) * repeat);
@@ -278,7 +282,7 @@ static void stop(const char *what, int repeat, const char *path)
   size_t size = 0;
   uint64_t start, end;
   Result r;
-  int i;
+  int i, unexpected;
 
   if (path)
     data = read_file(path, &size);
@@ -295,14 +299,15 @@ static void stop(const char *what, int repeat, const char *path)
     elapsed[i] = (double)(end - start);
     late[i] = deadline_ms ? (double)end - (double)(start + deadline_ms * 1000000u) : 0;
   }
-  report_stops(what, repeat, elapsed, late, statuses, deadline_ms ? SANDBOX_DEADLINE : SANDBOX_BUDGET);
+  unexpected = report_stops(what, repeat, elapsed, late, statuses, deadline_ms ? SANDBOX_DEADLINE : SANDBOX_BUDGET);
   free(data);
   free(statuses);
   free(late);
   free(elapsed);
+  return unexpected;
 }
 
-static void tree(uint32_t depth)
+static int tree(uint32_t depth, const char *expected)
 {
   char message[SANDBOX_MESSAGE_SIZE];
   uint64_t start = sandbox_now_ns();
@@ -310,10 +315,11 @@ static void tree(uint32_t depth)
   int status = sandbox_tree(call_limits(start), depth, &value, message);
 
   printf("tree of depth %u\tstatus %d\t%s\telapsed ms %.3f\n", depth, status, message, (sandbox_now_ns() - start) / 1e6);
+  return strcmp(message, expected) != 0;
 }
 #endif
 
-int main(int argc, char **argv)
+static int run(int argc, char **argv)
 {
   read_limits();
   if (argc >= 4 && !strcmp(argv[1], "check")) {
@@ -333,21 +339,50 @@ int main(int argc, char **argv)
     return 0;
   }
 #ifdef SANDBOX
-  if (argc == 3 && !strcmp(argv[1], "spin")) {
-    stop("spin", atoi(argv[2]), NULL);
-    return 0;
-  }
-  if (argc == 4 && !strcmp(argv[1], "stop")) {
-    stop(base_name(argv[3]), atoi(argv[2]), argv[3]);
-    return 0;
-  }
-  if (argc == 3 && !strcmp(argv[1], "tree")) {
-    tree((uint32_t)atoi(argv[2]));
-    return 0;
-  }
+  if (argc == 3 && !strcmp(argv[1], "spin"))
+    return stop("spin", atoi(argv[2]), NULL) != 0;
+  if (argc == 4 && !strcmp(argv[1], "stop"))
+    return stop(base_name(argv[3]), atoi(argv[2]), argv[3]) != 0;
+  if (argc == 4 && !strcmp(argv[1], "tree"))
+    return tree((uint32_t)atoi(argv[2]), argv[3]);
 #endif
   fprintf(stderr, "usage: %s check DIR MAXSIDE FILE... | time REPEAT MAXSIDE FILE... | count MAXSIDE FILE... | count-changed MAXSIDE FILE... | spin REPEAT | "
-                  "stop REPEAT FILE | tree DEPTH\n",
+                  "stop REPEAT FILE | tree DEPTH MESSAGE\n",
           argv[0]);
   return 2;
+}
+
+typedef struct {
+  int argc;
+  char **argv;
+  int status;
+} Command;
+
+static void *run_command(void *argument)
+{
+  Command *command = argument;
+
+  command->status = run(command->argc, command->argv);
+  return NULL;
+}
+
+int main(int argc, char **argv)
+{
+  Command command = {argc, argv, 2};
+#ifndef _WIN32
+  const uint64_t stack_kb = setting("SANDBOX_STACK_KB", 0);
+  pthread_attr_t attributes;
+  pthread_t thread;
+
+  if (stack_kb) {
+    if (pthread_attr_init(&attributes) || pthread_attr_setstacksize(&attributes, (size_t)stack_kb << 10) ||
+        pthread_create(&thread, &attributes, run_command, &command) || pthread_join(thread, NULL)) {
+      fprintf(stderr, "%s: no thread with a stack of %llu KiB\n", argv[0], (unsigned long long)stack_kb);
+      return 1;
+    }
+    return command.status;
+  }
+#endif
+  run_command(&command);
+  return command.status;
 }

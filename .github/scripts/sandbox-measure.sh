@@ -9,6 +9,7 @@ root=$PWD
 summary=${GITHUB_STEP_SUMMARY:-/dev/null}
 python=${PYTHON:-python3}
 libs=${LIBS:--lpthread -lm}
+measure=${MEASURE:-false}
 package=JuicyPixels-sandbox
 webp=JuicyPixels-libwebp/cbits/libwebp
 spng=JuicyPixels-spng/cbits
@@ -18,10 +19,12 @@ sandbox_sources="$package/cbits/host.c $package/cbits/module.c $package/cbits/cl
 corpus=
 workloads=
 calibration=
+largest=
 if [ "${BUILD_ONLY:-}" != 1 ]; then
-  corpus=$(ls $jpeg/mozjpeg/testimages/*.jpg $spng/libspng/tests/images/*.png "$WEBP_TEST_DATA"/*.webp "$FIXTURES"/workloads/*)
+  corpus=$(ls $jpeg/mozjpeg/testimages/*.jpg $spng/libspng/tests/images/*.png "$FIXTURES"/webp/*.webp "$FIXTURES"/workloads/*)
   workloads=$(ls "$FIXTURES"/workloads/*)
   calibration=$(ls "$FIXTURES"/calibration/*)
+  largest=$(ls "$FIXTURES"/largest/*)
 fi
 
 cabal_sources() {
@@ -73,12 +76,38 @@ build() {
   fi
 }
 
-compare() {
-  $python -I .github/scripts/sandbox-compare.py "$out/check-native-$1-$2" "$out/check-sandbox-$1-$2"
+expect() {
+  "$@" || echo "$platform: $*" >> "$out/failures.txt"
+}
+
+check() {
+  local variant=$1 name=$2 side
+  for side in 16384 64; do
+    mkdir -p "$out/check-$variant-$name-$side"
+    "$out/$variant-$name.exe" check "$out/check-$variant-$name-$side" $side $corpus $calibration
+  done
+  if [ $variant = sandbox ] || [ "$measure" = true ]; then
+    mkdir -p "$out/check-$variant-$name-4320"
+    "$out/$variant-$name.exe" check "$out/check-$variant-$name-4320" 4320 $largest
+  fi
+}
+
+stops() {
+  local sandbox=$out/sandbox-$1.exe file interval
+  expect env SANDBOX_BUDGET_BASE=100000000 "$sandbox" spin 5
+  for interval in 4096 65536; do
+    expect env SANDBOX_DEADLINE_MS=20 SANDBOX_INTERVAL=$interval "$sandbox" spin 20
+  done
+  for file in "$FIXTURES"/workloads/tall-1024x4096.jpg "$FIXTURES"/workloads/tall-1024x4096-rgba.png "$FIXTURES"/workloads/tall-lossless.webp; do
+    expect env SANDBOX_DEADLINE_MS=5 "$sandbox" stop 20 "$file"
+  done
+  expect env SANDBOX_BUDGET_BASE=1000000 "$sandbox" tree 24 "budget exceeded"
+  expect env SANDBOX_DEADLINE_MS=10000 "$sandbox" tree 200 "sandbox trap 10"
 }
 
 if [ "${PREBUILT:-}" = 1 ]; then
   chmod +x "$out"/*.exe
+  rm -rf "$out"/check-* "$out/failures.txt"
 else
   rm -rf "$out"
   mkdir -p "$out"
@@ -102,19 +131,37 @@ for config in "$@"; do
     continue
   fi
 
-  for side in 16384 64; do
-    for variant in native sandbox; do
-      mkdir -p "$out/check-$variant-$name-$side"
-      "$out/$variant-$name.exe" check "$out/check-$variant-$name-$side" $side $corpus $calibration
-    done
-  done
+  export SANDBOX_STACK_KB=256
+  check native "$name"
+  check sandbox "$name"
   {
-    echo "### $platform, $name: sandbox outputs compared with the native outputs"
+    echo "### $platform, $name: sandbox outputs compared with the reference and the native outputs"
     echo
-    echo "- full size: $(compare "$name" 16384)"
-    echo "- sides of at most 64: $(compare "$name" 64)"
+    if [ "${RUNNER_OS:-}" != Windows ]; then
+      echo "- decodes and stops on a thread with a stack of $SANDBOX_STACK_KB KiB"
+    fi
+    if [ -n "${REFERENCE:-}" ]; then
+      $python -I .github/scripts/sandbox-compare.py manifest "$out" "$name" > "$REFERENCE"
+      echo "- reference outputs written: $(wc -l < "$REFERENCE")"
+    else
+      expect $python -I .github/scripts/sandbox-compare.py reference "$FIXTURES/reference.tsv" "$out" "$name"
+    fi
+    $python -I .github/scripts/sandbox-compare.py native "$out" "$name"
+    echo
+    echo "### $platform, $name: loops and decodes stopped by the budget, the deadline and the call depth"
+    echo
+    echo '```'
+    stops "$name"
+    echo '```'
     echo
   } | tee -a "$summary"
+  for side in 16384 64 4320; do
+    rm -rf "$out/check-native-$name-$side" "$out/check-sandbox-$name-$side"
+  done
+  unset SANDBOX_STACK_KB
+  if [ "$measure" != true ]; then
+    continue
+  fi
 
   for variant in native sandbox; do
     SANDBOX_DEADLINE_MS=600000 "$out/$variant-$name.exe" time 9 16384 $workloads > "$out/time-$variant-$name.tsv"
@@ -126,7 +173,7 @@ for config in "$@"; do
     echo
     echo '```'
     for variant in native sandbox; do
-      for file in "$FIXTURES"/largest/*; do
+      for file in $largest; do
         echo "$variant 256 MiB $(SANDBOX_MEMORY_MB=256 SANDBOX_DEADLINE_MS=0 "$out/$variant-$name.exe" time 1 4320 "$file" || echo "$(basename "$file") failed")"
       done
       for memory in 512 1024; do
@@ -137,23 +184,15 @@ for config in "$@"; do
     done
     echo '```'
     echo
-    echo "### $platform, $name: loops and decodes stopped by the budget and by the deadline"
+    echo "### $platform, $name: the largest picked images and the deadline of 10 s"
     echo
     echo '```'
-    SANDBOX_BUDGET_BASE=100000000 "$out/sandbox-$name.exe" spin 5
-    for interval in 4096 65536; do
-      SANDBOX_DEADLINE_MS=20 SANDBOX_INTERVAL=$interval "$out/sandbox-$name.exe" spin 20
-    done
-    for file in "$FIXTURES"/workloads/tall-1024x4096.jpg "$FIXTURES"/workloads/tall-1024x4096-rgba.png "$FIXTURES"/workloads/tall-lossless.webp; do
-      SANDBOX_DEADLINE_MS=5 "$out/sandbox-$name.exe" stop 20 "$file"
-    done
-    for file in "$FIXTURES"/largest/*; do
-      SANDBOX_DEADLINE_MS=10000 "$out/sandbox-$name.exe" stop 1 "$file"
+    for file in $largest; do
+      SANDBOX_DEADLINE_MS=10000 "$out/sandbox-$name.exe" stop 1 "$file" || true
     done
     for file in "$FIXTURES"/largest/*progressive*; do
-      SANDBOX_MEMORY_MB=1024 SANDBOX_DEADLINE_MS=10000 "$out/sandbox-$name.exe" stop 1 "$file"
+      SANDBOX_MEMORY_MB=1024 SANDBOX_DEADLINE_MS=10000 "$out/sandbox-$name.exe" stop 1 "$file" || true
     done
-    SANDBOX_BUDGET_BASE=1000000 "$out/sandbox-$name.exe" tree 24
     echo '```'
     echo
   } | tee -a "$summary"
@@ -163,9 +202,15 @@ if [ "${COUNT:-}" = 1 ]; then
   name=${1%%|*}
   for side in 16384 4320 64; do
     "$out/sandbox-$name.exe" count $side $corpus
-    "$out/sandbox-$name.exe" count-changed $side $(ls $jpeg/mozjpeg/testimages/*.jpg $spng/libspng/tests/images/*.png "$WEBP_TEST_DATA"/*.webp | head -400)
+    "$out/sandbox-$name.exe" count-changed $side $(ls $jpeg/mozjpeg/testimages/*.jpg $spng/libspng/tests/images/*.png "$FIXTURES"/webp/*.webp | head -400)
     SANDBOX_MEMORY_MB=1024 "$out/sandbox-$name.exe" count $side $calibration
   done > "$out/count.tsv"
   rates=$(sed -n 's/^  \(JPEG\|PNG\|WebP\) -> \([0-9][0-9]*\)$/\1=\2/p' $package/src/Codec/Picture/Sandbox.hsc)
   $python -I .github/scripts/sandbox-budget.py "$out/count.tsv" $rates | tee -a "$summary"
+fi
+
+if [ -s "$out/failures.txt" ]; then
+  echo "Failed checks:"
+  cat "$out/failures.txt"
+  exit 1
 fi

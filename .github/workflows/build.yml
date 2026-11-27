@@ -318,16 +318,22 @@ jobs:
         run: bash .github/scripts/sandbox-sanitize.sh
 
   sandbox-fixtures:
-    name: sandbox workloads and the largest picked images
-    if: ${{ inputs.measure }}
+    name: sandbox workloads, the largest picked images and the reference outputs
+    if: &sandbox-run ${{ inputs.measure || !((github.event_name == 'workflow_dispatch' && !inputs.full) || github.event.pull_request.draft == true || (github.event_name == 'push' && github.repository != 'simplex-chat/hs-jpeg-turbo')) }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
         with:
           submodules: true
 
-      - name: Encode the workloads and the largest picked images
+      - name: Encode the workloads and the largest picked images, copy the libwebp test data
         run: bash .github/scripts/sandbox-fixtures.sh "$RUNNER_TEMP/sandbox-fixtures"
+
+      - name: Decode the corpus in the reference build of the sandbox
+        env:
+          FIXTURES: ${{ runner.temp }}/sandbox-fixtures
+          REFERENCE: ${{ runner.temp }}/sandbox-fixtures/reference.tsv
+        run: bash .github/scripts/sandbox-measure.sh "Linux x86-64, the reference build" "reference|gcc -O2"
 
       - uses: actions/upload-artifact@v4
         with:
@@ -336,6 +342,7 @@ jobs:
 
   sandbox-measure:
     name: sandbox measurements on ${{ matrix.platform }}
+    if: ${{ inputs.measure }}
     needs: sandbox-fixtures
     runs-on: ${{ matrix.os }}
     strategy:
@@ -413,11 +420,6 @@ jobs:
             Windows) powershell -NoProfile -Command "Get-CimInstance Win32_Processor | Select-Object Name, NumberOfLogicalProcessors" ;;
           esac
 
-      - name: Clone libwebp test data
-        run: |
-          git clone --quiet https://chromium.googlesource.com/webm/libwebp-test-data "$RUNNER_TEMP/libwebp-test-data"
-          git -C "$RUNNER_TEMP/libwebp-test-data" checkout --quiet 06ddd96e276c2c638a72d39d3c0f340afd61978c
-
       - name: Measure the sandbox against the native decoders
         env:
           CONFIGS: ${{ matrix.configs }}
@@ -426,7 +428,7 @@ jobs:
           LIBS: ${{ matrix.libs }}
           PYTHON: ${{ matrix.python }}
           FIXTURES: ${{ runner.temp }}/sandbox-fixtures
-          WEBP_TEST_DATA: ${{ runner.temp }}/libwebp-test-data
+          MEASURE: true
         run: |
           configs=()
           while IFS= read -r config; do
@@ -436,7 +438,7 @@ jobs:
 
   sandbox-android-build:
     name: sandbox builds by the compilers of the core's nix builds for Android
-    if: ${{ inputs.measure }}
+    if: *sandbox-run
     runs-on: ubuntu-24.04
     env:
       SIMPLEX_CHAT_REV: 9c502559140e62c888f4c6af9e2a3ecdf11963bb
@@ -476,15 +478,20 @@ jobs:
           BUILD_ONLY: 1
           LIBS: -lm
           SIZE: llvm-size
-          FIXTURES: /nonexistent
-          WEBP_TEST_DATA: /nonexistent
+          MEASURE: ${{ inputs.measure }}
         run: |
+          levels=O3
+          if [ "$MEASURE" = true ]; then
+            levels="O2 O3"
+          fi
           configs=()
-          for level in O2 O3; do
+          for level in $levels; do
             suffix=${level/O2/}
             configs+=("nixpkgs-aarch64${suffix:+-$suffix}|$cc_aarch64 -static -$level -Wno-pass-failed --ld-path=$ld_aarch64 -L$unwind_aarch64")
             configs+=("ndk-armv7a${suffix:+-$suffix}|$cc_armv7a -static -no-pie -$level -Wno-pass-failed -Wl,$RUNNER_TEMP/tls-align.o")
-            configs+=("ndk-armv7a-neon${suffix:+-$suffix}|$cc_armv7a -static -no-pie -$level -mfpu=neon -Wno-pass-failed -Wl,$RUNNER_TEMP/tls-align.o")
+            if [ "$MEASURE" = true ]; then
+              configs+=("ndk-armv7a-neon${suffix:+-$suffix}|$cc_armv7a -static -no-pie -$level -mfpu=neon -Wno-pass-failed -Wl,$RUNNER_TEMP/tls-align.o")
+            fi
           done
           bash .github/scripts/sandbox-measure.sh "Android, the core's nix compilers" "${configs[@]}"
 
@@ -494,7 +501,7 @@ jobs:
           path: dist-newstyle/sandbox-measure/*.exe
 
   sandbox-android-run:
-    name: sandbox measurements of the Android builds on ubuntu-24.04-arm
+    name: sandbox checks and measurements of the Android builds on ubuntu-24.04-arm
     needs: [sandbox-fixtures, sandbox-android-build]
     runs-on: ubuntu-24.04-arm
     steps:
@@ -512,37 +519,20 @@ jobs:
           name: sandbox-android
           path: dist-newstyle/sandbox-measure
 
-      - name: Clone libwebp test data
-        run: |
-          git clone --quiet https://chromium.googlesource.com/webm/libwebp-test-data "$RUNNER_TEMP/libwebp-test-data"
-          git -C "$RUNNER_TEMP/libwebp-test-data" checkout --quiet 06ddd96e276c2c638a72d39d3c0f340afd61978c
-
-      - name: Show the last system calls of the Android builds on one image
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y strace
-          chmod +x dist-newstyle/sandbox-measure/*.exe
-          mkdir -p "$RUNNER_TEMP/one"
-          for exe in dist-newstyle/sandbox-measure/native-ndk-armv7a.exe dist-newstyle/sandbox-measure/sandbox-ndk-armv7a.exe dist-newstyle/sandbox-measure/native-nixpkgs-aarch64.exe dist-newstyle/sandbox-measure/sandbox-nixpkgs-aarch64.exe; do
-            echo "== $exe"
-            file "$exe"
-            status=0
-            strace -f -o "$RUNNER_TEMP/trace" "$exe" check "$RUNNER_TEMP/one" 64 jpeg-turbo/cbits/mozjpeg/testimages/testorig.jpg || status=$?
-            echo "exit status $status"
-            tail -25 "$RUNNER_TEMP/trace"
-          done
-
-      - name: Measure the sandbox against the native decoders
+      - name: Check and measure the sandbox against the reference and the native decoders
         env:
           PREBUILT: 1
           FIXTURES: ${{ runner.temp }}/sandbox-fixtures
-          WEBP_TEST_DATA: ${{ runner.temp }}/libwebp-test-data
+          MEASURE: ${{ inputs.measure }}
         run: |
-          bash .github/scripts/sandbox-measure.sh "Android builds on Linux aarch64" "nixpkgs-aarch64|" "nixpkgs-aarch64-O3|" "ndk-armv7a|" "ndk-armv7a-neon|" \
-            "ndk-armv7a-O3|" "ndk-armv7a-neon-O3|"
+          configs=("nixpkgs-aarch64-O3|" "ndk-armv7a-O3|")
+          if [ "$MEASURE" = true ]; then
+            configs+=("nixpkgs-aarch64|" "ndk-armv7a|" "ndk-armv7a-neon|" "ndk-armv7a-neon-O3|")
+          fi
+          bash .github/scripts/sandbox-measure.sh "Android builds on Linux aarch64" "${configs[@]}"
 
   sandbox-ios:
-    name: sandbox measurements of the build by the compiler of the core's nix build for iOS
+    name: sandbox checks and measurements of the build by the compiler of the core's nix build for iOS
     needs: sandbox-fixtures
     runs-on: macos-latest
     env:
@@ -568,15 +558,10 @@ jobs:
       - name: Check the sandbox objects for thread-local storage
         run: bash .github/scripts/sandbox-tls.sh "iOS" "$RUNNER_TEMP/cc-ios/bin/cc"
 
-      - name: Clone libwebp test data
-        run: |
-          git clone --quiet https://chromium.googlesource.com/webm/libwebp-test-data "$RUNNER_TEMP/libwebp-test-data"
-          git -C "$RUNNER_TEMP/libwebp-test-data" checkout --quiet 06ddd96e276c2c638a72d39d3c0f340afd61978c
-
-      - name: Measure the sandbox against the native decoders
+      - name: Check and measure the sandbox against the reference and the native decoders
         env:
           FIXTURES: ${{ runner.temp }}/sandbox-fixtures
-          WEBP_TEST_DATA: ${{ runner.temp }}/libwebp-test-data
+          MEASURE: ${{ inputs.measure }}
         run: |
           bash .github/scripts/sandbox-measure.sh "macOS aarch64, the compiler of the core's iOS build" "nixpkgs-clang|$RUNNER_TEMP/cc-ios/bin/cc -O2" \
             "nixpkgs-clang-O3|$RUNNER_TEMP/cc-ios/bin/cc -O3"

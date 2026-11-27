@@ -10,7 +10,10 @@ images=https://raw.githubusercontent.com/simplex-chat/simplex-chat/8f5dfa3d4e305
 tmp=$RUNNER_TEMP/fixtures
 
 rm -rf "$out" "$tmp"
-mkdir -p "$out/workloads" "$out/largest" "$out/calibration" "$tmp/calibration"
+mkdir -p "$out/workloads" "$out/largest" "$out/calibration" "$out/webp" "$tmp/calibration"
+git clone --quiet https://chromium.googlesource.com/webm/libwebp-test-data "$tmp/libwebp-test-data"
+git -C "$tmp/libwebp-test-data" checkout --quiet 06ddd96e276c2c638a72d39d3c0f340afd61978c
+cp "$tmp"/libwebp-test-data/*.webp "$out/webp/"
 curl -fsSL -o "$tmp/$release.tar.gz" "$url"
 echo "1c5ffab71efecefa0e3c23516c3a3a1dccb45cc310ae1095c6f14ae268e38067  $tmp/$release.tar.gz" | sha256sum --check
 tar -xzf "$tmp/$release.tar.gz" -C "$tmp"
