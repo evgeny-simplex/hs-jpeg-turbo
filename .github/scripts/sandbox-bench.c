@@ -246,7 +246,7 @@ static void count_files(uint32_t max_side, int changed, int count, char **paths)
       copy = malloc(size ? size : 1);
       for (k = 0; k < 32; k++) {
         snprintf(name, sizeof(name), "%s#truncated%zu", base_name(paths[i]), k);
-        count_file(name, data, size * k / 32, max_side);
+        count_file(name, k ? data : NULL, size * k / 32, max_side);
         memcpy(copy, data, size);
         copy[(size - 1) * k / 31] ^= (unsigned char)(1u << (k % 8));
         snprintf(name, sizeof(name), "%s#changed%zu", base_name(paths[i]), k);
@@ -317,6 +317,19 @@ static int tree(uint32_t depth, const char *expected)
   printf("tree of depth %u\tstatus %d\t%s\telapsed ms %.3f\n", depth, status, message, (sandbox_now_ns() - start) / 1e6);
   return strcmp(message, expected) != 0;
 }
+
+static int limit(void)
+{
+  sandbox_limits large = limits;
+  char message[SANDBOX_MESSAGE_SIZE];
+  uint32_t value = 0;
+  int status;
+
+  large.memory_limit = (uint64_t)PTRDIFF_MAX + 1;
+  status = sandbox_load(&large, 0, &value, message);
+  printf("memory limit of %llu bytes, above PTRDIFF_MAX\tstatus %d\n", (unsigned long long)large.memory_limit, status);
+  return status != SANDBOX_INVALID_ARGUMENT;
+}
 #endif
 
 static int run(int argc, char **argv)
@@ -345,9 +358,11 @@ static int run(int argc, char **argv)
     return stop(base_name(argv[3]), atoi(argv[2]), argv[3]) != 0;
   if (argc == 4 && !strcmp(argv[1], "tree"))
     return tree((uint32_t)atoi(argv[2]), argv[3]);
+  if (argc == 2 && !strcmp(argv[1], "limit"))
+    return limit();
 #endif
   fprintf(stderr, "usage: %s check DIR MAXSIDE FILE... | time REPEAT MAXSIDE FILE... | count MAXSIDE FILE... | count-changed MAXSIDE FILE... | spin REPEAT | "
-                  "stop REPEAT FILE | tree DEPTH MESSAGE\n",
+                  "stop REPEAT FILE | tree DEPTH MESSAGE | limit\n",
           argv[0]);
   return 2;
 }

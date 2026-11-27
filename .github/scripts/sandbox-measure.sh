@@ -103,6 +103,7 @@ stops() {
   done
   expect env SANDBOX_BUDGET_BASE=1000000 "$sandbox" tree 24 "budget exceeded"
   expect env SANDBOX_DEADLINE_MS=10000 "$sandbox" tree 200 "sandbox trap 10"
+  expect "$sandbox" limit
 }
 
 if [ "${PREBUILT:-}" = 1 ]; then
@@ -148,7 +149,7 @@ for config in "$@"; do
     fi
     $python -I .github/scripts/sandbox-compare.py native "$out" "$name"
     echo
-    echo "### $platform, $name: loops and decodes stopped by the budget, the deadline and the call depth"
+    echo "### $platform, $name: loops and decodes stopped by the budget, the deadline and the call depth; memory limits above PTRDIFF_MAX refused"
     echo
     echo '```'
     stops "$name"
