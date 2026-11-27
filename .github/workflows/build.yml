@@ -88,7 +88,7 @@ jobs:
             } | tee -a "$GITHUB_STEP_SUMMARY"
           done
 
-      - name: Check that the sandbox library uses no thread-local storage
+      - name: Check the sandbox library for symbols and sections of compiler thread-local variables
         if: runner.os != 'Windows'
         run: |
           lib=$(find dist-newstyle -name 'libHSJuicyPixels-sandbox-*.a' -not -name '*_p.a')
@@ -472,7 +472,7 @@ jobs:
           printf '.section .tbss,"awT",%%nobits\n.p2align 5\n.zero 1\n' > "$RUNNER_TEMP/tls-align.s"
           "$(ls "$RUNNER_TEMP"/cc-armv7a/bin/*-cc | head -1)" -c "$RUNNER_TEMP/tls-align.s" -o "$RUNNER_TEMP/tls-align.o"
 
-      - name: Check the sandbox objects for thread-local storage
+      - name: Check the sandbox objects for symbols and sections of compiler thread-local variables
         run: |
           sudo apt-get update
           sudo apt-get install -y llvm
@@ -561,7 +561,7 @@ jobs:
           nix build -L --impure --out-link "$RUNNER_TEMP/cc-ios" --expr "import ./.github/scripts/sandbox-cc.nix { rev = \"$SIMPLEX_CHAT_REV\"; target = \"ios\"; }"
           "$RUNNER_TEMP/cc-ios/bin/cc" --version
 
-      - name: Check the sandbox objects for thread-local storage
+      - name: Check the sandbox objects for symbols and sections of compiler thread-local variables
         run: bash .github/scripts/sandbox-tls.sh "iOS" "$RUNNER_TEMP/cc-ios/bin/cc"
 
       - name: Check and measure the sandbox against the reference and the native decoders

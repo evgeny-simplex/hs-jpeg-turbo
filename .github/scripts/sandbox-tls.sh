@@ -22,6 +22,6 @@ else
   references=$(llvm-nm -u "$out"/*.o | grep -E '__tls_get_addr|__emutls' || true)
   sections=$(llvm-readelf -S -W "$out"/*.o | grep -E '\.t(data|bss)' || true)
 fi
-echo "$target, $(echo "$sources" | wc -w) objects: $(printf '%s' "$references" | grep -c . || true) references to thread-local storage, $(printf '%s' "$sections" | grep -c . || true) thread-local sections" | tee -a "${GITHUB_STEP_SUMMARY:-/dev/null}"
+echo "$target, $(echo "$sources" | wc -w) objects: $(printf '%s' "$references" | grep -c . || true) references to symbols and $(printf '%s' "$sections" | grep -c . || true) sections of compiler thread-local variables" | tee -a "${GITHUB_STEP_SUMMARY:-/dev/null}"
 printf '%s\n' "$references" "$sections" | sed '/^$/d'
 [ -z "$references$sections" ]
