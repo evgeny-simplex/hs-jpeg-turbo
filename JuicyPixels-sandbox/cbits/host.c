@@ -19,10 +19,6 @@
 #define BULK_CHUNK (1u << 16)
 #define BULK_BYTES_PER_ITERATION_BITS 8
 
-enum { FORMAT_JPEG = 1, FORMAT_PNG = 2, FORMAT_WEBP = 3 };
-
-enum { LAYOUT_Y8 = 1, LAYOUT_RGB8 = 2, LAYOUT_RGBA8 = 3, LAYOUT_CMYK8 = 4 };
-
 struct w2c_env {
   wasm_rt_memory_t memory;
   uint64_t remaining;

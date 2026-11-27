@@ -3,12 +3,9 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include "../cbits/sandbox.h"
 
 #define SANDBOX_MAX_SIDE 16384
-
-enum { FORMAT_JPEG = 1, FORMAT_PNG = 2, FORMAT_WEBP = 3 };
-
-enum { LAYOUT_Y8 = 1, LAYOUT_RGB8 = 2, LAYOUT_RGBA8 = 3, LAYOUT_CMYK8 = 4 };
 
 typedef struct {
   uint8_t *pixels;

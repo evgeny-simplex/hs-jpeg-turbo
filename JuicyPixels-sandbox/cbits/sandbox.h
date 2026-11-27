@@ -17,6 +17,10 @@
 
 #define SANDBOX_MESSAGE_SIZE 256
 
+enum { FORMAT_JPEG = 1, FORMAT_PNG = 2, FORMAT_WEBP = 3 };
+
+enum { LAYOUT_Y8 = 1, LAYOUT_RGB8 = 2, LAYOUT_RGBA8 = 3, LAYOUT_CMYK8 = 4 };
+
 typedef struct {
   uint64_t memory_limit;
   uint64_t deadline_ns;

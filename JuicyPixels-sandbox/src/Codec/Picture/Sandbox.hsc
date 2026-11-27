@@ -121,9 +121,9 @@ readHeader header = do
   width <- fromIntegral @Word32 <$> #{peek sandbox_header, width} header
   height <- fromIntegral @Word32 <$> #{peek sandbox_header, height} header
   pure $ case formatCode of
-    1 -> Right $ ImageHeader JPEG width height
-    2 -> Right $ ImageHeader PNG width height
-    3 -> Right $ ImageHeader WebP width height
+    #{const FORMAT_JPEG} -> Right $ ImageHeader JPEG width height
+    #{const FORMAT_PNG} -> Right $ ImageHeader PNG width height
+    #{const FORMAT_WEBP} -> Right $ ImageHeader WebP width height
     _ -> Left "invalid sandbox output"
 
 readImage :: ImageFormat -> ByteString -> Ptr () -> IO (DynamicImage, Metadata)
@@ -135,9 +135,9 @@ readImage format input image = do
   icc <- bytes #{peek sandbox_image, icc} #{peek sandbox_image, icc_size}
   exifTiff <- bytes #{peek sandbox_image, exif} #{peek sandbox_image, exif_size}
   let (channels, dynamic) = case layout of
-        1 -> (1, ImageY8 . Image width height)
-        3 -> (4, ImageRGBA8 . Image width height)
-        4 -> (4, ImageCMYK8 . Image width height)
+        #{const LAYOUT_Y8} -> (1, ImageY8 . Image width height)
+        #{const LAYOUT_RGBA8} -> (4, ImageRGBA8 . Image width height)
+        #{const LAYOUT_CMYK8} -> (4, ImageCMYK8 . Image width height)
         _ -> (3, ImageRGB8 . Image width height)
   samples <- (\fp -> V.unsafeFromForeignPtr0 fp (width * height * channels)) <$> newForeignPtr finalizerFree (pixels :: Ptr Word8)
   let metadata = case format of
