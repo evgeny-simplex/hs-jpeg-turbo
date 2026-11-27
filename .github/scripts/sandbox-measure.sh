@@ -125,7 +125,12 @@ for config in "$@"; do
     echo '```'
     for variant in native sandbox; do
       for file in "$FIXTURES"/largest/*; do
-        echo "$variant $(SANDBOX_MEMORY_MB=${LARGEST_MEMORY_MB:-256} SANDBOX_DEADLINE_MS=0 "$out/$variant-$name.exe" time 1 4320 "$file" || echo "$(basename "$file") failed")"
+        echo "$variant 256 MiB $(SANDBOX_MEMORY_MB=256 SANDBOX_DEADLINE_MS=0 "$out/$variant-$name.exe" time 1 4320 "$file" || echo "$(basename "$file") failed")"
+      done
+      for memory in 512 1024; do
+        for file in "$FIXTURES"/largest/*progressive*; do
+          echo "$variant $memory MiB $(SANDBOX_MEMORY_MB=$memory SANDBOX_DEADLINE_MS=0 "$out/$variant-$name.exe" time 1 4320 "$file" || echo "$(basename "$file") failed")"
+        done
       done
     done
     echo '```'
@@ -142,6 +147,9 @@ for config in "$@"; do
     done
     for file in "$FIXTURES"/largest/*; do
       SANDBOX_DEADLINE_MS=10000 "$out/sandbox-$name.exe" stop 1 "$file"
+    done
+    for file in "$FIXTURES"/largest/*progressive*; do
+      SANDBOX_MEMORY_MB=1024 SANDBOX_DEADLINE_MS=10000 "$out/sandbox-$name.exe" stop 1 "$file"
     done
     SANDBOX_BUDGET_BASE=1000000 "$out/sandbox-$name.exe" tree 24
     echo '```'
