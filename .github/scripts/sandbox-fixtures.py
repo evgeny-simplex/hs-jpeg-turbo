@@ -6,7 +6,7 @@ import zlib
 
 from PIL import Image
 
-photo, logo, out = sys.argv[1:]
+photo, logo, out, work = sys.argv[1:]
 workloads = os.path.join(out, "workloads")
 largest = os.path.join(out, "largest")
 
@@ -40,9 +40,7 @@ Image.open(logo).convert("RGBA").resize((1024, 4096), Image.LANCZOS).save(os.pat
 big = source.resize((16384, 16384), Image.BICUBIC)
 big.save(os.path.join(largest, "largest-16384x16384.jpg"), quality=90)
 big.save(os.path.join(largest, "largest-16384x16384-progressive.jpg"), quality=90, progressive=True)
-largest_webp = source.resize((16383, 16383), Image.BICUBIC)
-largest_webp.save(os.path.join(largest, "largest-16383x16383-lossy.webp"), quality=90, method=0)
-largest_webp.save(os.path.join(largest, "largest-16383x16383-lossless.webp"), lossless=True, quality=0, method=0)
+source.resize((16383, 16383), Image.BICUBIC).save(os.path.join(work, "largest-16383x16383.ppm"))
 write_png(os.path.join(largest, "largest-16384x16384-rgba16-paeth.png"), 16384, 4)
 write_png(os.path.join(largest, "largest-16384x16384-rgba16.png"), 16384, 0)
 write_png(os.path.join(largest, "paeth-8192x8192-rgba16.png"), 8192, 4)

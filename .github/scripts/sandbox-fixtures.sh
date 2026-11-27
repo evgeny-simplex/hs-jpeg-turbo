@@ -31,7 +31,10 @@ cp "$tmp/tall/tall-lossless.webp" "$tmp/tall/tall-lossy-alpha.webp" "$out/worklo
 
 python3 -m venv "$tmp/venv"
 "$tmp/venv/bin/pip" install --quiet pillow==11.3.0
-"$tmp/venv/bin/python" -I .github/scripts/sandbox-fixtures.py "$tmp/test.jpg" "$tmp/logo-large-rgba.png" "$out"
+"$tmp/venv/bin/python" -I .github/scripts/sandbox-fixtures.py "$tmp/test.jpg" "$tmp/logo-large-rgba.png" "$out" "$tmp"
+"$bin/cwebp" -quiet -q 90 -m 0 -partition_limit 100 "$tmp/largest-16383x16383.ppm" -o "$out/largest/largest-16383x16383-lossy.webp"
+"$bin/cwebp" -quiet -lossless -z 0 "$tmp/largest-16383x16383.ppm" -o "$out/largest/largest-16383x16383-lossless.webp"
+rm "$tmp/largest-16383x16383.ppm"
 
 work=$tmp/calibration
 calibration=$out/calibration
