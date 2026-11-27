@@ -81,10 +81,14 @@ jobs:
           done
 
       - name: Check that the sandbox library uses no thread-local storage
-        if: runner.os == 'Linux'
+        if: runner.os != 'Windows'
         run: |
           lib=$(find dist-newstyle -name 'libHSJuicyPixels-sandbox-*.a' -not -name '*_p.a')
-          if readelf -S -W "$lib" | grep -E '\.t(data|bss)'; then exit 1; fi
+          if [ "$RUNNER_OS" = macOS ]; then
+            if otool -l "$lib" | grep -E 'sectname __thread_'; then exit 1; fi
+          else
+            if readelf -S -W "$lib" | grep -E '\.t(data|bss)'; then exit 1; fi
+          fi
           if nm -A "$lib" | grep -E '__tls_get_addr|__emutls|_tlv_'; then exit 1; fi
 
       - name: Show Neon symbols in the library
@@ -393,18 +397,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y llvm
-          flags="-O2 -DWASM_RT_MEMCHECK_BOUNDS_CHECK=1 -DWASM_RT_USE_MMAP=1 -DWASM_RT_STACK_DEPTH_COUNT=1 -DWASM_RT_MAX_CALL_STACK_DEPTH=128 -DWASM_RT_GROW_FAILED_HANDLER=sandbox_grow_failed -I JuicyPixels-sandbox/cbits -I JuicyPixels-sandbox/cbits/wasm2c"
-          for target in armv7a aarch64; do
-            cc=cc_$target
-            mkdir -p "$RUNNER_TEMP/tls-$target"
-            for source in host module clock; do
-              ${!cc} $flags -c JuicyPixels-sandbox/cbits/$source.c -o "$RUNNER_TEMP/tls-$target/$source.o"
-            done
-            ${!cc} $flags -c JuicyPixels-sandbox/cbits/wasm2c/wasm-rt-mem-impl.c -o "$RUNNER_TEMP/tls-$target/wasm-rt-mem-impl.o"
-            echo "$target: $(llvm-nm -u "$RUNNER_TEMP"/tls-$target/*.o | grep -cE '__emutls|__tls_get_addr' || true) references to thread-local storage" | tee -a "$GITHUB_STEP_SUMMARY"
-            if llvm-nm -u "$RUNNER_TEMP"/tls-$target/*.o | grep -E '__emutls|__tls_get_addr'; then exit 1; fi
-            if llvm-readelf -S -W "$RUNNER_TEMP"/tls-$target/*.o | grep -E '\.t(data|bss)'; then exit 1; fi
-          done
+          bash .github/scripts/sandbox-tls.sh "Android armv7a" "$cc_armv7a"
+          bash .github/scripts/sandbox-tls.sh "Android aarch64" "$cc_aarch64"
 
       - name: Build the native and sandboxed decoders
         env:
@@ -476,6 +470,9 @@ jobs:
         run: |
           nix build -L --impure --out-link "$RUNNER_TEMP/cc-ios" --expr "import ./.github/scripts/sandbox-cc.nix { rev = \"$SIMPLEX_CHAT_REV\"; target = \"ios\"; }"
           "$RUNNER_TEMP/cc-ios/bin/cc" --version
+
+      - name: Check the sandbox objects for thread-local storage
+        run: bash .github/scripts/sandbox-tls.sh "iOS" "$RUNNER_TEMP/cc-ios/bin/cc"
 
       - name: Clone libwebp test data
         run: |
