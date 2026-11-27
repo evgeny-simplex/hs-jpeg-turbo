@@ -1,7 +1,8 @@
 import math
 import sys
 
-title, native_path, sandbox_path = sys.argv[1:]
+title, native_path, sandbox_path, *labels = sys.argv[1:]
+native_label, sandbox_label = labels or ["native", "sandbox"]
 
 
 def read(path):
@@ -16,7 +17,7 @@ native, sandbox = read(native_path), read(sandbox_path)
 ratios = {}
 print(f"### {title}: decode time at full size, median of 9, ms")
 print()
-print("| Image | Pixels | Bytes | Native | Sandbox | Sandbox ÷ native | Linear memory MiB | Iterations |")
+print(f"| Image | Pixels | Bytes | {native_label.capitalize()} | {sandbox_label.capitalize()} | {sandbox_label.capitalize()} ÷ {native_label} | Linear memory MiB | Iterations |")
 print("|---|---|---|---|---|---|---|---|")
 for name, (w, h, size, median, _, _) in native.items():
     _, _, _, sandboxed, memory, iterations = sandbox[name]
@@ -26,5 +27,5 @@ for name, (w, h, size, median, _, _) in native.items():
 print()
 everything = [r for rs in ratios.values() for r in rs]
 means = [f"{kind} {math.exp(sum(map(math.log, rs)) / len(rs)):.2f}" for kind, rs in ratios.items()]
-print(f"Geometric mean of sandbox ÷ native: {', '.join(means)}; all {math.exp(sum(map(math.log, everything)) / len(everything)):.2f}")
+print(f"Geometric mean of {sandbox_label} ÷ {native_label}: {', '.join(means)}; all {math.exp(sum(map(math.log, everything)) / len(everything)):.2f}")
 print()
