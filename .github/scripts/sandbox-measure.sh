@@ -197,6 +197,21 @@ for config in "$@"; do
     echo '```'
     echo
   } | tee -a "$summary"
+
+  if [ "${RUNNER_OS:-}" != Windows ]; then
+    {
+      echo "### $platform, $name: concurrent decodes, each session open until all have decoded"
+      echo
+      echo '```'
+      for memory in 256 512; do
+        for threads in 4 8 16 32; do
+          SANDBOX_MEMORY_MB=$memory "$out/sandbox-$name.exe" concurrent $threads "$FIXTURES/workloads/photo-2560x1440.jpg"
+        done
+      done
+      echo '```'
+      echo
+    } | tee -a "$summary"
+  fi
 done
 
 if [ "${COUNT:-}" = 1 ]; then

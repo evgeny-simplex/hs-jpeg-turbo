@@ -87,7 +87,7 @@ static void output_size(uint32_t format, uint32_t width, uint32_t height, uint32
 }
 
 #ifdef SANDBOX
-static void decode(const uint8_t *data, size_t size, uint32_t max_side, Result *r)
+static sandbox *open_and_decode(const uint8_t *data, size_t size, uint32_t max_side, const sandbox_limits *session_limits, Result *r)
 {
   sandbox *session = NULL;
   sandbox_header header;
@@ -95,7 +95,7 @@ static void decode(const uint8_t *data, size_t size, uint32_t max_side, Result *
   uint32_t w, h;
 
   memset(r, 0, sizeof(*r));
-  r->status = sandbox_open(data, size, call_limits(sandbox_now_ns()), &session, &header);
+  r->status = sandbox_open(data, size, session_limits, &session, &header);
   if (r->status == 0) {
     r->format = header.format;
     r->image_width = header.width;
@@ -117,7 +117,12 @@ static void decode(const uint8_t *data, size_t size, uint32_t max_side, Result *
     r->iterations = sandbox_iterations(session);
     r->memory = sandbox_memory_bytes(session);
   }
-  sandbox_close(session);
+  return session;
+}
+
+static void decode(const uint8_t *data, size_t size, uint32_t max_side, Result *r)
+{
+  sandbox_close(open_and_decode(data, size, max_side, call_limits(sandbox_now_ns()), r));
 }
 #else
 const char *guest_message(const char *text)
@@ -330,6 +335,78 @@ static int limit(void)
   printf("memory limit of %llu bytes, above PTRDIFF_MAX\tstatus %d\n", (unsigned long long)large.memory_limit, status);
   return status != SANDBOX_INVALID_ARGUMENT;
 }
+
+#ifndef _WIN32
+typedef struct {
+  const uint8_t *data;
+  size_t size;
+  Result result;
+} Job;
+
+static pthread_mutex_t jobs_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t jobs_decoded = PTHREAD_COND_INITIALIZER;
+static int jobs_left;
+
+static void wait_for_jobs(int finished)
+{
+  pthread_mutex_lock(&jobs_lock);
+  jobs_left -= finished;
+  if (jobs_left == 0)
+    pthread_cond_broadcast(&jobs_decoded);
+  while (jobs_left > 0)
+    pthread_cond_wait(&jobs_decoded, &jobs_lock);
+  pthread_mutex_unlock(&jobs_lock);
+}
+
+static void *decode_job(void *argument)
+{
+  Job *job = argument;
+  sandbox *session = open_and_decode(job->data, job->size, 4320, &limits, &job->result);
+
+  wait_for_jobs(1);
+  free(job->result.pixels);
+  sandbox_close(session);
+  return NULL;
+}
+
+static int concurrent(int threads, const char *path)
+{
+  Job *jobs = calloc(threads, sizeof(*jobs));
+  pthread_t *ids = calloc(threads, sizeof(*ids));
+  pthread_attr_t attributes;
+  size_t size;
+  unsigned char *data = read_file(path, &size);
+  int i, started, decoded = 0, out_of_memory = 0;
+  const char *other = "";
+
+  if (threads < 1 || !jobs || !ids || pthread_attr_init(&attributes) || pthread_attr_setstacksize(&attributes, 1u << 20))
+    return 1;
+  jobs_left = threads;
+  for (started = 0; started < threads; started++) {
+    jobs[started].data = data;
+    jobs[started].size = size;
+    if (pthread_create(&ids[started], &attributes, decode_job, &jobs[started]))
+      break;
+  }
+  wait_for_jobs(threads - started);
+  for (i = 0; i < started; i++) {
+    pthread_join(ids[i], NULL);
+    if (jobs[i].result.status == 0)
+      decoded++;
+    else if (jobs[i].result.status == SANDBOX_OUT_OF_MEMORY)
+      out_of_memory++;
+    else
+      other = jobs[i].result.message;
+  }
+  printf("%s\t%d decodes at once, %llu MiB each, %u-bit pointers\t%d started\t%d decoded\t%d out of memory\t%d other %s\n", base_name(path), threads,
+         (unsigned long long)(limits.memory_limit >> 20), (unsigned)(sizeof(void *) * 8), started, decoded, out_of_memory, started - decoded - out_of_memory,
+         other);
+  free(data);
+  free(ids);
+  free(jobs);
+  return 0;
+}
+#endif
 #endif
 
 static int run(int argc, char **argv)
@@ -360,9 +437,13 @@ static int run(int argc, char **argv)
     return tree((uint32_t)atoi(argv[2]), argv[3]);
   if (argc == 2 && !strcmp(argv[1], "limit"))
     return limit();
+#ifndef _WIN32
+  if (argc == 4 && !strcmp(argv[1], "concurrent"))
+    return concurrent(atoi(argv[2]), argv[3]);
+#endif
 #endif
   fprintf(stderr, "usage: %s check DIR MAXSIDE FILE... | time REPEAT MAXSIDE FILE... | count MAXSIDE FILE... | count-changed MAXSIDE FILE... | spin REPEAT | "
-                  "stop REPEAT FILE | tree DEPTH MESSAGE | limit\n",
+                  "stop REPEAT FILE | tree DEPTH MESSAGE | limit | concurrent THREADS FILE\n",
           argv[0]);
   return 2;
 }
