@@ -696,7 +696,7 @@ static void read_placed_header(sandbox *session, void *argument)
 static void read_placed_output(sandbox *session, void *argument)
 {
   Placed *placed = argument;
-  sandbox_image image;
+  sandbox_image image = {0};
 
   place(session, placed);
   session->header.format = placed->format;
