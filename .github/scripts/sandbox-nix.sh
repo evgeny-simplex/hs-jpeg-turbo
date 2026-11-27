@@ -15,7 +15,9 @@ substituters = https://cache.nixos.org https://cache.zw3rk.com https://cache.iog
 trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= loony-tools:pr9m4BkM/5/eSTZlkQyRt57Jz7OMBxNSUiMC4FkcNfk= hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ=
 EOF
 if [ "$(uname)" = Darwin ]; then
-  sh "$tmp/install" --daemon --yes --nix-extra-conf-file "$tmp/nix.conf"
+  echo "Users with UIDs from 300 to 399:"
+  dscl . -list /Users UniqueID | awk '$2 >= 300 && $2 < 400'
+  NIX_FIRST_BUILD_UID=351 sh "$tmp/install" --daemon --yes --nix-extra-conf-file "$tmp/nix.conf"
   echo /nix/var/nix/profiles/default/bin >> "$GITHUB_PATH"
 else
   sudo mkdir -p /nix
