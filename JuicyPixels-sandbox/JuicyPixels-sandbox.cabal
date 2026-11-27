@@ -23,6 +23,7 @@ build-type:     Simple
 extra-source-files:
     CHANGELOG.md
     cbits/*.h
+    cbits/image-wasm.c
     cbits/wasm2c/*.h
     cbits/wasm2c/*.inc
     cbits/wasm2c/simde/*.h
