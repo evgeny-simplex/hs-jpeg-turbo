@@ -65,7 +65,7 @@ static const char *base_name(const char *path)
 
 static uint32_t layout_channels(uint32_t layout)
 {
-  return layout == 1 ? 1 : layout == 2 ? 3 : 4;
+  return layout == LAYOUT_Y8 ? 1 : layout == LAYOUT_RGB8 ? 3 : 4;
 }
 
 static void output_size(uint32_t format, uint32_t width, uint32_t height, uint32_t max_side, uint32_t *w, uint32_t *h)
@@ -79,7 +79,7 @@ static void output_size(uint32_t format, uint32_t width, uint32_t height, uint32
     *h = (*h + 1) / 2;
     halvings++;
   }
-  if (format == 1) {
+  if (format == FORMAT_JPEG) {
     d = 1u << (halvings < 3 ? halvings : 3);
     *w = (width + d - 1) / d;
     *h = (height + d - 1) / d;
@@ -140,15 +140,15 @@ static void decode(const uint8_t *data, size_t size, uint32_t max_side, Result *
   uint32_t w, h;
 
   memset(r, 0, sizeof(*r));
-  r->format = size >= 2 && data[0] == 0xFF && data[1] == 0xD8 ? 1 : size >= 8 && !memcmp(data, "\x89PNG", 4) ? 2 : 3;
-  error = r->format == 1 ? jpeg_header(data, size, &r->image_width, &r->image_height)
-          : r->format == 2 ? png_header(data, size, &r->image_width, &r->image_height)
-                           : webp_header(data, size, &r->image_width, &r->image_height);
+  r->format = size >= 2 && data[0] == 0xFF && data[1] == 0xD8 ? FORMAT_JPEG : size >= 8 && !memcmp(data, "\x89PNG", 4) ? FORMAT_PNG : FORMAT_WEBP;
+  error = r->format == FORMAT_JPEG ? jpeg_header(data, size, &r->image_width, &r->image_height)
+          : r->format == FORMAT_PNG ? png_header(data, size, &r->image_width, &r->image_height)
+                                    : webp_header(data, size, &r->image_width, &r->image_height);
   if (!error) {
     output_size(r->format, r->image_width, r->image_height, max_side, &w, &h);
-    error = r->format == 1 ? jpeg_decode(data, size, w, h, (uint32_t)(limits.memory_limit >> 20), &image)
-            : r->format == 2 ? png_decode(data, size, w, h, &image)
-                             : webp_decode(data, size, w, h, &image);
+    error = r->format == FORMAT_JPEG ? jpeg_decode(data, size, w, h, (uint32_t)(limits.memory_limit >> 20), &image)
+            : r->format == FORMAT_PNG ? png_decode(data, size, w, h, &image)
+                                      : webp_decode(data, size, w, h, &image);
     r->width = w;
     r->height = h;
   }
@@ -160,7 +160,7 @@ static void decode(const uint8_t *data, size_t size, uint32_t max_side, Result *
   }
   r->pixels = image.pixels;
   r->channels = layout_channels(image.layout);
-  if (r->format == 2)
+  if (r->format == FORMAT_PNG)
     free((void *)image.icc);
 }
 #endif
