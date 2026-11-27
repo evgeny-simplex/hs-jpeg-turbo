@@ -73,7 +73,13 @@ data Budget = Budget
   }
 
 defaultBudget :: Budget
-defaultBudget = Budget {base = 1048576, perByte = 16, perPixel = const 64}
+defaultBudget = Budget {base = 1048576, perByte = 16, perPixel = defaultPerPixel}
+
+defaultPerPixel :: ImageFormat -> Word64
+defaultPerPixel = \case
+  JPEG -> 256
+  PNG -> 64
+  WebP -> 64
 
 unlimitedBudget :: Budget
 unlimitedBudget = Budget {base = 0, perByte = 0, perPixel = const 0}

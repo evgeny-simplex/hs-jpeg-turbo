@@ -166,5 +166,6 @@ if [ "${COUNT:-}" = 1 ]; then
     "$out/sandbox-$name.exe" count-changed $side $(ls $jpeg/mozjpeg/testimages/*.jpg $spng/libspng/tests/images/*.png "$WEBP_TEST_DATA"/*.webp | head -400)
     SANDBOX_MEMORY_MB=1024 "$out/sandbox-$name.exe" count $side $calibration
   done > "$out/count.tsv"
-  $python -I .github/scripts/sandbox-budget.py "$out/count.tsv" | tee -a "$summary"
+  rates=$(sed -n 's/^  \(JPEG\|PNG\|WebP\) -> \([0-9][0-9]*\)$/\1=\2/p' $package/src/Codec/Picture/Sandbox.hsc)
+  $python -I .github/scripts/sandbox-budget.py "$out/count.tsv" $rates | tee -a "$summary"
 fi
