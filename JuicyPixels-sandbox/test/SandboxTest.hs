@@ -182,6 +182,9 @@ unit_neverEnding = do
   (recursion, t3) <- timed $ treeSandbox defaultLimits {timeoutMs = 0} 1000000 30
   recursion @?= Left "budget exceeded"
   assertBool ("recursion stop after " <> show t3) $ t3 < 1
+  (recursionDeadline, t4) <- timed $ treeSandbox defaultLimits {timeoutMs = 100} 0 30
+  recursionDeadline @?= Left "deadline exceeded"
+  assertBool ("recursion deadline stop after " <> show t4) $ t4 >= 0.1 && t4 < 1
 
 unit_concurrent :: IO ()
 unit_concurrent = do
