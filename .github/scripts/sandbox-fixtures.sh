@@ -50,11 +50,15 @@ for coding in huffman arithmetic; do
     "$cjpeg" -revert -quality 100 -sample 1x1 $flag -scans "$work/refine-3.txt" -outfile "$calibration/worst-jpeg-refine-444-$coding-$size.jpg" "$work/noise-$size.ppm"
   done
   "$jpegtran" -revert $flag -scans "$work/refine-4.txt" -outfile "$calibration/worst-jpeg-refine-cmyk-$coding-1024x1024.jpg" "$work/noise-cmyk-1024x1024.jpg"
+  "$cjpeg" -revert -quality 100 -sample 1x1 $flag -scans "$work/refine-3.txt" -outfile "$calibration/worst-jpeg-refine-444-flat-$coding-1024x1024.jpg" "$work/flat-1024x1024.ppm"
+  "$jpegtran" -revert $flag -scans "$work/refine-4.txt" -outfile "$calibration/worst-jpeg-refine-cmyk-flat-$coding-1024x1024.jpg" "$work/flat-cmyk-1024x1024.jpg"
   "$cjpeg" -revert -quality 100 $flag -scans "$work/scans-64-grey.txt" -outfile "$calibration/worst-jpeg-scans64-grey-$coding-1024x1024.jpg" "$work/noise-1024x1024.pgm"
 done
 "$cjpeg" -revert -quality 100 -restart 1B -outfile "$calibration/worst-jpeg-restart1-420-1024x1024.jpg" "$work/noise-1024x1024.ppm"
 "$bin/cwebp" -quiet -lossless -z 9 "$work/noise-rgba-1024x1024.png" -o "$calibration/worst-webp-lossless-1024x1024.webp"
 "$bin/cwebp" -quiet -q 100 -alpha_q 100 -exact "$work/noise-rgba-1024x1024.png" -o "$calibration/worst-webp-lossy-alpha-1024x1024.webp"
+"$bin/cwebp" -quiet -lossless -z 9 "$work/flat-rgba-1024x1024.png" -o "$calibration/worst-webp-lossless-flat-1024x1024.webp"
+"$bin/cwebp" -quiet -q 100 -alpha_q 100 -exact "$work/flat-rgba-1024x1024.png" -o "$calibration/worst-webp-lossy-alpha-flat-1024x1024.webp"
 for size in 1x16383 16383x1; do
   "$bin/cwebp" -quiet -lossless -z 9 "$work/noise-rgba-$size.png" -o "$calibration/worst-webp-lossless-$size.webp"
   "$bin/cwebp" -quiet -q 100 -alpha_q 100 -exact "$work/noise-rgba-$size.png" -o "$calibration/worst-webp-lossy-alpha-$size.webp"

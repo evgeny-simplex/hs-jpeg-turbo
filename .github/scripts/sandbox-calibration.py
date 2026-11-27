@@ -15,19 +15,20 @@ def chunk(kind, data):
     return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data))
 
 
-def paeth_rows(width, height, pixel_bits):
-    return [bytes([4]) + rng.randbytes((width * pixel_bits + 7) // 8) for _ in range(height)]
+def paeth_rows(width, height, pixel_bits, zero):
+    row_bytes = (width * pixel_bits + 7) // 8
+    return [bytes([4]) + (bytes(row_bytes) if zero else rng.randbytes(row_bytes)) for _ in range(height)]
 
 
-def write_png(name, width, height, depth, color_type, pixel_bits, interlaced=False, extra=(), idat_bytes=None):
+def write_png(name, width, height, depth, color_type, pixel_bits, interlaced=False, extra=(), idat_bytes=None, zero=False):
     if interlaced:
         rows = []
         for x0, y0, dx, dy in ADAM7:
             w, h = (width - x0 + dx - 1) // dx, (height - y0 + dy - 1) // dy
             if w > 0 and h > 0:
-                rows += paeth_rows(w, h, pixel_bits)
+                rows += paeth_rows(w, h, pixel_bits, zero)
     else:
-        rows = paeth_rows(width, height, pixel_bits)
+        rows = paeth_rows(width, height, pixel_bits, zero)
     data = zlib.compress(b"".join(rows), 6)
     step = idat_bytes or len(data)
     with open(os.path.join(calibration, name), "wb") as f:
@@ -40,11 +41,11 @@ def write_png(name, width, height, depth, color_type, pixel_bits, interlaced=Fal
         f.write(chunk(b"IEND", b""))
 
 
-def write_netpbm(name, width, height, channels):
+def write_netpbm(name, width, height, channels, flat=False):
     with open(os.path.join(work, name), "wb") as f:
         f.write(b"P6" if channels == 3 else b"P5")
         f.write(f"\n{width} {height}\n255\n".encode())
-        f.write(rng.randbytes(width * height * channels))
+        f.write(bytes([128]) * (width * height * channels) if flat else rng.randbytes(width * height * channels))
 
 
 def write_scans(name, components):
@@ -64,12 +65,19 @@ write_png("worst-png-rgba16-paeth-16384x1.png", 16384, 1, 16, 6, 64)
 write_png("worst-png-rgba8-idat1-256x256.png", 256, 256, 8, 6, 32, idat_bytes=1)
 write_png("worst-png-palette-trns-1024x1024.png", 1024, 1024, 8, 3, 8, extra=[(b"PLTE", rng.randbytes(768)), (b"tRNS", rng.randbytes(256))])
 write_png("worst-png-grey1-adam7-4096x4096.png", 4096, 4096, 1, 0, 1, interlaced=True)
+write_png("worst-png-grey1-adam7-zero-4096x4096.png", 4096, 4096, 1, 0, 1, interlaced=True, zero=True)
+write_png("worst-png-rgba16-adam7-zero-2048x2048.png", 2048, 2048, 16, 6, 64, interlaced=True, zero=True)
+write_png("worst-png-rgba16-paeth-zero-2048x2048.png", 2048, 2048, 16, 6, 64, zero=True)
+write_png("worst-png-palette-trns-zero-2048x2048.png", 2048, 2048, 8, 3, 8, extra=[(b"PLTE", rng.randbytes(768)), (b"tRNS", rng.randbytes(256))], zero=True)
 
 write_netpbm("noise-1024x1024.ppm", 1024, 1024, 3)
 write_netpbm("noise-8x16384.ppm", 8, 16384, 3)
 write_netpbm("noise-16384x8.ppm", 16384, 8, 3)
 write_netpbm("noise-1024x1024.pgm", 1024, 1024, 1)
+write_netpbm("flat-1024x1024.ppm", 1024, 1024, 3, flat=True)
 Image.frombytes("CMYK", (1024, 1024), rng.randbytes(1024 * 1024 * 4)).save(os.path.join(work, "noise-cmyk-1024x1024.jpg"), quality=100, subsampling=0)
+Image.frombytes("CMYK", (1024, 1024), bytes([128]) * (1024 * 1024 * 4)).save(os.path.join(work, "flat-cmyk-1024x1024.jpg"), quality=100, subsampling=0)
+Image.frombytes("RGBA", (1024, 1024), bytes([128]) * (1024 * 1024 * 4)).save(os.path.join(work, "flat-rgba-1024x1024.png"))
 write_scans("refine-3.txt", 3)
 write_scans("refine-4.txt", 4)
 with open(os.path.join(work, "scans-64-grey.txt"), "w") as f:
