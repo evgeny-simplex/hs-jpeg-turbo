@@ -15,7 +15,7 @@ import Data.Bits (shiftL, shiftR, xor)
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as B
 import Data.ByteString.Lazy qualified as BL
-import Data.Either (isLeft)
+import Data.Either (isLeft, isRight)
 import Data.List (isSuffixOf, sort)
 import Data.Vector.Storable qualified as V
 import Data.Word (Word8)
@@ -50,17 +50,19 @@ unit_jpeg = do
       , turbo "4:4:4, progressive" TJ2.TJPF_RGB TJ2.TJSAMP_444 TJ2.TJFLAG_PROGRESSIVE (imageData rgb)
       , turbo "grey, progressive" TJ2.TJPF_GRAY TJ2.TJSAMP_GRAY TJ2.TJFLAG_PROGRESSIVE (imageData grey)
       ]
-  inputs <- (<> generated <> encoded) <$> mapM (\file -> (file,) <$> B.readFile file) files
-  forM_ inputs \(file, jpeg) ->
-    JPEG.readJpegHeader jpeg >>= \case
-      Left e -> sandboxed (fullSize jpeg) jpeg >>= assertBool (file <> ": refused natively, " <> e) . isLeft
-      Right JPEG.JpegHeader {JPEG.jpegWidth, JPEG.jpegHeight} ->
-        forM_ [(JPEG.Full, 1), (JPEG.Half, 2), (JPEG.Quarter, 4), (JPEG.Eighth, 8)] \(scale, d) -> do
-          let size = (scaled d jpegWidth, scaled d jpegHeight)
-          native <- fmap samples <$> JPEG.decodeJpeg (JPEG.DecodeOptions scale maxImagePixels 1024) jpeg
-          sandbox <- fmap (samples . fst) <$> sandboxed (const $ Right size) jpeg
-          sameResult (file <> " at 1/" <> show d) native sandbox
+  testImages <- mapM (\file -> (file,) <$> B.readFile file) files
+  forM_ testImages compareScales
+  forM_ (generated <> encoded) \input@(name, _) -> compareScales input >>= assertBool (name <> ": refused natively") . all isRight
   where
+    compareScales (file, jpeg) =
+      JPEG.readJpegHeader jpeg >>= \case
+        Left e -> [Left e] <$ (sandboxed (fullSize jpeg) jpeg >>= assertBool (file <> ": refused natively, " <> e) . isLeft)
+        Right JPEG.JpegHeader {JPEG.jpegWidth, JPEG.jpegHeight} ->
+          forM [(JPEG.Full, 1), (JPEG.Half, 2), (JPEG.Quarter, 4), (JPEG.Eighth, 8)] \(scale, d) -> do
+            let size = (scaled d jpegWidth, scaled d jpegHeight)
+            native <- fmap samples <$> JPEG.decodeJpeg (JPEG.DecodeOptions scale maxImagePixels 1024) jpeg
+            sandbox <- fmap (samples . fst) <$> sandboxed (const $ Right size) jpeg
+            native <$ sameResult (file <> " at 1/" <> show d) native sandbox
     scaled d side = (side + d - 1) `div` d
 
 unit_jpegMetadata :: IO ()
