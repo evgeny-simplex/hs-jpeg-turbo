@@ -174,6 +174,7 @@ unit_traps :: IO ()
 unit_traps = do
   loadSandboxByte defaultLimits {memoryLimitMB = 16} 0 >>= (@?= Right 0)
   loadSandboxByte defaultLimits {memoryLimitMB = 16} maxBound >>= (@?= Left "sandbox trap 1")
+  treeSandbox defaultLimits {memoryLimitMB = 16} 0 200 >>= (@?= Left "sandbox trap 10")
 
 unit_moduleOutputChecks :: IO ()
 unit_moduleOutputChecks = do
