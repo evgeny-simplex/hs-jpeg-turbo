@@ -6,6 +6,7 @@
 - Each decode runs in a new instance: every memory access is bounds-checked; the linear memory is limited by memoryLimitMB; an iteration budget of 1 Mi, 16 per input byte and a rate per format per image and output pixel (JPEG 256, PNG and WebP 64) is checked at loop headers, function entries and bulk memory operations; the deadline of timeoutMs is read from the monotonic clock every checkInterval iterations.
 - The host copies the pixels out only when their size and layout equal the requested ones; a trap, the memory limit, the budget or the deadline returns an error.
 - Outputs of 2^30 pixels or more are refused with "image is too large".
+- Memory limits above PTRDIFF_MAX bytes, 2048 MiB or more on 32-bit targets, are refused with "invalid argument".
 - The C is compiled at -O3 for Android and Apple aarch64 and at -O2 elsewhere: with the clang of the Android aarch64 build, WebP decodes at 4.2 times the native time at -O2 and 1.9 at -O3.
 
 ## 0.1.0.0 - YYYY-MM-DD

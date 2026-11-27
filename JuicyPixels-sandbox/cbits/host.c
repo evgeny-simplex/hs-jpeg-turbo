@@ -458,7 +458,7 @@ static int start(const sandbox_limits *limits, size_t size, sandbox **result)
 
   *result = NULL;
   if (size > UINT32_MAX || max_pages < wasm2c_image_min_env_memory || max_pages > wasm2c_image_max_env_memory || limits->check_interval < 1 ||
-      limits->check_interval > SANDBOX_MAX_INTERVAL || limits->budget_per_byte > MAX_RATE)
+      limits->check_interval > SANDBOX_MAX_INTERVAL || limits->budget_per_byte > MAX_RATE || limits->memory_limit > PTRDIFF_MAX)
     return SANDBOX_INVALID_ARGUMENT;
   if (!init_key() || !(session = calloc(1, sizeof(*session))))
     return SANDBOX_OUT_OF_MEMORY;
