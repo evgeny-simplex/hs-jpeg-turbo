@@ -117,7 +117,7 @@ unit_webp = do
       sandbox <- sandboxed (size . headerSize) webp
       case (native, sandbox) of
         (Right (n, Webp.Metadata {Webp.iccProfile = icc, Webp.exif = payload}), Right (s, metadata)) -> do
-          assertBool (file <> ": samples differ by more than " <> show tolerance) $ closeTo tolerance (samples n) (samples s)
+          assertBool (file <> " at " <> show (dims n) <> ": " <> difference (samples n) (samples s) <> ", more than " <> show tolerance) $ closeTo tolerance (samples n) (samples s)
           assertEqual (file <> ": metadata") (Metadata icc payload) metadata
         (Left _, Left _) -> pure ()
         _ -> assertFailure $ file <> ": native " <> outcome native <> ", sandbox " <> outcome sandbox
@@ -139,15 +139,17 @@ unit_truncatedAndChanged = do
   jpeg <- B.readFile $ jpegDir </> "testorig.jpg"
   png <- B.readFile $ pngDir </> "basn6a08.png"
   webp <- B.readFile . (</> "test.webp") =<< getEnv "WEBP_TEST_DATA"
-  forM_ [jpeg, png, webp] \input -> do
+  forM_ [("JPEG", jpeg), ("PNG", png), ("WebP", webp)] \(name, input) -> do
     let n = B.length input
-    forM_ ([B.take (n * k `div` 32) input | k <- [0 .. 31]] <> [flipBit (n * k `div` 32) k input | k <- [0 .. 31]]) \changed -> do
-      sandbox <- sandboxed (fullSize changed) changed
-      native <- nativeDecode changed
+        truncated = [("truncated to " <> show (n * k `div` 32), B.take (n * k `div` 32) input) | k <- [0 .. 31]]
+        changed = [("bit " <> show (k `mod` 8) <> " flipped at " <> show (n * k `div` 32), flipBit (n * k `div` 32) k input) | k <- [0 .. 31]]
+    forM_ (truncated <> changed) \(change, input') -> do
+      sandbox <- sandboxed (fullSize input') input'
+      native <- nativeDecode input'
       case (native, sandbox) of
-        (Right n', Right (s, _)) -> assertBool "the same pixels" $ closeTo 0 n' (samples s)
+        (Right n', Right (s, _)) -> assertBool (name <> " " <> change <> ": " <> difference n' (samples s)) $ closeTo 0 n' (samples s)
         (_, Left _) -> pure ()
-        (Left e, Right _) -> assertFailure $ "decoded in the sandbox, refused natively: " <> e
+        (Left e, Right _) -> assertFailure $ name <> " " <> change <> ": decoded in the sandbox, refused natively: " <> e
 
 unit_limits :: IO ()
 unit_limits = do
@@ -257,6 +259,15 @@ outcome = either ("Left " <>) (const "Right")
 
 closeTo :: Int -> Samples -> Samples -> Bool
 closeTo tolerance (f, w, h, a) (f', w', h', b) = (f, w, h) == (f', w', h') && V.and (V.zipWith (\x y -> abs (fromIntegral x - fromIntegral y :: Int) <= tolerance) a b)
+
+difference :: Samples -> Samples -> String
+difference (f, w, h, a) (f', w', h', b)
+  | (f, w, h) /= (f', w', h') = "native " <> show (f, w, h) <> ", sandbox " <> show (f', w', h')
+  | otherwise = "samples differ by up to " <> show largest <> " in " <> show count <> " of " <> show (V.length a)
+  where
+    differences = V.filter (> 0) $ V.zipWith (\x y -> abs (fromIntegral x - fromIntegral y :: Int)) a b
+    largest = if V.null differences then 0 else V.maximum differences
+    count = V.length differences
 
 flipBit :: Int -> Int -> ByteString -> ByteString
 flipBit i k input = case B.splitAt i input of
