@@ -168,6 +168,7 @@ unit_limits = do
   sandboxedWith defaultLimits (\(w, h) -> Right (w + 1, h)) png >>= (@?= Left "invalid decode options") . void'
   jpeg <- B.readFile $ jpegDir </> "testorig.jpg"
   sandboxedWith defaultLimits (\(w, h) -> Right (w - 1, h)) jpeg >>= (@?= Left "invalid decode options") . void'
+  decodeImage (options defaultLimits Right) {maxPixels = maxBound} (jpegOfSize (37838, 37838) jpeg) >>= (@?= Left "image is too large") . void'
   sandboxedWith defaultLimits Right "GIF89a" >>= (@?= Left "unsupported image format") . void'
   ok <- decodeImageCounted defaultBudget (options defaultLimits Right) jpeg
   assertBool "iterations counted" $ iterations ok > 0
@@ -319,6 +320,14 @@ difference (f, w, h, a) (f', w', h', b)
 flipBit :: Int -> Int -> ByteString -> ByteString
 flipBit i k input = case B.splitAt i input of
   (before, after) -> before <> B.map (`xor` (1 `shiftL` (k `mod` 8))) (B.take 1 after) <> B.drop 1 after
+
+jpegOfSize :: (Int, Int) -> ByteString -> ByteString
+jpegOfSize (w, h) jpeg = go 2
+  where
+    go i
+      | B.index jpeg (i + 1) `elem` [0xC0, 0xC1, 0xC2] = B.take (i + 5) jpeg <> be16 h <> be16 w <> B.drop (i + 9) jpeg
+      | otherwise = go (i + 2 + 256 * fromIntegral (B.index jpeg (i + 2)) + fromIntegral (B.index jpeg (i + 3)))
+    be16 v = B.pack [fromIntegral (v `shiftR` 8), fromIntegral v]
 
 largePng :: IO ByteString
 largePng = either fail pure =<< Spng.encodePng (Spng.EncodeOptions 1 False Nothing) image
