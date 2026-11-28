@@ -8,6 +8,9 @@
 #ifndef _WIN32
 #include <pthread.h>
 #endif
+#ifdef __linux__
+#include <sys/resource.h>
+#endif
 
 typedef struct {
   uint8_t *pixels;
@@ -336,6 +339,56 @@ static int limit(void)
   return status != SANDBOX_INVALID_ARGUMENT;
 }
 
+#ifdef __linux__
+static uint64_t data_bytes(void)
+{
+  FILE *status = fopen("/proc/self/status", "r");
+  char line[256];
+  unsigned long long kib = 0;
+
+  while (status && fgets(line, sizeof(line), status))
+    if (sscanf(line, "VmData: %llu kB", &kib) == 1)
+      break;
+  if (status)
+    fclose(status);
+  return (uint64_t)kib << 10;
+}
+
+static int memory(const char *failure, const char *path)
+{
+  sandbox_limits session_limits = limits;
+  struct rlimit initial, limited;
+  size_t size;
+  unsigned char *data = read_file(path, &size);
+  Result full, r;
+  sandbox *session = open_and_decode(data, size, 16384, &limits, &full);
+  int expected = SANDBOX_OUT_OF_MEMORY, grown = 0, failed;
+
+  getrlimit(RLIMIT_DATA, &initial);
+  limited = initial;
+  if (!strcmp(failure, "limit")) {
+    session_limits.memory_limit = full.memory / 2;
+    expected = SANDBOX_MEMORY_LIMIT;
+  } else if (!strcmp(failure, "growth")) {
+    limited.rlim_cur = data_bytes() + full.memory / 2;
+  } else if (!strcmp(failure, "copy")) {
+    limited.rlim_cur = data_bytes() + full.memory + (uint64_t)full.width * full.height * full.channels / 2;
+    grown = 1;
+  }
+  setrlimit(RLIMIT_DATA, &limited);
+  sandbox_close(open_and_decode(data, size, 16384, &session_limits, &r));
+  setrlimit(RLIMIT_DATA, &initial);
+  failed = full.status != 0 || r.status != expected || (r.memory == full.memory) != grown;
+  printf("memory %s\t%s\tstatus %d %s\tlinear memory %llu of %llu bytes\n", failure, base_name(path), r.status, r.message, (unsigned long long)r.memory,
+         (unsigned long long)full.memory);
+  free(r.pixels);
+  free(full.pixels);
+  sandbox_close(session);
+  free(data);
+  return failed;
+}
+#endif
+
 #ifndef _WIN32
 typedef struct {
   const uint8_t *data;
@@ -437,13 +490,17 @@ static int run(int argc, char **argv)
     return tree((uint32_t)atoi(argv[2]), argv[3]);
   if (argc == 2 && !strcmp(argv[1], "limit"))
     return limit();
+#ifdef __linux__
+  if (argc == 4 && !strcmp(argv[1], "memory"))
+    return memory(argv[2], argv[3]);
+#endif
 #ifndef _WIN32
   if (argc == 4 && !strcmp(argv[1], "concurrent"))
     return concurrent(atoi(argv[2]), argv[3]);
 #endif
 #endif
   fprintf(stderr, "usage: %s check DIR MAXSIDE FILE... | time REPEAT MAXSIDE FILE... | count MAXSIDE FILE... | count-changed MAXSIDE FILE... | spin REPEAT | "
-                  "stop REPEAT FILE | tree DEPTH MESSAGE | limit | concurrent THREADS FILE\n",
+                  "stop REPEAT FILE | tree DEPTH MESSAGE | limit | memory limit|growth|copy FILE | concurrent THREADS FILE\n",
           argv[0]);
   return 2;
 }

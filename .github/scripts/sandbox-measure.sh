@@ -96,7 +96,7 @@ check() {
 }
 
 stops() {
-  local sandbox=$out/sandbox-$1.exe file interval
+  local sandbox=$out/sandbox-$1.exe file interval failure
   expect env SANDBOX_BUDGET_BASE=100000000 "$sandbox" spin 5
   for interval in 4096 65536; do
     expect env SANDBOX_DEADLINE_MS=20 SANDBOX_INTERVAL=$interval "$sandbox" spin 20
@@ -107,6 +107,11 @@ stops() {
   expect env SANDBOX_BUDGET_BASE=1000000 "$sandbox" tree 24 "budget exceeded"
   expect env SANDBOX_DEADLINE_MS=10000 "$sandbox" tree 200 "sandbox trap 10"
   expect "$sandbox" limit
+  if [ "$(uname)" = Linux ]; then
+    for failure in limit growth copy; do
+      expect "$sandbox" memory $failure "$FIXTURES/workloads/photo-2560x1440.jpg"
+    done
+  fi
 }
 
 if [ "${PREBUILT:-}" = 1 ]; then
@@ -152,7 +157,7 @@ for config in "$@"; do
     fi
     $python -I .github/scripts/sandbox-compare.py native "$out" "$name"
     echo
-    echo "### $platform, $name: loops and decodes stopped by the budget, the deadline and the call depth; memory limits above PTRDIFF_MAX refused"
+    echo "### $platform, $name: loops and decodes stopped by the budget, the deadline and the call depth; memory limits above PTRDIFF_MAX refused; on Linux, decodes stopped by the memory limit and by the data limit of the process"
     echo
     echo '```'
     stops "$name"
