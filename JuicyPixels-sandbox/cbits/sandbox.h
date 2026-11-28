@@ -17,9 +17,13 @@
 
 #define SANDBOX_MESSAGE_SIZE 256
 
-enum { FORMAT_JPEG = 1, FORMAT_PNG = 2, FORMAT_WEBP = 3 };
+enum { FORMAT_JPEG = 1, FORMAT_PNG = 2, FORMAT_WEBP = 3, FORMAT_GIF = 4 };
 
 enum { LAYOUT_Y8 = 1, LAYOUT_RGB8 = 2, LAYOUT_RGBA8 = 3, LAYOUT_CMYK8 = 4 };
+
+enum { PLAYBACK_STILL = 0, PLAYBACK_ANIMATION = 1 };
+
+enum { PIXELS_RGBA = 0, PIXELS_BGRA = 1 };
 
 typedef struct {
   uint64_t memory_limit;
@@ -33,6 +37,8 @@ typedef struct {
   uint32_t format;
   uint32_t width;
   uint32_t height;
+  uint32_t frames;
+  uint32_t loops;
 } sandbox_header;
 
 typedef struct {
@@ -46,6 +52,14 @@ typedef struct {
   uint32_t exif_size;
 } sandbox_image;
 
+typedef struct {
+  uint32_t alpha;
+  uint8_t *icc;
+  uint32_t icc_size;
+  uint8_t *exif;
+  uint32_t exif_size;
+} sandbox_frames;
+
 typedef struct sandbox sandbox;
 
 uint64_t sandbox_now_ns(void);
@@ -53,6 +67,14 @@ uint64_t sandbox_now_ns(void);
 int sandbox_open(const uint8_t *data, size_t size, const sandbox_limits *limits, sandbox **session, sandbox_header *header);
 
 int sandbox_decode(sandbox *session, uint32_t width, uint32_t height, uint64_t budget_per_pixel, sandbox_image *image);
+
+int sandbox_start(sandbox *session, uint32_t width, uint32_t height, uint32_t playback, uint64_t deadline_ns, uint64_t budget_per_pixel,
+                  sandbox_frames *frames);
+
+int sandbox_next(sandbox *session, uint64_t deadline_ns, uint64_t budget_per_pixel, uint32_t order, uint8_t *pixels, size_t row_bytes,
+                 uint32_t *duration);
+
+void sandbox_rewind(sandbox *session);
 
 void sandbox_close(sandbox *session);
 

@@ -10,3 +10,6 @@
 [submodule "JuicyPixels-libwebp/cbits/libwebp"]
 	path = JuicyPixels-libwebp/cbits/libwebp
 	url = https://github.com/webmproject/libwebp
+[submodule "JuicyPixels-sandbox/guest/wuffs"]
+	path = JuicyPixels-sandbox/guest/wuffs
+	url = https://github.com/google/wuffs-mirror-release-c

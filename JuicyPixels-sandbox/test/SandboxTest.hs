@@ -1,26 +1,34 @@
 module SandboxTest where
 
-import Codec.Picture (DynamicImage(..), Image(..), PixelCMYK8, PixelRGB8(..), PixelRGBA8(..), generateImage)
+import Codec.Picture (DynamicImage(..), Image(..), Palette, Pixel8, PixelCMYK8(..), PixelRGB8(..), PixelRGBA8(..), convertRGBA8, generateImage)
+import Codec.Picture.Gif (GifDisposalMethod(..), GifEncode(..), GifFrame(..), GifLooping(..), encodeComplexGifImage)
 import Codec.Picture.Jpg (encodeDirectJpegAtQualityWithMetadata)
 import Codec.Picture.Types (convertImage, extractLumaPlane)
 import Codec.Picture.JPEGTurbo qualified as JPEG
 import Codec.Picture.Sandbox
 import Codec.Picture.Spng qualified as Spng
 import Codec.Picture.Webp qualified as Webp
-import Control.Concurrent (forkIO)
-import Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
+import Control.Concurrent (forkIO, threadDelay)
+import Control.Concurrent.MVar (MVar, newEmptyMVar, newMVar, putMVar, takeMVar, withMVar)
 import Control.Exception (bracket)
 import Control.Monad (forM, forM_, replicateM, unless)
 import Data.Bits (shiftL, shiftR, xor)
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as B
 import Data.ByteString.Lazy qualified as BL
+import Data.ByteString.Unsafe qualified as BU
+import Data.Char (isSpace)
 import Data.Either (isLeft, isRight)
-import Data.List (isSuffixOf, sort)
+import Data.List (dropWhileEnd, foldl', isSuffixOf, sort, transpose, zip4)
+import Data.Maybe (catMaybes, fromMaybe)
 import Data.Vector.Storable qualified as V
-import Data.Word (Word8)
-import Foreign (castPtr, nullPtr, peek, with)
+import Data.Vector.Storable.Mutable qualified as VM
+import Data.Word (Word32, Word8)
+import Foreign (Ptr, castPtr, copyBytes, nullPtr, peek, with)
+import Foreign.C.String (CString, peekCAString)
+import Foreign.C.Types (CSize(..))
 import GHC.Clock (getMonotonicTimeNSec)
+import System.IO.Unsafe (unsafePerformIO)
 import System.Directory (listDirectory)
 import System.Environment (getEnv, lookupEnv)
 import System.FilePath ((</>))
@@ -172,10 +180,10 @@ unit_limits = do
   jpeg <- B.readFile $ jpegDir </> "testorig.jpg"
   sandboxedWith defaultLimits (\(w, h) -> Right (w - 1, h)) jpeg >>= (@?= Left "invalid decode options") . void'
   decodeImage (options defaultLimits Right) {maxPixels = maxBound} (jpegOfSize (37838, 37838) jpeg) >>= (@?= Left "image is too large") . void'
-  sandboxedWith defaultLimits Right "GIF89a" >>= (@?= Left "unsupported image format") . void'
+  sandboxedWith defaultLimits Right "BM" >>= (@?= Left "unsupported image format") . void'
   ok <- decodeImageCounted defaultBudget (options defaultLimits Right) jpeg
   assertBool "iterations counted" $ iterations ok > 0
-  (\(header, _, _) -> header) <$> decoded ok @?= Right (ImageHeader JPEG 227 149)
+  (\(header, _, _) -> header) <$> decoded ok @?= Right (ImageHeader JPEG 227 149 1 1)
   where
     void' = fmap (const ())
 
@@ -187,12 +195,14 @@ unit_traps = do
 
 unit_moduleOutputChecks :: IO ()
 unit_moduleOutputChecks = do
-  header [0, 1, 100, 200] "" >>= (@?= Right (ImageHeader JPEG 100 200))
-  header [at + 16, 1, 1, 1] "unsupported image format\0" >>= (@?= Left "unsupported image format")
-  forM_ [[0, 0, 1, 1], [0, 4, 1, 1], [0, 3, 0, 1], [0, 3, 65536, 1], [0, 3, 1, 0], [0, 3, 1, 65536], [maxBound, 1, 1, 1], [at + 16, 1, 1, 1]] \fields ->
-    header fields "\0" >>= (@?= Left "invalid sandbox output")
-  readSandboxHeader limits maxBound (words32 [0, 1, 1, 1]) >>= (@?= Left "invalid sandbox output")
-  forM_ [(1, 1), (1, 2), (1, 4), (2, 2), (2, 3), (3, 2), (3, 3)] \(format, layout) ->
+  header [0, 1, 100, 200, 1, 1] "" >>= (@?= Right (ImageHeader JPEG 100 200 1 1))
+  header [0, 4, 100, 200, 3, 0] "" >>= (@?= Right (ImageHeader GIF 100 200 3 0))
+  header [at + 24, 1, 1, 1, 1, 1] "unsupported image format\0" >>= (@?= Left "unsupported image format")
+  forM_
+    [[0, 0, 1, 1, 1, 1], [0, 5, 1, 1, 1, 1], [0, 3, 0, 1, 1, 1], [0, 3, 65536, 1, 1, 1], [0, 3, 1, 0, 1, 1], [0, 3, 1, 65536, 1, 1], [0, 4, 1, 1, 0, 1], [maxBound, 1, 1, 1, 1, 1], [at + 24, 1, 1, 1, 1, 1]]
+    \fields -> header fields "\0" >>= (@?= Left "invalid sandbox output")
+  readSandboxHeader limits maxBound (words32 [0, 1, 1, 1, 1, 1]) >>= (@?= Left "invalid sandbox output")
+  forM_ [(1, 1), (1, 2), (1, 4), (2, 2), (2, 3), (3, 2), (3, 3), (4, 3)] \(format, layout) ->
     output 0 format (2, 3) [0, 2, 3, layout, pixels, 0, 0, 0, 0] "" >>= (@?= Right ())
   output 16 3 (2, 3) [0, 2, 3, 2, pixels, pixels, 16, pixels, 16] "" >>= (@?= Right ())
   output 0 1 (2, 3) [at + 36, 2, 3, 2, pixels, 0, 0, 0, 0] "invalid decode options\0" >>= (@?= Left "invalid decode options")
@@ -202,6 +212,9 @@ unit_moduleOutputChecks = do
     , (0, 2, (2, 3), [0, 2, 3, 4, pixels, 0, 0, 0, 0])
     , (0, 3, (2, 3), [0, 2, 3, 1, pixels, 0, 0, 0, 0])
     , (0, 3, (2, 3), [0, 2, 3, 4, pixels, 0, 0, 0, 0])
+    , (0, 4, (2, 3), [0, 2, 3, 1, pixels, 0, 0, 0, 0])
+    , (0, 4, (2, 3), [0, 2, 3, 2, pixels, 0, 0, 0, 0])
+    , (0, 4, (2, 3), [0, 2, 3, 4, pixels, 0, 0, 0, 0])
     , (0, 1, (2, 3), [0, 2, 3, 0, pixels, 0, 0, 0, 0])
     , (0, 1, (2, 3), [0, 2, 3, 5, pixels, 0, 0, 0, 0])
     , (0, 2, (3, 3), [0, 2, 3, 2, pixels, 0, 0, 0, 0])
@@ -252,6 +265,166 @@ unit_concurrent = do
         else (== expected) <$> forM inputs \input -> fmap (samples . fst) <$> sandboxedWith defaultLimits Right input
     pure done
   forM_ results \done -> takeMVar done >>= assertBool "every trap and decode as expected" . and
+
+unit_stillFrames :: IO ()
+unit_stillFrames = do
+  jpeg <- B.readFile $ jpegDir </> "testorig.jpg"
+  pngs <- mapM (B.readFile . (pngDir </>)) ["basn6a08.png", "basn2c08.png", "basn0g08.png", "tbrn2c08.png"]
+  webps <- mapM (\file -> B.readFile . (</> file) =<< getEnv "WEBP_TEST_DATA") ["test.webp", "lossy_alpha1.webp", "lossless1.webp"]
+  animatedWebp <- head <$> webpAnimations
+  let cmyk = BL.toStrict $ encodeDirectJpegAtQualityWithMetadata 90 mempty (generateImage (\x y -> PixelCMYK8 (fromIntegral $ x * 7) (fromIntegral $ y * 11) 40 (fromIntegral $ x + y)) 37 23)
+      jpegSizes = [id, \(w, h) -> ((w + 1) `div` 2, (h + 1) `div` 2)]
+      sizes = [id, \(w, h) -> (max 1 $ w `div` 2, max 1 $ h `div` 2), \(w, h) -> (min 11 w, min 7 h)]
+      inputs = [(jpeg, jpegSizes), (cmyk, jpegSizes)] <> map (,sizes) (pngs <> webps <> [animatedWebp] <> generatedGifs)
+  forM_ inputs \(input, scales) -> forM_ scales \scale -> do
+    let decodeOptions = options defaultLimits (Right . scale)
+    (header, image, metadata) <- either assertFailure pure =<< decodeImage decodeOptions input
+    frames <- either assertFailure pure =<< openFrames decodeOptions (const Still) input
+    let size = scale $ headerSize header
+        name = show header <> " at " <> show size
+    assertEqual (name <> ": header") header (framesHeader frames)
+    assertEqual (name <> ": metadata") metadata (framesMetadata frames)
+    assertEqual (name <> ": alpha") (hasAlpha image) (framesAlpha frames)
+    rgba <- readFrame frames PremultipliedRGBA size
+    bgra <- readFrame frames PremultipliedBGRA size
+    closeFrames frames
+    assertEqual (name <> ": RGBA") (Right (premultiplied image, 0)) rgba
+    assertEqual (name <> ": BGRA") (Right (swapRedBlue $ premultiplied image, 0)) bgra
+  where
+    hasAlpha = \case
+      ImageRGBA8 _ -> True
+      _ -> False
+
+unit_frameRows :: IO ()
+unit_frameRows = do
+  png <- B.readFile $ pngDir </> "basn6a08.png"
+  let (w, h) = (32, 32)
+      stride = w * 4 + 12
+      still = openFrames (options defaultLimits Right) (const Still) png >>= either assertFailure pure
+  frames <- still
+  expected <- readFrame frames PremultipliedRGBA (w, h) >>= either assertFailure (pure . fst)
+  buffer <- VM.replicate (stride * h) 0xA5
+  VM.unsafeWith buffer (\p -> nextFrame frames PremultipliedRGBA p stride) >>= (@?= Right 0)
+  rows <- V.freeze buffer
+  forM_ [0 .. h - 1] \y -> do
+    V.slice (y * stride) (w * 4) rows @?= V.slice (y * w * 4) (w * 4) expected
+    V.slice (y * stride + w * 4) 12 rows @?= V.replicate 12 0xA5
+  closeFrames frames
+  withoutResult <$> readFrame frames PremultipliedRGBA (w, h) >>= (@?= Left "image is closed")
+  stopped <- still
+  VM.unsafeWith buffer (\p -> nextFrame stopped PremultipliedRGBA p (w * 4 - 1)) >>= (@?= Left "invalid argument")
+  withoutResult <$> readFrame stopped PremultipliedRGBA (w, h) >>= (@?= Left "invalid argument")
+  jpeg <- B.readFile $ jpegDir </> "testorig.jpg"
+  withoutResult <$> openFrames (options defaultLimits Right) (const Animation) jpeg >>= (@?= Left "invalid decode options")
+
+unit_webpAnimation :: IO ()
+unit_webpAnimation = do
+  animations <- webpAnimations
+  assertBool "WebP animations of the conformance files" $ length animations >= 20
+  forM_ (zip [1 :: Int ..] animations) \(n, webp) -> do
+    let name = "animation " <> show n
+    Webp.Animation {Webp.canvasWidth, Webp.canvasHeight, Webp.loopCount = loops, Webp.frames = native} <-
+      either (assertFailure . ((name <> ": refused natively, ") <>)) pure =<< Webp.decodeWebpAnimation 256 webp
+    full <- sandboxFrames id webp
+    assertEqual (name <> " at full size") (Right (ImageHeader WebP canvasWidth canvasHeight (length native) loops, native)) full
+    half <- sandboxFrames halve webp >>= either assertFailure (pure . snd)
+    forM_ (zip3 [1 :: Int ..] native half) \(k, (canvas, duration), (scaled, duration')) -> do
+      duration' @?= duration
+      let largest = V.maximum $ halfDifferences canvasWidth canvas scaled
+      assertBool (name <> ", frame " <> show k <> " at half size: samples differ from the averages of the native frame by up to " <> show largest) $ largest <= 2
+
+unit_gifConformance :: IO ()
+unit_gifConformance = do
+  dir <- getEnv "GIF_TEST_SUITE"
+  names <- filter (not . null) . lines <$> readFile (dir </> "TESTS")
+  assertBool "GIF test suite" $ length names >= 80
+  problems <- forM names \name -> do
+    conf <- parseConf <$> readFile (dir </> name <> ".conf")
+    gif <- B.readFile $ dir </> setting conf "config" "input"
+    expected <- forM (expectedFrames conf) \frame -> (,10 * maybe 0 read (lookupSetting conf frame "delay")) <$> expectedPixels dir conf frame
+    sandbox <- sandboxFrames id gif
+    pure (name, conformance conf expected sandbox)
+  let failing = [(name, issue) | (name, Just issue) <- problems]
+  assertEqual ("GIF conformance: " <> show failing) gifDeviations (map fst failing)
+  where
+    conformance conf expected = \case
+      Left e
+        | null expected -> Nothing
+        | otherwise -> Just $ "refused: " <> e
+      Right (ImageHeader {width, height, frameCount, loopCount}, frames)
+        | null expected -> Just $ "decoded " <> show frameCount <> " frames, expected none"
+        | (width, height) /= (read $ setting conf "config" "width", read $ setting conf "config" "height") -> Just $ "size " <> show (width, height)
+        | loopCount /= expectedLoops (length expected) (setting conf "config" "loop-count") -> Just $ "loop count " <> show loopCount
+        | frames /= expected -> Just $ "frames differ: " <> show [k | (k, a, b) <- zip3 [0 :: Int ..] frames expected, a /= b] <> " of " <> show (length frames, length expected)
+        | otherwise -> Nothing
+    expectedLoops frames loops
+      | frames <= 1 = 1
+      | loops == "infinite" = 0
+      | otherwise = read loops + 1
+
+unit_gifNative :: IO ()
+unit_gifNative = do
+  dir <- getEnv "GIF_TEST_SUITE"
+  suite <- mapM (B.readFile . (dir </>)) . sort . filter (".gif" `isSuffixOf`) =<< listDirectory dir
+  let tolerance = if nativeNeon then 3 else 0
+  forM_ (zip [1 :: Int ..] $ suite <> generatedGifs) \(n, gif) -> forM_ [(0, id), (tolerance, halve), (tolerance, \(w, h) -> (min 11 w, min 7 h))] \(close, scale) ->
+    sandboxFrames scale gif >>= \case
+      Left e -> nativeGifFrames (1, 1) 0 gif >>= assertBool ("GIF " <> show n <> ": refused in the sandbox, " <> e <> ", decoded natively") . isLeft
+      Right (header@ImageHeader {frameCount}, frames) -> do
+        native <- nativeGifFrames (scale $ headerSize header) frameCount gif
+        case native of
+          Left e -> assertFailure $ "GIF " <> show n <> ": refused natively, " <> e
+          Right nativeFrames -> forM_ (zip3 [1 :: Int ..] nativeFrames frames) \(k, (a, d), (b, d')) -> do
+            d' @?= d
+            assertBool ("GIF " <> show n <> ", frame " <> show k <> " at " <> show (scale $ headerSize header) <> ": differs from the native frame by more than " <> show close) $
+              V.and (V.zipWith (\x y -> abs (fromIntegral x - fromIntegral y :: Int) <= close) a b)
+
+unit_frameLimits :: IO ()
+unit_frameLimits = do
+  let dots = gifOf (1024, 1024) LoopingForever $ replicate 100 (gifFrame (0, 0) (1, 1) Nothing DisposalAny \_ _ -> 7) <> [gifFrame (0, 0) (1024, 1024) Nothing DisposalAny noise]
+  budgeted <- either assertFailure pure =<< openFramesWithBudget unlimitedBudget {base = 500000} (options defaultLimits {timeoutMs = 0} Right) (const Animation) dots
+  small <- replicateM 100 $ readFrame budgeted PremultipliedRGBA (1024, 1024)
+  assertBool "each 1x1 frame decoded within its own budget" $ all isRight small
+  replicateM 2 (withoutResult <$> readFrame budgeted PremultipliedRGBA (1024, 1024)) >>= (@?= replicate 2 (Left "budget exceeded"))
+  let slow = gifOf (2048, 2048) LoopingForever [gifFrame (0, 0) (1, 1) Nothing DisposalAny \_ _ -> 7, gifFrame (0, 0) (2048, 2048) Nothing DisposalAny noise]
+  deadlined <- either assertFailure pure =<< openFrames (options defaultLimits {timeoutMs = 50} Right) (const Animation) slow
+  (first, t1) <- timedFrame deadlined (2048, 2048)
+  assertBool ("the 1x1 frame decoded within its own deadline, " <> show t1 <> " s") $ isRight first
+  (second, t2) <- timedFrame deadlined (2048, 2048)
+  second @?= Left "deadline exceeded"
+  assertBool ("deadline stop after " <> show t2) $ t2 >= 0.05 && t2 < 1
+  let animation = gifOf (64, 48) LoopingForever [gifFrame (0, 0) (64, 48) Nothing DisposalAny \x y -> fromIntegral (x + y + k) | k <- [0 .. 9]]
+  long <- either assertFailure pure =<< openFrames (options defaultLimits {timeoutMs = 50} Right) (const Animation) animation
+  (read', t3) <- timed $ replicateM 10 (readFrame long PremultipliedRGBA (64, 48) <* threadDelay 20000)
+  assertBool ("an animation read in " <> show t3 <> " s, longer than one deadline") $ t3 > 0.05
+  assertBool "every frame decoded" $ all isRight read'
+  where
+    timedFrame frames size = timed $ withoutResult <$> readFrame frames PremultipliedRGBA size
+    noise x y = fromIntegral ((x * 1103515245 + y * 12345 + x * y * 2654435761) `shiftR` 11)
+
+unit_frameSessions :: IO ()
+unit_frameSessions = do
+  animated <- (: generatedGifs) . head <$> webpAnimations
+  expected <- mapM (sandboxFrames id) animated
+  frames <- forM animated \input -> either assertFailure pure =<< openFrames (options defaultLimits Right) (const Animation) input
+  interleaved <- forM [0 .. 2 * maximum (map (frameCount . framesHeader) frames) - 1] \_ -> forM frames \f -> readFrame f PremultipliedRGBA (headerSize $ framesHeader f)
+  forM_ (zip3 [1 :: Int ..] expected (transpose interleaved)) \(n, decoded, frames') ->
+    case decoded of
+      Right (_, single) -> assertEqual ("animation " <> show n <> " read with the others, twice") (map Right $ take (length frames') $ cycle single) frames'
+      Left e -> assertFailure e
+  forM_ frames \f -> do
+    rewindFrames f
+    first <- readFrame f PremultipliedRGBA (headerSize $ framesHeader f)
+    _ <- readFrame f PremultipliedRGBA (headerSize $ framesHeader f)
+    rewindFrames f
+    again <- readFrame f PremultipliedRGBA (headerSize $ framesHeader f)
+    again @?= first
+    closeFrames f
+  results <- replicateM 8 do
+    done <- newEmptyMVar
+    _ <- forkIO $ putMVar done . (== expected) =<< mapM (sandboxFrames id) animated
+    pure done
+  forM_ results \done -> takeMVar done >>= assertBool "every animation read on 8 threads as alone"
 
 jpegDir, pngDir :: FilePath
 jpegDir = "../jpeg-turbo/cbits/mozjpeg/testimages"
@@ -382,3 +555,159 @@ timed action = do
   result <- action
   end <- getMonotonicTimeNSec
   pure (result, fromIntegral (end - start) / 1e9)
+
+withoutResult :: Either String a -> Either String ()
+withoutResult = fmap (const ())
+
+readFrame :: Frames -> PixelFormat -> (Int, Int) -> IO (Either String (V.Vector Word8, Int))
+readFrame frames pixelFormat (w, h) = do
+  buffer <- VM.new (w * h * 4)
+  duration <- VM.unsafeWith buffer \p -> nextFrame frames pixelFormat p (w * 4)
+  pixels <- V.freeze buffer
+  pure $ (pixels,) <$> duration
+
+sandboxFrames :: ((Int, Int) -> (Int, Int)) -> ByteString -> IO (Either String (ImageHeader, [(V.Vector Word8, Int)]))
+sandboxFrames scale input =
+  openFrames (options defaultLimits (Right . scale)) (const Animation) input >>= \case
+    Left e -> pure $ Left e
+    Right frames -> do
+      let header@ImageHeader {frameCount} = framesHeader frames
+      decoded <- replicateM frameCount $ readFrame frames PremultipliedRGBA (scale $ headerSize header)
+      closeFrames frames
+      pure $ (header,) <$> sequence decoded
+
+nativeGifFrames :: (Int, Int) -> Int -> ByteString -> IO (Either String [(V.Vector Word8, Int)])
+nativeGifFrames (w, h) count gif = withMVar nativeLock \_ -> BU.unsafeUseAsCStringLen gif \(buf, len) -> do
+  failure <- nativeGifStart (castPtr buf) (fromIntegral len) (fromIntegral w) (fromIntegral h)
+  if failure /= nullPtr then Left <$> peekCAString failure else sequence <$> replicateM count frame
+  where
+    frame = with nullPtr \pixels -> with 0 \duration -> do
+      failure <- nativeFramesNext 0 pixels duration
+      if failure /= nullPtr
+        then Left <$> peekCAString failure
+        else do
+          source <- peek pixels
+          copied <- VM.new (w * h * 4)
+          VM.unsafeWith copied \destination -> copyBytes destination source (w * h * 4)
+          canvas <- V.freeze copied
+          Right . (canvas,) . fromIntegral <$> peek duration
+
+nativeLock :: MVar ()
+nativeLock = unsafePerformIO $ newMVar ()
+{-# NOINLINE nativeLock #-}
+
+premultiplied :: DynamicImage -> V.Vector Word8
+premultiplied = premultipliedSamples . imageData . convertRGBA8
+
+premultipliedSamples :: V.Vector Word8 -> V.Vector Word8
+premultipliedSamples rgba = V.imap channel rgba
+  where
+    channel i c
+      | i `mod` 4 == 3 = c
+      | otherwise = fromIntegral ((fromIntegral c * fromIntegral (rgba V.! (i - i `mod` 4 + 3)) + 127) `div` (255 :: Int))
+
+swapRedBlue :: V.Vector Word8 -> V.Vector Word8
+swapRedBlue rgba = V.imap (\i _ -> rgba V.! (i - i `mod` 4 + [2, 1, 0, 3] !! (i `mod` 4))) rgba
+
+halve :: (Int, Int) -> (Int, Int)
+halve (w, h) = (max 1 $ w `div` 2, max 1 $ h `div` 2)
+
+halfDifferences :: Int -> V.Vector Word8 -> V.Vector Word8 -> V.Vector Double
+halfDifferences w canvas = V.imap deviation
+  where
+    half = w `div` 2
+    deviation i s = abs (sum [sample (2 * x + dx) (2 * y + dy) | dx <- [0, 1], dy <- [0, 1]] / 4 - fromIntegral s)
+      where
+        (pixel, c) = i `divMod` 4
+        (y, x) = pixel `divMod` half
+        sample x' y' = fromIntegral (canvas V.! ((y' * w + x') * 4 + c))
+
+webpAnimations :: IO [ByteString]
+webpAnimations = do
+  stills <- fmap catMaybes . mapM still =<< webpFiles
+  pure $ map animation $ chunksOf 4 stills
+  where
+    still file = do
+      webp <- B.readFile file
+      either (const Nothing) (\(image, _) -> Just (dims image, imageChunks webp)) <$> Webp.decodeWebp (Webp.DecodeOptions 128 Right) webp
+    animation group =
+      let placed = zip4 [(0, 0), (2, 0), (0, 2), (4, 4)] [0, 1, 2, 3] [100, 0, 10, 1000] group
+          extent (x, y) (w, h) = (x + w, y + h)
+          sides = [extent offset size | (offset, _, _, (size, _)) <- placed]
+          canvas = (evenSide $ maximum $ map fst sides, evenSide $ maximum $ map snd sides)
+       in webpAnimation canvas [(offset, size, flags, duration, payload) | (offset, flags, duration, (size, payload)) <- placed]
+    evenSide n = n + n `mod` 2
+    chunksOf n = takeWhile (not . null) . map (take n) . iterate (drop n)
+
+webpAnimation :: (Int, Int) -> [((Int, Int), (Int, Int), Word8, Int, ByteString)] -> ByteString
+webpAnimation size frames = riff $ [vp8x 0x12 size, chunk "ANIM" (le 4 0 <> le 2 3)] <> map anmf frames
+  where
+    anmf ((x, y), (w, h), flags, duration, payload) = chunk "ANMF" $ le 3 (x `div` 2) <> le 3 (y `div` 2) <> le 3 (w - 1) <> le 3 (h - 1) <> le 3 duration <> B.singleton flags <> payload
+
+imageChunks :: ByteString -> ByteString
+imageChunks = chunks . B.drop 12
+  where
+    chunks s
+      | B.length s < 8 = B.empty
+      | otherwise = (if B.take 4 s `elem` ["ALPH", "VP8 ", "VP8L"] then B.take total s else B.empty) <> chunks (B.drop total s)
+      where
+        size = B.foldr' (\b n -> n * 256 + fromIntegral b) 0 (B.take 4 $ B.drop 4 s)
+        total = 8 + size + size `mod` 2
+
+gifOf :: (Int, Int) -> GifLooping -> [GifFrame] -> ByteString
+gifOf (w, h) looping frames =
+  either error BL.toStrict $ encodeComplexGifImage GifEncode {geWidth = w, geHeight = h, gePalette = Just gifPalette, geBackground = Nothing, geLooping = looping, geFrames = frames}
+
+gifPalette :: Palette
+gifPalette = generateImage (\i _ -> PixelRGB8 (fromIntegral i) (fromIntegral $ i * 7) (fromIntegral $ i * 13)) 256 1
+
+gifFrame :: (Int, Int) -> (Int, Int) -> Maybe Int -> GifDisposalMethod -> (Int -> Int -> Pixel8) -> GifFrame
+gifFrame (x, y) (w, h) transparent disposal pixel =
+  GifFrame {gfXOffset = x, gfYOffset = y, gfPalette = Nothing, gfTransparent = transparent, gfDelay = 4, gfDisposal = disposal, gfPixels = generateImage pixel w h}
+
+generatedGifs :: [ByteString]
+generatedGifs =
+  [ gifOf
+      (64, 48)
+      LoopingForever
+      [ gifFrame (0, 0) (64, 48) Nothing DisposalDoNot \x y -> fromIntegral (x * 3 + y * 5)
+      , gifFrame (8, 4) (20, 10) (Just 9) DisposalRestoreBackground \x y -> fromIntegral (x * y `mod` 17)
+      , gifFrame (30, 20) (30, 20) (Just 0) DisposalRestorePrevious \x y -> fromIntegral ((x + y) `mod` 5)
+      , gifFrame (1, 1) (10, 10) Nothing DisposalAny \x y -> fromIntegral (x `xor` y)
+      ]
+  , gifOf (301, 199) (LoopingRepeat 2) [gifFrame (0, 0) (301, 199) (Just 255) DisposalRestoreBackground \x y -> fromIntegral (x * 31 + y * 17 + k) | k <- [0, 64, 128]]
+  ]
+
+type Conf = [(String, [(String, String)])]
+
+parseConf :: String -> Conf
+parseConf = reverse . map (fmap reverse) . foldl' entry [] . lines
+  where
+    entry sections line = case trim line of
+      '[' : name -> (takeWhile (/= ']') name, []) : sections
+      setting'
+        | (key, '=' : value) <- break (== '=') setting', (name, settings) : others <- sections -> (name, (trim key, trim value) : settings) : others
+      _ -> sections
+    trim = dropWhileEnd isSpace . dropWhile isSpace
+
+lookupSetting :: Conf -> String -> String -> Maybe String
+lookupSetting conf section key = lookup section conf >>= lookup key
+
+setting :: Conf -> String -> String -> String
+setting conf section = fromMaybe "" . lookupSetting conf section
+
+expectedFrames :: Conf -> [String]
+expectedFrames conf = words [if c == ',' then ' ' else c | c <- setting conf "config" "frames"]
+
+expectedPixels :: FilePath -> Conf -> String -> IO (V.Vector Word8)
+expectedPixels dir conf frame = case (lookupSetting conf frame "pixels", lookupSetting conf frame "image") of
+  (Just raw, _) -> premultipliedSamples . V.fromList . B.unpack <$> B.readFile (dir </> raw)
+  (_, Just png) -> B.readFile (dir </> png) >>= Spng.decodePng (Spng.DecodeOptions maxImagePixels 128 Right) >>= either assertFailure (pure . premultiplied . fst)
+  _ -> assertFailure $ frame <> ": no expected pixels"
+
+gifDeviations :: [String]
+gifDeviations = []
+
+foreign import ccall safe "native_gif_frames" nativeGifStart :: Ptr Word8 -> CSize -> Word32 -> Word32 -> IO CString
+
+foreign import ccall safe "frames_next" nativeFramesNext :: Word32 -> Ptr (Ptr Word8) -> Ptr Word32 -> IO CString

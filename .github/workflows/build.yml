@@ -120,6 +120,12 @@ jobs:
           dist-newstyle/webp-encode.exe "$RUNNER_TEMP/libwebp-test-data"
           echo "WEBP_TEST_DATA=$RUNNER_TEMP/libwebp-test-data" >> "$GITHUB_ENV"
 
+      - name: Clone the GIF test suite of pygif
+        run: |
+          git clone --quiet https://github.com/robert-ancell/pygif "$RUNNER_TEMP/pygif"
+          git -C "$RUNNER_TEMP/pygif" checkout --quiet 741b282047e0dde112e5ac2df0c7f8f923cb5df6
+          echo "GIF_TEST_SUITE=$RUNNER_TEMP/pygif/test-suite" >> "$GITHUB_ENV"
+
       - run: cabal test --enable-tests --test-show-details=direct all
 
       - name: Test the sandbox against the C code of the native JPEG decoder

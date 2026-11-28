@@ -2,8 +2,8 @@ cabal-version: 3.0
 
 name:           JuicyPixels-sandbox
 version:        0.1.0.0
-synopsis:       JPEG, PNG and WebP decoding in a WebAssembly sandbox
-description:    JPEG, PNG and WebP decoding of JuicyPixels images by libjpeg-turbo, libspng and libwebp compiled to WebAssembly and translated to C by wasm2c, with bounds checks, a memory limit, an iteration budget and a deadline for each decode.
+synopsis:       JPEG, PNG, WebP and GIF decoding in a WebAssembly sandbox
+description:    JPEG, PNG, WebP and GIF decoding of JuicyPixels images and of animation frames by libjpeg-turbo, libspng, libwebp and Wuffs compiled to WebAssembly and translated to C by wasm2c, with bounds checks, a memory limit, an iteration budget and a deadline for each decode and each frame.
 category:       Codec, Image
 author:         simplex.chat
 maintainer:     chat@simplex.chat
@@ -19,6 +19,7 @@ license-files:
     cbits/licenses/miniz/LICENSE
     cbits/licenses/libwebp/COPYING
     cbits/licenses/libwebp/PATENTS
+    cbits/licenses/wuffs/LICENSE
 build-type:     Simple
 extra-source-files:
     CHANGELOG.md
@@ -89,6 +90,15 @@ test-suite JuicyPixels-sandbox-test
   hs-source-dirs:
       test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  cc-options: -DNDEBUG
+  include-dirs:
+      guest
+      ../JuicyPixels-libwebp/cbits/libwebp
+  c-sources:
+      guest/frames.c
+      guest/gif.c
+      guest/webp.c
+      test/native.c
   build-tool-depends:
       tasty-discover:tasty-discover
   build-depends:

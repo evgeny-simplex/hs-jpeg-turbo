@@ -60,7 +60,7 @@ build() {
     jpeg_sources=$(jpeg_native $arch | sed "s|^|$root/|")
     neon_sources=$(jpeg_neon | sed "s|^|$root/|")
     webp_sources=$(cabal_sources JuicyPixels-libwebp/JuicyPixels-libwebp.cabal 'libwebp/src/.*\.c' | sed "s|^|$root/|")
-    mkdir -p "$out/obj-jpeg" "$out/obj-png" "$out/obj-webp"
+    mkdir -p "$out/obj-jpeg" "$out/obj-png" "$out/obj-webp" "$out/obj-gif"
     (cd "$out/obj-jpeg" && $command -DBMP_SUPPORTED -DPPM_SUPPORTED $([ $arch = x86_64 ] || echo -DNEON_INTRINSICS) -iquote "$root/$package/guest" \
       -I "$root/$jpeg" -I "$root/$jpeg/mozjpeg" -c $jpeg_sources "$root/$package/guest/jpeg.c") &
     if [ $arch = arm ]; then
@@ -70,7 +70,9 @@ build() {
     (cd "$out/obj-png" && $command -DSPNG_STATIC -DSPNG_USE_MINIZ -DMINIZ_NO_STDIO -DMINIZ_NO_TIME -DMINIZ_NO_ARCHIVE_APIS -iquote "$root/$package/guest" \
       -I "$root/$spng" -I "$root/$spng/libspng/spng" -I "$root/$spng/miniz" -c "$root/$spng/libspng/spng/spng.c" "$root/$spng/miniz/miniz.c" \
       "$root/$spng/miniz/miniz_tdef.c" "$root/$spng/miniz/miniz_tinfl.c" "$root/$spng/decode.c" "$root/$package/guest/png.c") &
-    (cd "$out/obj-webp" && $command -DWEBP_USE_THREAD -DNDEBUG -iquote "$root/$package/guest" -I "$root/$webp" -c $webp_sources "$root/$package/guest/webp.c") &
+    (cd "$out/obj-webp" && $command -DWEBP_USE_THREAD -DNDEBUG -iquote "$root/$package/guest" -I "$root/$webp" -c $webp_sources "$root/$package/guest/webp.c" \
+      "$root/$package/guest/frames.c") &
+    (cd "$out/obj-gif" && $command -iquote "$root/$package/guest" -c "$root/$package/guest/gif.c") &
     wait
     $command -iquote $package/guest -I $package/cbits "$out"/obj-*/*.o $package/cbits/clock.c .github/scripts/sandbox-bench.c $libs -o "$out/$name.exe"
     rm -rf "$out"/obj-*

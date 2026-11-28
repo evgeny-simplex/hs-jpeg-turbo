@@ -17,7 +17,7 @@ jpeg_flags="-DBMP_SUPPORTED -DPPM_SUPPORTED -DNO_GETENV -DNO_PUTENV -I $jpeg -I 
 
 webp_sources() {
   sed -n 's|^ *cbits/libwebp/\(src/.*\.c\)$|\1|p' JuicyPixels-libwebp/JuicyPixels-libwebp.cabal | grep -v '^src/dsp/cpu\.c$' | sed "s|^|$webp/|"
-  echo $package/guest/cpu.c $package/guest/webp.c
+  echo $package/guest/cpu.c $package/guest/webp.c $package/guest/frames.c
 }
 
 spng_sources() {
@@ -48,7 +48,7 @@ mkdir -p "$work" "$gen/wasm2c/simde/wasm"
   compile "$webp_flags" $(webp_sources)
   compile "$spng_flags" $(spng_sources)
   compile "$jpeg_flags" $(jpeg_sources)
-  compile "" $package/guest/guest.c
+  compile "" $package/guest/gif.c $package/guest/guest.c
 } > "$work/objects.txt"
 echo "$(wc -l < "$work/objects.txt") objects"
 $cc $(cat "$work/objects.txt") $link -o "$work/image.wasm"
@@ -84,11 +84,12 @@ cp "$WABT_SRC"/third_party/simde/simde/*.h "$gen/wasm2c/simde/"
 cp "$WABT_SRC"/third_party/simde/simde/wasm/simd128.h "$gen/wasm2c/simde/wasm/"
 cp "$WABT_SRC"/third_party/simde/COPYING "$gen/wasm2c/simde/COPYING"
 cp "$WABT_SRC"/LICENSE "$gen/wasm2c/LICENSE"
-mkdir -p "$gen/licenses/mozjpeg" "$gen/licenses/libspng" "$gen/licenses/miniz" "$gen/licenses/libwebp"
+mkdir -p "$gen/licenses/mozjpeg" "$gen/licenses/libspng" "$gen/licenses/miniz" "$gen/licenses/libwebp" "$gen/licenses/wuffs"
 cp $jpeg/mozjpeg/LICENSE.md $jpeg/mozjpeg/README.ijg "$gen/licenses/mozjpeg/"
 cp $spng/libspng/LICENSE "$gen/licenses/libspng/"
 cp $spng/miniz/LICENSE "$gen/licenses/miniz/"
 cp $webp/COPYING $webp/PATENTS "$gen/licenses/libwebp/"
+cp $package/guest/wuffs/LICENSE "$gen/licenses/wuffs/"
 {
   echo "| File | Bytes |"
   echo "|---|---|"

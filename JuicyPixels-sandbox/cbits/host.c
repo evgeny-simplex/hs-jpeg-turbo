@@ -10,8 +10,10 @@
 #include <sys/mman.h>
 #endif
 
-#define HEADER_SIZE 16
+#define HEADER_SIZE 24
 #define OUTPUT_SIZE 36
+#define START_SIZE 24
+#define FRAME_SIZE 20
 #define MAX_RATE (1ull << 32)
 #define MAX_METADATA (64u << 20)
 #define MAX_SIDE 65535
@@ -48,7 +50,13 @@ struct sandbox {
   uint32_t input;
   uint32_t size;
   uint32_t memory_mb;
+  uint64_t budget_base;
+  uint64_t budget_per_byte;
   sandbox_header header;
+  uint32_t frame_width;
+  uint32_t frame_height;
+  uint32_t restart;
+  int frames_failure;
   char message[SANDBOX_MESSAGE_SIZE];
 };
 
@@ -475,6 +483,8 @@ static int start(const sandbox_limits *limits, size_t size, sandbox **result)
   if (!init_key() || !(session = calloc(1, sizeof(*session))))
     return SANDBOX_OUT_OF_MEMORY;
   *result = session;
+  session->budget_base = limits->budget_base;
+  session->budget_per_byte = limits->budget_per_byte;
   session->env.limited = limits->budget_base || limits->budget_per_byte;
   session->env.remaining = add_product(limits->budget_base, limits->budget_per_byte, size);
   session->env.deadline_ns = limits->deadline_ns;
@@ -518,8 +528,10 @@ static int read_header(sandbox *session, uint32_t address, sandbox_header *heade
   header->format = read_u32(session, address + 4);
   header->width = read_u32(session, address + 8);
   header->height = read_u32(session, address + 12);
-  if (header->format < FORMAT_JPEG || header->format > FORMAT_WEBP || header->width < 1 || header->width > MAX_SIDE || header->height < 1 ||
-      header->height > MAX_SIDE)
+  header->frames = read_u32(session, address + 16);
+  header->loops = read_u32(session, address + 20);
+  if (header->format < FORMAT_JPEG || header->format > FORMAT_GIF || header->width < 1 || header->width > MAX_SIDE || header->height < 1 ||
+      header->height > MAX_SIDE || header->frames < 1)
     return failure(session, SANDBOX_INVALID_OUTPUT);
   session->header = *header;
   return 0;
@@ -557,7 +569,7 @@ static uint32_t layout_channels(uint32_t format, uint32_t layout)
   case LAYOUT_Y8:
     return format == FORMAT_JPEG ? 1 : 0;
   case LAYOUT_RGB8:
-    return 3;
+    return format == FORMAT_GIF ? 0 : 3;
   case LAYOUT_RGBA8:
     return format == FORMAT_JPEG ? 0 : 4;
   case LAYOUT_CMYK8:
@@ -627,6 +639,151 @@ int sandbox_decode(sandbox *session, uint32_t width, uint32_t height, uint64_t b
   if ((status = guarded(session, decode, &call)) != 0)
     return status;
   return read_output(session, call.output, width, height, image);
+}
+
+static void limit_call(sandbox *session, uint64_t deadline_ns, uint64_t budget_per_pixel, uint32_t width, uint32_t height)
+{
+  const uint64_t pixels = (uint64_t)session->header.width * session->header.height + (uint64_t)width * height;
+
+  reclaim_grant(&session->env);
+  session->env.deadline_ns = deadline_ns;
+  session->env.remaining = add_product(add_product(session->budget_base, session->budget_per_byte, session->size), budget_per_pixel, pixels);
+}
+
+static int stop_frames(sandbox *session, int status)
+{
+  session->frames_failure = status;
+  return status;
+}
+
+typedef struct {
+  uint32_t width, height, playback, record;
+} Start;
+
+static void start_frames(sandbox *session, void *argument)
+{
+  Start *call = argument;
+
+  call->record = w2c_image_start(&session->instance, session->input, session->size, call->width, call->height, session->memory_mb, call->playback);
+}
+
+static int read_start(sandbox *session, uint32_t address, sandbox_frames *frames)
+{
+  uint32_t message, alpha;
+  int status;
+
+  if (!in_memory(session, address, START_SIZE))
+    return failure(session, SANDBOX_INVALID_OUTPUT);
+  message = read_u32(session, address);
+  if (message != 0)
+    return decoder_failure(session, message);
+  alpha = read_u32(session, address + 4);
+  if (alpha > 1)
+    return failure(session, SANDBOX_INVALID_OUTPUT);
+  frames->alpha = alpha;
+  frames->icc_size = read_u32(session, address + 12);
+  frames->exif_size = read_u32(session, address + 20);
+  if ((status = copy_bytes(session, read_u32(session, address + 8), frames->icc_size, MAX_METADATA, &frames->icc)) ||
+      (status = copy_bytes(session, read_u32(session, address + 16), frames->exif_size, session->size, &frames->exif))) {
+    free(frames->icc);
+    free(frames->exif);
+    memset(frames, 0, sizeof(*frames));
+    return failure(session, status);
+  }
+  return 0;
+}
+
+int sandbox_start(sandbox *session, uint32_t width, uint32_t height, uint32_t playback, uint64_t deadline_ns, uint64_t budget_per_pixel,
+                  sandbox_frames *frames)
+{
+  Start call = {width, height, playback, 0};
+  int status;
+
+  memset(frames, 0, sizeof(*frames));
+  if (session->frames_failure)
+    return session->frames_failure;
+  if (session->input == 0 || session->frame_width != 0 || width < 1 || width > session->header.width || height < 1 || height > session->header.height ||
+      playback > PLAYBACK_ANIMATION || budget_per_pixel > MAX_RATE)
+    return stop_frames(session, failure(session, SANDBOX_INVALID_ARGUMENT));
+  if ((uint64_t)width * height > MAX_OUTPUT_PIXELS)
+    return stop_frames(session, failure(session, SANDBOX_MEMORY_LIMIT));
+  limit_call(session, deadline_ns, budget_per_pixel, width, height);
+  if ((status = guarded(session, start_frames, &call)) != 0 || (status = read_start(session, call.record, frames)) != 0)
+    return stop_frames(session, status);
+  session->frame_width = width;
+  session->frame_height = height;
+  return 0;
+}
+
+typedef struct {
+  uint32_t restart, record;
+} Next;
+
+static void next_frame(sandbox *session, void *argument)
+{
+  Next *call = argument;
+
+  call->record = w2c_image_next(&session->instance, call->restart);
+}
+
+static void copy_row(uint8_t *destination, const uint8_t *source, uint32_t width, uint32_t order)
+{
+  uint32_t x;
+
+  if (order == PIXELS_RGBA) {
+    memcpy(destination, source, (size_t)width * 4);
+    return;
+  }
+  for (x = 0; x < width; x++, destination += 4, source += 4) {
+    destination[0] = source[2];
+    destination[1] = source[1];
+    destination[2] = source[0];
+    destination[3] = source[3];
+  }
+}
+
+static int read_frame(sandbox *session, uint32_t address, uint32_t order, uint8_t *pixels, size_t row_bytes, uint32_t *duration)
+{
+  const uint32_t width = session->frame_width, height = session->frame_height;
+  const size_t row = (size_t)width * 4;
+  uint32_t message, source, y;
+
+  if (!in_memory(session, address, FRAME_SIZE))
+    return failure(session, SANDBOX_INVALID_OUTPUT);
+  message = read_u32(session, address);
+  if (message != 0)
+    return decoder_failure(session, message);
+  source = read_u32(session, address + 12);
+  if (read_u32(session, address + 4) != width || read_u32(session, address + 8) != height || !in_memory(session, source, (uint64_t)row * height))
+    return failure(session, SANDBOX_INVALID_OUTPUT);
+  for (y = 0; y < height; y++)
+    copy_row(pixels + y * row_bytes, session->env.memory.data + source + y * row, width, order);
+  *duration = read_u32(session, address + 16);
+  return 0;
+}
+
+int sandbox_next(sandbox *session, uint64_t deadline_ns, uint64_t budget_per_pixel, uint32_t order, uint8_t *pixels, size_t row_bytes,
+                 uint32_t *duration)
+{
+  Next call = {session->restart, 0};
+  int status;
+
+  *duration = 0;
+  if (session->frames_failure)
+    return session->frames_failure;
+  if (session->frame_width == 0 || order > PIXELS_BGRA || !pixels || row_bytes < (size_t)session->frame_width * 4 ||
+      row_bytes > SIZE_MAX / session->frame_height || budget_per_pixel > MAX_RATE)
+    return stop_frames(session, failure(session, SANDBOX_INVALID_ARGUMENT));
+  limit_call(session, deadline_ns, budget_per_pixel, session->frame_width, session->frame_height);
+  if ((status = guarded(session, next_frame, &call)) != 0 || (status = read_frame(session, call.record, order, pixels, row_bytes, duration)) != 0)
+    return stop_frames(session, status);
+  session->restart = 0;
+  return 0;
+}
+
+void sandbox_rewind(sandbox *session)
+{
+  session->restart = 1;
 }
 
 void sandbox_close(sandbox *session)

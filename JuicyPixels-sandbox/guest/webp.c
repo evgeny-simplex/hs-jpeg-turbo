@@ -42,11 +42,15 @@ static const char *open_demuxer(const uint8_t *data, size_t size, WebPDemuxer **
   return NULL;
 }
 
-const char *webp_header(const uint8_t *data, size_t size, uint32_t *width, uint32_t *height)
+const char *webp_header(const uint8_t *data, size_t size, uint32_t *width, uint32_t *height, uint32_t *frames, uint32_t *loops)
 {
   WebPDemuxer *demux;
   const char *error = open_demuxer(data, size, &demux, width, height);
 
+  if (!error) {
+    *frames = WebPDemuxGetI(demux, WEBP_FF_FRAME_COUNT);
+    *loops = WebPDemuxGetI(demux, WEBP_FF_FORMAT_FLAGS) & ANIMATION_FLAG ? WebPDemuxGetI(demux, WEBP_FF_LOOP_COUNT) : 1;
+  }
   WebPDemuxDelete(demux);
   return error;
 }
@@ -57,7 +61,7 @@ static void scaled_span(uint32_t side, uint32_t scaled_side, int offset, int siz
   *length = (int)(((uint64_t)(offset + size) * scaled_side + side - 1) / side) - *start;
 }
 
-static void read_chunk(WebPDemuxer *demux, const char *fourcc, const uint8_t **payload, size_t *size)
+static void read_chunk(const WebPDemuxer *demux, const char *fourcc, const uint8_t **payload, size_t *size)
 {
   WebPChunkIterator chunk;
 
@@ -130,4 +134,57 @@ const char *webp_decode(const uint8_t *data, size_t size, uint32_t width, uint32
   }
   WebPDemuxDelete(demux);
   return error;
+}
+
+typedef struct {
+  WebPAnimDecoder *decoder;
+  uint32_t timestamp;
+} Animated;
+
+static void rewind_animation(void *state)
+{
+  Animated *animated = state;
+
+  WebPAnimDecoderReset(animated->decoder);
+  animated->timestamp = 0;
+}
+
+static const char *next_frame(void *state, const uint8_t **canvas, uint32_t *duration)
+{
+  Animated *animated = state;
+  uint8_t *pixels;
+  int timestamp;
+
+  if (!WebPAnimDecoderHasMoreFrames(animated->decoder))
+    rewind_animation(animated);
+  if (!WebPAnimDecoderGetNext(animated->decoder, &pixels, &timestamp))
+    return "invalid WebP frame";
+  *duration = (uint32_t)timestamp - animated->timestamp;
+  animated->timestamp = (uint32_t)timestamp;
+  *canvas = pixels;
+  return NULL;
+}
+
+const char *webp_animation(const uint8_t *data, size_t size, Animation *animation, Image *metadata)
+{
+  WebPData input = {data, size};
+  WebPAnimDecoderOptions options;
+  WebPAnimInfo info;
+  Animated *animated;
+
+  if (!WebPAnimDecoderOptionsInit(&options))
+    return status_error(VP8_STATUS_INVALID_PARAM);
+  options.color_mode = MODE_rgbA;
+  if (!(animated = calloc(1, sizeof(*animated))))
+    return "image is too large";
+  if (!(animated->decoder = WebPAnimDecoderNew(&input, &options)) || !WebPAnimDecoderGetInfo(animated->decoder, &info))
+    return "invalid WebP container";
+  read_chunk(WebPAnimDecoderGetDemuxer(animated->decoder), "ICCP", &metadata->icc, &metadata->icc_size);
+  read_chunk(WebPAnimDecoderGetDemuxer(animated->decoder), "EXIF", &metadata->exif, &metadata->exif_size);
+  animation->state = animated;
+  animation->width = info.canvas_width;
+  animation->height = info.canvas_height;
+  animation->next = next_frame;
+  animation->rewind = rewind_animation;
+  return NULL;
 }

@@ -140,17 +140,22 @@ static void decode(const uint8_t *data, size_t size, uint32_t max_side, Result *
 {
   Image image = {0};
   const char *error;
-  uint32_t w, h;
+  uint32_t w, h, frames, loops;
 
   memset(r, 0, sizeof(*r));
-  r->format = size >= 2 && data[0] == 0xFF && data[1] == 0xD8 ? FORMAT_JPEG : size >= 8 && !memcmp(data, "\x89PNG", 4) ? FORMAT_PNG : FORMAT_WEBP;
+  r->format = size >= 2 && data[0] == 0xFF && data[1] == 0xD8 ? FORMAT_JPEG
+              : size >= 8 && !memcmp(data, "\x89PNG", 4)    ? FORMAT_PNG
+              : size >= 3 && !memcmp(data, "GIF", 3)        ? FORMAT_GIF
+                                                            : FORMAT_WEBP;
   error = r->format == FORMAT_JPEG ? jpeg_header(data, size, &r->image_width, &r->image_height)
           : r->format == FORMAT_PNG ? png_header(data, size, &r->image_width, &r->image_height)
-                                    : webp_header(data, size, &r->image_width, &r->image_height);
+          : r->format == FORMAT_GIF ? gif_header(data, size, &r->image_width, &r->image_height, &frames, &loops)
+                                    : webp_header(data, size, &r->image_width, &r->image_height, &frames, &loops);
   if (!error) {
     output_size(r->format, r->image_width, r->image_height, max_side, &w, &h);
     error = r->format == FORMAT_JPEG ? jpeg_decode(data, size, w, h, (uint32_t)(limits.memory_limit >> 20), &image)
             : r->format == FORMAT_PNG ? png_decode(data, size, w, h, &image)
+            : r->format == FORMAT_GIF ? gif_decode(data, size, w, h, &image)
                                       : webp_decode(data, size, w, h, &image);
     r->width = w;
     r->height = h;
