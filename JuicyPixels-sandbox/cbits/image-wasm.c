@@ -1321,6 +1321,7 @@ static u32 w2c_image_WebPAnimDecoderNewInternal(w2c_image*, u32, u32, u32);
 static void w2c_image_BlendPixelRowNonPremult(w2c_image*, u32, u32, u32);
 static void w2c_image_BlendPixelRowPremult(w2c_image*, u32, u32, u32);
 static void w2c_image_WebPAnimDecoderReset(w2c_image*, u32);
+static void w2c_image_WebPAnimDecoderDelete(w2c_image*, u32);
 static u32 w2c_image_WebPAnimDecoderGetInfo(w2c_image*, u32, u32);
 static u32 w2c_image_WebPAnimDecoderGetNext(w2c_image*, u32, u32, u32);
 static u32 w2c_image_WebPAnimDecoderHasMoreFrames(w2c_image*, u32);
@@ -1653,6 +1654,7 @@ static u32 w2c_image_GuestCPUInfo(w2c_image*, u32);
 static u32 w2c_image_webp_header(w2c_image*, u32, u32, u32, u32, u32, u32);
 static u32 w2c_image_webp_decode(w2c_image*, u32, u32, u32, u32, u32);
 static u32 w2c_image_webp_animation(w2c_image*, u32, u32, u32, u32);
+static void w2c_image_close_animation(w2c_image*, u32);
 static void w2c_image_rewind_animation(w2c_image*, u32);
 static u32 w2c_image_next_frame(w2c_image*, u32, u32, u32);
 static u32 w2c_image_gif_decode(w2c_image*, u32, u32, u32, u32, u32);
@@ -2154,6 +2156,7 @@ static void w2c_image_wuffs_gif_0x5Fdecoder_0x5Fworkbuf_len(w2c_image*, u32, u32
 static u32 w2c_image_gif_header(w2c_image*, u32, u32, u32, u32, u32, u32);
 static u32 w2c_image_open_gif(w2c_image*, u32, u32, u32, u32);
 static u32 w2c_image_gif_animation(w2c_image*, u32, u32, u32);
+static void w2c_image_close_gif(w2c_image*, u32);
 static void w2c_image_rewind_frames(w2c_image*, u32);
 static u32 w2c_image_next_frame0x2E1(w2c_image*, u32, u32, u32);
 static u32 w2c_image_wuffs_gif_0x5Fdecoder_0x5Fdecode_up_to_id_part1(w2c_image*, u32, u32);
@@ -3182,6 +3185,9 @@ static void wrap_w2c_image_End(void *instance, u32 var_0) {
 static u32 wrap_w2c_image_GuestCPUInfo(void *instance, u32 var_0) {
   return w2c_image_GuestCPUInfo((struct w2c_image*) instance, var_0);
 }
+static void wrap_w2c_image_close_animation(void *instance, u32 var_0) {
+  return w2c_image_close_animation((struct w2c_image*) instance, var_0);
+}
 static void wrap_w2c_image_rewind_animation(void *instance, u32 var_0) {
   return w2c_image_rewind_animation((struct w2c_image*) instance, var_0);
 }
@@ -4192,6 +4198,9 @@ static u32 wrap_w2c_image_wuffs_gif_0x5Fdecoder_0x5Ftell_me_more(void *instance,
 }
 static void wrap_w2c_image_wuffs_gif_0x5Fdecoder_0x5Fworkbuf_len(void *instance, u32 var_0, u32 var_1) {
   return w2c_image_wuffs_gif_0x5Fdecoder_0x5Fworkbuf_len((struct w2c_image*) instance, var_0, var_1);
+}
+static void wrap_w2c_image_close_gif(void *instance, u32 var_0) {
+  return w2c_image_close_gif((struct w2c_image*) instance, var_0);
 }
 static void wrap_w2c_image_rewind_frames(void *instance, u32 var_0) {
   return w2c_image_rewind_frames((struct w2c_image*) instance, var_0);
@@ -6502,9 +6511,9 @@ static const u8 data_segment_data_w2c_image_0x2Erodata[] = {
   0xc4, 0xc5, 0xc6, 0xc7, 0xc8, 0xc9, 0xca, 0xd2, 0xd3, 0xd4, 0xd5, 0xd6, 
   0xd7, 0xd8, 0xd9, 0xda, 0xe2, 0xe3, 0xe4, 0xe5, 0xe6, 0xe7, 0xe8, 0xe9, 
   0xea, 0xf2, 0xf3, 0xf4, 0xf5, 0xf6, 0xf7, 0xf8, 0xf9, 0xfa, 0x00, 0x00, 
-  0x68, 0x01, 0x00, 0x00, 0x69, 0x01, 0x00, 0x00, 0x6a, 0x01, 0x00, 0x00, 
-  0x6b, 0x01, 0x00, 0x00, 0x6c, 0x01, 0x00, 0x00, 0x6d, 0x01, 0x00, 0x00, 
-  0x6e, 0x01, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 
+  0x69, 0x01, 0x00, 0x00, 0x6a, 0x01, 0x00, 0x00, 0x6b, 0x01, 0x00, 0x00, 
+  0x6c, 0x01, 0x00, 0x00, 0x6d, 0x01, 0x00, 0x00, 0x6e, 0x01, 0x00, 0x00, 
+  0x6f, 0x01, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 
   0x03, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 
   0xff, 0xff, 0xff, 0xff, 0x03, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 
   0x03, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 
@@ -6717,12 +6726,12 @@ static const u8 data_segment_data_w2c_image_0x2Erodata[] = {
   0xae, 0xe7, 0xf4, 0x3f, 0xaa, 0x11, 0x6c, 0xef, 0x62, 0xd0, 0xf2, 0x3f, 
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0, 0x3f, 0x3b, 0xbf, 0xa7, 0xc0, 
   0x69, 0x24, 0xe9, 0x3f, 0xbb, 0x20, 0xc7, 0x7b, 0x7a, 0x51, 0xe1, 0x3f, 
-  0x5d, 0xab, 0x72, 0xde, 0x55, 0xa8, 0xd1, 0x3f, 0xff, 0x01, 0x00, 0x00, 
-  0x00, 0x02, 0x00, 0x00, 0x01, 0x02, 0x00, 0x00, 0x02, 0x02, 0x00, 0x00, 
-  0x03, 0x02, 0x00, 0x00, 0x04, 0x02, 0x00, 0x00, 0x05, 0x02, 0x00, 0x00, 
-  0x0a, 0x02, 0x00, 0x00, 0x0b, 0x02, 0x00, 0x00, 0x0c, 0x02, 0x00, 0x00, 
-  0x0d, 0x02, 0x00, 0x00, 0x0e, 0x02, 0x00, 0x00, 0x0f, 0x02, 0x00, 0x00, 
-  0x10, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+  0x5d, 0xab, 0x72, 0xde, 0x55, 0xa8, 0xd1, 0x3f, 0x00, 0x02, 0x00, 0x00, 
+  0x01, 0x02, 0x00, 0x00, 0x02, 0x02, 0x00, 0x00, 0x03, 0x02, 0x00, 0x00, 
+  0x04, 0x02, 0x00, 0x00, 0x05, 0x02, 0x00, 0x00, 0x06, 0x02, 0x00, 0x00, 
+  0x0b, 0x02, 0x00, 0x00, 0x0c, 0x02, 0x00, 0x00, 0x0d, 0x02, 0x00, 0x00, 
+  0x0e, 0x02, 0x00, 0x00, 0x0f, 0x02, 0x00, 0x00, 0x10, 0x02, 0x00, 0x00, 
+  0x11, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
   0x0a, 0x02, 0x08, 0x00, 0x06, 0x0e, 0x04, 0x0c, 0x09, 0x01, 0x0b, 0x03, 
   0x05, 0x0d, 0x07, 0x0f, 0x00, 0xc0, 0x30, 0xf0, 0x0c, 0xcc, 0x3c, 0xfc, 
   0x03, 0xc3, 0x33, 0xf3, 0x0f, 0xcf, 0x3f, 0xff, 0x80, 0x40, 0xb0, 0x70, 
@@ -6881,7 +6890,7 @@ static const u8 data_segment_data_w2c_image_0x2Erodata[] = {
   0x3a, 0x20, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x20, 0x65, 
   0x72, 0x72, 0x6f, 0x72, 0x3a, 0x20, 0x69, 0x6e, 0x63, 0x6f, 0x6e, 0x73, 
   0x69, 0x73, 0x74, 0x65, 0x6e, 0x74, 0x20, 0x49, 0x2f, 0x4f, 0x00, 0x00, 
-  0x57, 0x02, 0x00, 0x00, 0x58, 0x02, 0x00, 0x00, 0x59, 0x02, 0x00, 0x00, 
+  0x59, 0x02, 0x00, 0x00, 0x5a, 0x02, 0x00, 0x00, 0x5b, 0x02, 0x00, 0x00, 
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
   0x23, 0x67, 0x69, 0x66, 0x3a, 0x20, 0x62, 0x61, 0x64, 0x20, 0x66, 0x72, 
   0x61, 0x6d, 0x65, 0x20, 0x73, 0x69, 0x7a, 0x65, 0x00, 0x00, 0x00, 0x00, 
@@ -6902,11 +6911,11 @@ static const u8 data_segment_data_w2c_image_0x2Erodata[] = {
   0x23, 0x67, 0x69, 0x66, 0x3a, 0x20, 0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 
   0x61, 0x6c, 0x20, 0x65, 0x72, 0x72, 0x6f, 0x72, 0x3a, 0x20, 0x69, 0x6e, 
   0x63, 0x6f, 0x6e, 0x73, 0x69, 0x73, 0x74, 0x65, 0x6e, 0x74, 0x20, 0x72, 
-  0x69, 0x2f, 0x77, 0x69, 0x00, 0x00, 0x00, 0x00, 0x5a, 0x02, 0x00, 0x00, 
-  0x5b, 0x02, 0x00, 0x00, 0x5c, 0x02, 0x00, 0x00, 0x5d, 0x02, 0x00, 0x00, 
-  0x5e, 0x02, 0x00, 0x00, 0x5f, 0x02, 0x00, 0x00, 0x60, 0x02, 0x00, 0x00, 
-  0x61, 0x02, 0x00, 0x00, 0x62, 0x02, 0x00, 0x00, 0x63, 0x02, 0x00, 0x00, 
-  0x64, 0x02, 0x00, 0x00, 0x65, 0x02, 0x00, 0x00, 0x41, 0x4e, 0x49, 0x4d, 
+  0x69, 0x2f, 0x77, 0x69, 0x00, 0x00, 0x00, 0x00, 0x5c, 0x02, 0x00, 0x00, 
+  0x5d, 0x02, 0x00, 0x00, 0x5e, 0x02, 0x00, 0x00, 0x5f, 0x02, 0x00, 0x00, 
+  0x60, 0x02, 0x00, 0x00, 0x61, 0x02, 0x00, 0x00, 0x62, 0x02, 0x00, 0x00, 
+  0x63, 0x02, 0x00, 0x00, 0x64, 0x02, 0x00, 0x00, 0x65, 0x02, 0x00, 0x00, 
+  0x66, 0x02, 0x00, 0x00, 0x67, 0x02, 0x00, 0x00, 0x41, 0x4e, 0x49, 0x4d, 
   0x45, 0x58, 0x54, 0x53, 0x31, 0x2e, 0x30, 0x4e, 0x45, 0x54, 0x53, 0x43, 
   0x41, 0x50, 0x45, 0x32, 0x2e, 0x30, 0x49, 0x43, 0x43, 0x52, 0x47, 0x42, 
   0x47, 0x31, 0x30, 0x31, 0x32, 0x58, 0x4d, 0x50, 0x20, 0x44, 0x61, 0x74, 
@@ -7669,11 +7678,11 @@ static const u8 data_segment_data_w2c_image_0x2Edata[] = {
   0x90, 0x19, 0x10, 0x00, 0x56, 0x19, 0x10, 0x00, 0x72, 0x19, 0x10, 0x00, 
   0xa8, 0x1d, 0x10, 0x00, 0x2a, 0x08, 0x10, 0x00, 0xe3, 0x0b, 0x10, 0x00, 
   0xda, 0x1d, 0x10, 0x00, 0xed, 0x2d, 0x10, 0x00, 0xe3, 0x07, 0x10, 0x00, 
-  0x00, 0x00, 0x00, 0x00, 0x66, 0x02, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 
+  0x00, 0x00, 0x00, 0x00, 0x68, 0x02, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 
   0x00, 0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
-  0x00, 0x00, 0x00, 0x00, 0x67, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
+  0x00, 0x00, 0x00, 0x00, 0x69, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
-  0x68, 0x02, 0x00, 0x00, 0x69, 0x02, 0x00, 0x00, 0xa4, 0xa9, 0x10, 0x00, 
+  0x6a, 0x02, 0x00, 0x00, 0x6b, 0x02, 0x00, 0x00, 0xa4, 0xa9, 0x10, 0x00, 
   0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
   0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 
   0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 
@@ -7963,6 +7972,7 @@ static const wasm_elem_segment_expr_t elem_segment_exprs_w2c_image_e0[] = {
   {RefFunc, w2c_image_t2, (wasm_rt_function_ptr_t)wrap_w2c_image_Execute, {NULL}, 0},
   {RefFunc, w2c_image_t2, (wasm_rt_function_ptr_t)wrap_w2c_image_End, {NULL}, 0},
   {RefFunc, w2c_image_t1, (wasm_rt_function_ptr_t)wrap_w2c_image_GuestCPUInfo, {NULL}, 0},
+  {RefFunc, w2c_image_t2, (wasm_rt_function_ptr_t)wrap_w2c_image_close_animation, {NULL}, 0},
   {RefFunc, w2c_image_t2, (wasm_rt_function_ptr_t)wrap_w2c_image_rewind_animation, {NULL}, 0},
   {RefFunc, w2c_image_t8, (wasm_rt_function_ptr_t)wrap_w2c_image_next_frame, {NULL}, 0},
   {RefFunc, w2c_image_t2, (wasm_rt_function_ptr_t)wrap_w2c_image_text_undo, {NULL}, 0},
@@ -8289,6 +8299,7 @@ static const wasm_elem_segment_expr_t elem_segment_exprs_w2c_image_e0[] = {
   {RefFunc, w2c_image_t16, (wasm_rt_function_ptr_t)wrap_w2c_image_wuffs_base_0x5Fpixel_swizzler_0x5Fxxxx_0x5Findex_binary_alpha_0x5Fsrc_over, {NULL}, 0},
   {RefFunc, w2c_image_t29, (wasm_rt_function_ptr_t)wrap_w2c_image_wuffs_base_0x5Fpixel_swizzler_0x5Ftransparent_black_src, {NULL}, 0},
   {RefFunc, w2c_image_t16, (wasm_rt_function_ptr_t)wrap_w2c_image_wuffs_base_0x5Fpixel_swizzler_0x5Fxxxx_0x5Findex_0x5Fsrc, {NULL}, 0},
+  {RefFunc, w2c_image_t2, (wasm_rt_function_ptr_t)wrap_w2c_image_close_gif, {NULL}, 0},
   {RefFunc, w2c_image_t2, (wasm_rt_function_ptr_t)wrap_w2c_image_rewind_frames, {NULL}, 0},
   {RefFunc, w2c_image_t8, (wasm_rt_function_ptr_t)wrap_w2c_image_next_frame0x2E1, {NULL}, 0},
   {RefFunc, w2c_image_t8, (wasm_rt_function_ptr_t)wrap_w2c_image_wuffs_lzw_0x5Fdecoder_0x5Fset_quirk_enabled, {NULL}, 0},
@@ -8314,8 +8325,8 @@ static const wasm_elem_segment_expr_t elem_segment_exprs_w2c_image_e0[] = {
 };
 
 static void init_tables(w2c_image* instance) {
-  wasm_rt_allocate_funcref_table(&instance->w2c_T0, 619, 619);
-  funcref_table_init(&instance->w2c_T0, elem_segment_exprs_w2c_image_e0, 618, 1u, 0, 618, instance);
+  wasm_rt_allocate_funcref_table(&instance->w2c_T0, 621, 621);
+  funcref_table_init(&instance->w2c_T0, elem_segment_exprs_w2c_image_e0, 620, 1u, 0, 620, instance);
 }
 
 static void init_elem_instances(w2c_image *instance) {
@@ -39006,6 +39017,52 @@ void w2c_image_WebPAnimDecoderReset(w2c_image* instance, u32 var_p0) {
   var_i0 = var_p0;
   var_i1 = 1u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 324u, var_i1);
+  var_B1:;
+  FUNC_EPILOGUE;
+}
+
+void w2c_image_WebPAnimDecoderDelete(w2c_image* instance, u32 var_p0) {
+  FUNC_PROLOGUE;
+  uint8_t* const wasm_rt_local_memory_base = (instance->w2c_env_memory)->data;
+  uint64_t wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
+  (void)wasm_rt_local_memory_base;
+  (void)wasm_rt_local_memory_size;
+  u32 var_i0, var_i1;
+  var_i0 = instance->w2c_0x5F_fuel;
+  var_i1 = 1u;
+  var_i0 -= var_i1;
+  instance->w2c_0x5F_fuel = var_i0;
+  var_i0 = instance->w2c_0x5F_fuel;
+  var_i1 = 0u;
+  var_i0 = (u32)((s32)var_i0 < (s32)var_i1);
+  if (var_i0) {
+    var_i0 = w2c_env_refuel(instance->w2c_env_instance);
+    wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
+    instance->w2c_0x5F_fuel = var_i0;
+  }
+  var_i0 = var_p0;
+  var_i0 = !(var_i0);
+  if (var_i0) {goto var_B1;}
+  var_i0 = var_p0;
+  var_i1 = 256u;
+  var_i0 += var_i1;
+  w2c_image_WebPDemuxReleaseIterator(instance, var_i0);
+  wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
+  var_i0 = var_p0;
+  var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0));
+  w2c_image_WebPDemuxDelete(instance, var_i0);
+  wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
+  var_i0 = var_p0;
+  var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 244u);
+  w2c_image_WebPSafeFree(instance, var_i0);
+  wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
+  var_i0 = var_p0;
+  var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 248u);
+  w2c_image_WebPSafeFree(instance, var_i0);
+  wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
+  var_i0 = var_p0;
+  w2c_image_WebPSafeFree(instance, var_i0);
+  wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
   var_B1:;
   FUNC_EPILOGUE;
 }
@@ -125592,7 +125649,7 @@ u32 w2c_image_webp_decode(w2c_image* instance, u32 var_p0, u32 var_p1, u32 var_p
 }
 
 u32 w2c_image_webp_animation(w2c_image* instance, u32 var_p0, u32 var_p1, u32 var_p2, u32 var_p3) {
-  u32 var_l4 = 0, var_l5 = 0;
+  u32 var_l4 = 0;
   FUNC_PROLOGUE;
   uint8_t* const wasm_rt_local_memory_base = (instance->w2c_env_memory)->data;
   uint64_t wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
@@ -125641,13 +125698,13 @@ u32 w2c_image_webp_animation(w2c_image* instance, u32 var_p0, u32 var_p1, u32 va
   var_i1 = 8u;
   var_i0 = w2c_image_calloc(instance, var_i0, var_i1);
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
-  var_l5 = var_i0;
+  var_p0 = var_i0;
   if (var_i0) {goto var_B3;}
   var_i0 = 1054788u;
   var_p1 = var_i0;
   goto var_B1;
   var_B3:;
-  var_i0 = var_l5;
+  var_i0 = var_p0;
   var_i1 = var_l4;
   var_i2 = 76u;
   var_i1 += var_i2;
@@ -125657,22 +125714,30 @@ u32 w2c_image_webp_animation(w2c_image* instance, u32 var_p0, u32 var_p1, u32 va
   var_i3 = 263u;
   var_i1 = w2c_image_WebPAnimDecoderNewInternal(instance, var_i1, var_i2, var_i3);
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
-  var_p0 = var_i1;
+  var_p1 = var_i1;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
-  var_i0 = 1052060u;
-  var_p1 = var_i0;
-  var_i0 = var_p0;
+  var_i0 = var_p1;
   var_i0 = !(var_i0);
-  if (var_i0) {goto var_B1;}
-  var_i0 = var_p0;
+  if (var_i0) {goto var_B5;}
+  var_i0 = var_p1;
   var_i1 = var_l4;
   var_i2 = 4u;
   var_i1 += var_i2;
   var_i0 = w2c_image_WebPAnimDecoderGetInfo(instance, var_i0, var_i1);
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
-  var_i0 = !(var_i0);
-  if (var_i0) {goto var_B1;}
+  if (var_i0) {goto var_B4;}
+  var_B5:;
+  var_i0 = var_p1;
+  w2c_image_WebPAnimDecoderDelete(instance, var_i0);
+  wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
   var_i0 = var_p0;
+  w2c_image_free(instance, var_i0);
+  wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
+  var_i0 = 1052060u;
+  var_p1 = var_i0;
+  goto var_B1;
+  var_B4:;
+  var_i0 = var_p1;
   var_i0 = w2c_image_WebPAnimDecoderGetDemuxer(instance, var_i0);
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
   var_i1 = 1057702u;
@@ -125683,7 +125748,7 @@ u32 w2c_image_webp_animation(w2c_image* instance, u32 var_p0, u32 var_p1, u32 va
   var_i0 = w2c_image_WebPDemuxGetChunk(instance, var_i0, var_i1, var_i2, var_i3);
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
   var_i0 = !(var_i0);
-  if (var_i0) {goto var_B4;}
+  if (var_i0) {goto var_B6;}
   var_i0 = var_p3;
   var_i1 = var_l4;
   var_j1 = i64_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i1) + 92u);
@@ -125693,8 +125758,8 @@ u32 w2c_image_webp_animation(w2c_image* instance, u32 var_p0, u32 var_p1, u32 va
   var_i0 += var_i1;
   w2c_image_WebPDemuxReleaseChunkIterator(instance, var_i0);
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
-  var_B4:;
-  var_i0 = var_p0;
+  var_B6:;
+  var_i0 = var_p1;
   var_i0 = w2c_image_WebPAnimDecoderGetDemuxer(instance, var_i0);
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
   var_i1 = 1057950u;
@@ -125705,7 +125770,7 @@ u32 w2c_image_webp_animation(w2c_image* instance, u32 var_p0, u32 var_p1, u32 va
   var_i0 = w2c_image_WebPDemuxGetChunk(instance, var_i0, var_i1, var_i2, var_i3);
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
   var_i0 = !(var_i0);
-  if (var_i0) {goto var_B5;}
+  if (var_i0) {goto var_B7;}
   var_i0 = var_p3;
   var_i1 = var_l4;
   var_j1 = i64_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i1) + 92u);
@@ -125715,15 +125780,18 @@ u32 w2c_image_webp_animation(w2c_image* instance, u32 var_p0, u32 var_p1, u32 va
   var_i0 += var_i1;
   w2c_image_WebPDemuxReleaseChunkIterator(instance, var_i0);
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
-  var_B5:;
+  var_B7:;
   var_i0 = var_p2;
-  var_i1 = var_l5;
+  var_i1 = var_p0;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
   var_i0 = var_p2;
   var_i1 = 271u;
-  i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 16u, var_i1);
+  i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 20u, var_i1);
   var_i0 = var_p2;
   var_i1 = 272u;
+  i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 16u, var_i1);
+  var_i0 = var_p2;
+  var_i1 = 273u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
   var_i0 = var_p2;
   var_i1 = var_l4;
@@ -125739,6 +125807,35 @@ u32 w2c_image_webp_animation(w2c_image* instance, u32 var_p0, u32 var_p1, u32 va
   var_i0 = var_p1;
   FUNC_EPILOGUE;
   return var_i0;
+}
+
+void w2c_image_close_animation(w2c_image* instance, u32 var_p0) {
+  FUNC_PROLOGUE;
+  uint8_t* const wasm_rt_local_memory_base = (instance->w2c_env_memory)->data;
+  uint64_t wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
+  (void)wasm_rt_local_memory_base;
+  (void)wasm_rt_local_memory_size;
+  u32 var_i0, var_i1;
+  var_i0 = instance->w2c_0x5F_fuel;
+  var_i1 = 1u;
+  var_i0 -= var_i1;
+  instance->w2c_0x5F_fuel = var_i0;
+  var_i0 = instance->w2c_0x5F_fuel;
+  var_i1 = 0u;
+  var_i0 = (u32)((s32)var_i0 < (s32)var_i1);
+  if (var_i0) {
+    var_i0 = w2c_env_refuel(instance->w2c_env_instance);
+    wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
+    instance->w2c_0x5F_fuel = var_i0;
+  }
+  var_i0 = var_p0;
+  var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0));
+  w2c_image_WebPAnimDecoderDelete(instance, var_i0);
+  wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
+  var_i0 = var_p0;
+  w2c_image_free(instance, var_i0);
+  wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
+  FUNC_EPILOGUE;
 }
 
 void w2c_image_rewind_animation(w2c_image* instance, u32 var_p0) {
@@ -125878,7 +125975,7 @@ u32 w2c_image_gif_decode(w2c_image* instance, u32 var_p0, u32 var_p1, u32 var_p2
   var_i0 = var_p0;
   var_i1 = var_p1;
   var_i2 = var_l5;
-  var_i3 = 12u;
+  var_i3 = 8u;
   var_i2 += var_i3;
   var_i0 = w2c_image_gif_animation(instance, var_i0, var_i1, var_i2);
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
@@ -125888,37 +125985,35 @@ u32 w2c_image_gif_decode(w2c_image* instance, u32 var_p0, u32 var_p1, u32 var_p2
   var_p1 = var_i0;
   var_i0 = var_p2;
   var_i0 = !(var_i0);
-  if (var_i0) {goto var_B1;}
+  if (var_i0) {goto var_B2;}
   var_i0 = var_p3;
   var_i0 = !(var_i0);
-  if (var_i0) {goto var_B1;}
+  if (var_i0) {goto var_B2;}
   var_i0 = var_p2;
+  var_i1 = var_l5;
+  var_i1 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i1) + 12u);
+  var_i0 = var_i0 > var_i1;
+  if (var_i0) {goto var_B2;}
+  var_i0 = var_p3;
   var_i1 = var_l5;
   var_i1 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i1) + 16u);
   var_i0 = var_i0 > var_i1;
-  if (var_i0) {goto var_B1;}
-  var_i0 = var_p3;
-  var_i1 = var_l5;
-  var_i1 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i1) + 20u);
-  var_i0 = var_i0 > var_i1;
-  if (var_i0) {goto var_B1;}
+  if (var_i0) {goto var_B2;}
   var_i0 = var_l5;
-  var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u);
+  var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u);
   var_i1 = var_l5;
-  var_i2 = 8u;
+  var_i2 = 4u;
   var_i1 += var_i2;
   var_i2 = var_l5;
-  var_i3 = 4u;
-  var_i2 += var_i3;
   var_i3 = var_l5;
-  var_i3 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i3) + 24u);
+  var_i3 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i3) + 20u);
   var_i0 = CALL_INDIRECT(instance->w2c_T0, u32 (*)(void*, u32, u32, u32), w2c_image_t8, var_i3, instance->w2c_T0.data[var_i3].module_instance, var_i0, var_i1, var_i2);
 #if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
   wasm_rt_segue_write_base((*instance->w2c_env_memory).data);
 #endif
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
   var_p1 = var_i0;
-  if (var_i0) {goto var_B1;}
+  if (var_i0) {goto var_B2;}
   var_i0 = var_p4;
   var_i1 = var_p3;
   var_i2 = var_p2;
@@ -125934,23 +126029,23 @@ u32 w2c_image_gif_decode(w2c_image* instance, u32 var_p0, u32 var_p1, u32 var_p2
   var_i2 = var_p1;
   var_i0 = var_i2 ? var_i0 : var_i1;
   var_p1 = var_i0;
-  var_B1:;
-  var_i0 = var_l5;
-  var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 20u);
-  var_l6 = var_i0;
+  var_B2:;
   var_i0 = var_l5;
   var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 16u);
+  var_l6 = var_i0;
+  var_i0 = var_l5;
+  var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u);
   var_p0 = var_i0;
   var_i0 = var_p1;
-  if (var_i0) {goto var_B4;}
+  if (var_i0) {goto var_B5;}
   var_i0 = var_p2;
   var_i1 = var_p0;
   var_i0 = var_i0 != var_i1;
-  if (var_i0) {goto var_B4;}
+  if (var_i0) {goto var_B5;}
   var_i0 = var_p3;
   var_i1 = var_l6;
   var_i0 = var_i0 != var_i1;
-  if (var_i0) {goto var_B4;}
+  if (var_i0) {goto var_B5;}
   var_i0 = var_p3;
   var_i1 = var_p2;
   var_i0 *= var_i1;
@@ -125959,20 +126054,20 @@ u32 w2c_image_gif_decode(w2c_image* instance, u32 var_p0, u32 var_p1, u32 var_p2
   var_i0 <<= (var_i1 & 31);
   var_p1 = var_i0;
   var_i0 = !(var_i0);
-  if (var_i0) {goto var_B3;}
+  if (var_i0) {goto var_B4;}
   var_i0 = var_p4;
   var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0));
   var_i1 = var_l5;
-  var_i1 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i1) + 8u);
+  var_i1 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i1) + 4u);
   var_i2 = var_p1;
   w2c_env_copy(instance->w2c_env_instance, var_i0, var_i1, var_i2);
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
-  goto var_B3;
-  var_B4:;
+  goto var_B4;
+  var_B5:;
   var_i0 = var_p1;
-  if (var_i0) {goto var_B2;}
+  if (var_i0) {goto var_B3;}
   var_i0 = var_l5;
-  var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u);
+  var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u);
   var_i1 = var_p0;
   var_i2 = var_l6;
   var_i3 = var_p4;
@@ -125982,19 +126077,19 @@ u32 w2c_image_gif_decode(w2c_image* instance, u32 var_p0, u32 var_p1, u32 var_p2
   var_i0 = w2c_image_scale_pixels(instance, var_i0, var_i1, var_i2, var_i3, var_i4, var_i5);
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
   var_p1 = var_i0;
-  if (var_i0) {goto var_B2;}
+  if (var_i0) {goto var_B3;}
   var_i0 = var_p3;
   var_i1 = var_p2;
   var_i0 *= var_i1;
   var_p0 = var_i0;
-  var_B3:;
+  var_B4:;
   var_i0 = var_p0;
   var_i0 = !(var_i0);
-  if (var_i0) {goto var_B5;}
+  if (var_i0) {goto var_B6;}
   var_i0 = var_p4;
   var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0));
   var_p1 = var_i0;
-  var_L6: 
+  var_L7: 
     var_i0 = instance->w2c_0x5F_fuel;
     var_i1 = 1u;
     var_i0 -= var_i1;
@@ -126013,37 +126108,12 @@ u32 w2c_image_gif_decode(w2c_image* instance, u32 var_p0, u32 var_p1, u32 var_p2
     var_i0 = i32_load8_u_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0));
     var_p2 = var_i0;
     var_i0 = !(var_i0);
-    if (var_i0) {goto var_B9;}
+    if (var_i0) {goto var_B10;}
     var_i0 = 255u;
     var_p3 = var_i0;
     var_i0 = 255u;
     var_l6 = var_i0;
     var_i0 = var_p1;
-    var_i0 = i32_load8_u_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0));
-    var_l7 = var_i0;
-    var_i1 = var_p2;
-    var_i0 = var_i0 >= var_i1;
-    if (var_i0) {goto var_B10;}
-    var_i0 = var_l7;
-    var_i1 = 255u;
-    var_i0 *= var_i1;
-    var_i1 = var_p2;
-    var_i2 = 1u;
-    var_i1 >>= (var_i2 & 31);
-    var_i0 += var_i1;
-    var_i1 = 65535u;
-    var_i0 &= var_i1;
-    var_i1 = var_p2;
-    var_i0 = DIV_U(var_i0, var_i1);
-    var_l6 = var_i0;
-    var_B10:;
-    var_i0 = var_p1;
-    var_i1 = var_l6;
-    i32_store8_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
-    var_i0 = var_p1;
-    var_i1 = 1u;
-    var_i0 += var_i1;
-    var_l6 = var_i0;
     var_i0 = i32_load8_u_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0));
     var_l7 = var_i0;
     var_i1 = var_p2;
@@ -126060,8 +126130,33 @@ u32 w2c_image_gif_decode(w2c_image* instance, u32 var_p0, u32 var_p1, u32 var_p2
     var_i0 &= var_i1;
     var_i1 = var_p2;
     var_i0 = DIV_U(var_i0, var_i1);
-    var_p3 = var_i0;
+    var_l6 = var_i0;
     var_B11:;
+    var_i0 = var_p1;
+    var_i1 = var_l6;
+    i32_store8_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
+    var_i0 = var_p1;
+    var_i1 = 1u;
+    var_i0 += var_i1;
+    var_l6 = var_i0;
+    var_i0 = i32_load8_u_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0));
+    var_l7 = var_i0;
+    var_i1 = var_p2;
+    var_i0 = var_i0 >= var_i1;
+    if (var_i0) {goto var_B12;}
+    var_i0 = var_l7;
+    var_i1 = 255u;
+    var_i0 *= var_i1;
+    var_i1 = var_p2;
+    var_i2 = 1u;
+    var_i1 >>= (var_i2 & 31);
+    var_i0 += var_i1;
+    var_i1 = 65535u;
+    var_i0 &= var_i1;
+    var_i1 = var_p2;
+    var_i0 = DIV_U(var_i0, var_i1);
+    var_p3 = var_i0;
+    var_B12:;
     var_i0 = var_l6;
     var_i1 = var_p3;
     i32_store8_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
@@ -126074,7 +126169,7 @@ u32 w2c_image_gif_decode(w2c_image* instance, u32 var_p0, u32 var_p1, u32 var_p2
     var_l6 = var_i0;
     var_i1 = var_p2;
     var_i0 = var_i0 >= var_i1;
-    if (var_i0) {goto var_B8;}
+    if (var_i0) {goto var_B9;}
     var_i0 = var_l6;
     var_i1 = 255u;
     var_i0 *= var_i1;
@@ -126087,14 +126182,14 @@ u32 w2c_image_gif_decode(w2c_image* instance, u32 var_p0, u32 var_p1, u32 var_p2
     var_i1 = var_p2;
     var_i0 = DIV_U(var_i0, var_i1);
     var_p3 = var_i0;
-    goto var_B8;
-    var_B9:;
+    goto var_B9;
+    var_B10:;
     var_i0 = 0u;
     var_p3 = var_i0;
     var_i0 = var_p1;
     var_i1 = 0u;
     i32_store16_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
-    var_B8:;
+    var_B9:;
     var_i0 = var_p1;
     var_i1 = 2u;
     var_i0 += var_i1;
@@ -126108,14 +126203,24 @@ u32 w2c_image_gif_decode(w2c_image* instance, u32 var_p0, u32 var_p1, u32 var_p2
     var_i1 = 4294967295u;
     var_i0 += var_i1;
     var_p0 = var_i0;
-    if (var_i0) {goto var_L6;}
-  var_B5:;
+    if (var_i0) {goto var_L7;}
+  var_B6:;
   var_i0 = var_p4;
   var_i1 = 3u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   var_i0 = 0u;
   var_p1 = var_i0;
-  var_B2:;
+  var_B3:;
+  var_i0 = var_l5;
+  var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u);
+  var_i1 = var_l5;
+  var_i1 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i1) + 28u);
+  CALL_INDIRECT(instance->w2c_T0, void (*)(void*, u32), w2c_image_t2, var_i1, instance->w2c_T0.data[var_i1].module_instance, var_i0);
+#if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
+  wasm_rt_segue_write_base((*instance->w2c_env_memory).data);
+#endif
+  wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
+  var_B1:;
   var_i0 = var_l5;
   var_i1 = 32u;
   var_i0 += var_i1;
@@ -126263,6 +126368,7 @@ u32 w2c_image_frames_still(w2c_image* instance, u32 var_p0, u32 var_p1, u32 var_
   (void)wasm_rt_local_memory_size;
   u32 var_i0, var_i1, var_i2, var_i3, var_i4, var_i5, var_i6, var_i7, 
       var_i8, var_i9;
+  u64 var_j1;
   v128 var_o1, var_o2, var_o3, var_o4, var_o5, var_o6, var_o7, var_o8;
   var_i0 = instance->w2c_0x5F_fuel;
   var_i1 = 1u;
@@ -126279,17 +126385,17 @@ u32 w2c_image_frames_still(w2c_image* instance, u32 var_p0, u32 var_p1, u32 var_
   var_i0 = 0u;
   var_l3 = var_i0;
   var_i0 = 0u;
+  var_j1 = 0ull;
+  i64_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 1091428u, var_j1);
+  var_i0 = 0u;
   var_o1 = v128_const(0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00);
   v128_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 1091412u, var_o1);
   var_i0 = 0u;
   var_i1 = var_p2;
-  i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 1091436u, var_i1);
+  i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 1091440u, var_i1);
   var_i0 = 0u;
   var_i1 = var_p1;
-  i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 1091432u, var_i1);
-  var_i0 = 0u;
-  var_i1 = 0u;
-  i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 1091428u, var_i1);
+  i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 1091436u, var_i1);
   var_i0 = 0u;
   var_i1 = var_p2;
   var_i2 = var_p1;
@@ -126300,7 +126406,7 @@ u32 w2c_image_frames_still(w2c_image* instance, u32 var_p0, u32 var_p1, u32 var_
   var_i1 = w2c_image_malloc(instance, var_i1);
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
   var_l5 = var_i1;
-  i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 1091440u, var_i1);
+  i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 1091444u, var_i1);
   var_i0 = var_l5;
   if (var_i0) {goto var_B1;}
   var_i0 = 1054788u;
@@ -127235,6 +127341,9 @@ u32 w2c_image_frames_animate(w2c_image* instance, u32 var_p0, u32 var_p1, u32 va
   var_i0 = 0u;
   var_o1 = var_l6;
   v128_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 1091412u, var_o1);
+  var_i0 = 0u;
+  var_i1 = 0u;
+  i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 1091444u, var_i1);
   var_i0 = var_p2;
   var_i1 = 4294967293u;
   var_i0 += var_i1;
@@ -127246,10 +127355,10 @@ u32 w2c_image_frames_animate(w2c_image* instance, u32 var_p0, u32 var_p1, u32 va
   var_B4:;
   var_i0 = 0u;
   var_i1 = var_p4;
-  i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 1091436u, var_i1);
+  i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 1091440u, var_i1);
   var_i0 = 0u;
   var_i1 = var_p3;
-  i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 1091432u, var_i1);
+  i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 1091436u, var_i1);
   var_i0 = 1051275u;
   goto var_Bfunc;
   var_B3:;
@@ -127271,10 +127380,10 @@ u32 w2c_image_frames_animate(w2c_image* instance, u32 var_p0, u32 var_p1, u32 va
   var_B1:;
   var_i0 = 0u;
   var_i1 = var_p4;
-  i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 1091436u, var_i1);
+  i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 1091440u, var_i1);
   var_i0 = 0u;
   var_i1 = var_p3;
-  i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 1091432u, var_i1);
+  i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 1091436u, var_i1);
   var_i0 = var_p2;
   if (var_i0) {goto var_B5;}
   var_i0 = var_p3;
@@ -127299,7 +127408,7 @@ u32 w2c_image_frames_animate(w2c_image* instance, u32 var_p0, u32 var_p1, u32 va
   var_i1 = w2c_image_malloc(instance, var_i1);
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
   var_p2 = var_i1;
-  i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 1091440u, var_i1);
+  i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 1091444u, var_i1);
   var_i0 = 0u;
   var_i1 = 1054788u;
   var_i2 = var_p2;
@@ -127344,7 +127453,7 @@ u32 w2c_image_frames_next(w2c_image* instance, u32 var_p0, u32 var_p1, u32 var_p
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
   var_i0 = var_p1;
   var_i1 = 0u;
-  var_i1 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i1) + 1091440u);
+  var_i1 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i1) + 1091444u);
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
   var_i0 = 0u;
   var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 1091424u);
@@ -127385,7 +127494,7 @@ u32 w2c_image_frames_next(w2c_image* instance, u32 var_p0, u32 var_p1, u32 var_p
   var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u);
   var_l4 = var_i0;
   var_i0 = 0u;
-  var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 1091440u);
+  var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 1091444u);
   var_p2 = var_i0;
   if (var_i0) {goto var_B3;}
   var_i0 = var_p1;
@@ -127402,9 +127511,9 @@ u32 w2c_image_frames_next(w2c_image* instance, u32 var_p0, u32 var_p1, u32 var_p
   var_i2 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i2) + 1091420u);
   var_i3 = var_p2;
   var_i4 = 0u;
-  var_i4 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i4) + 1091432u);
+  var_i4 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i4) + 1091436u);
   var_i5 = 0u;
-  var_i5 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i5) + 1091436u);
+  var_i5 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i5) + 1091440u);
   var_i0 = w2c_image_scale_pixels(instance, var_i0, var_i1, var_i2, var_i3, var_i4, var_i5);
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
   var_l4 = var_i0;
@@ -135581,7 +135690,7 @@ u32 w2c_image_read_chunks(w2c_image* instance, u32 var_p0, u32 var_p1) {
       w2c_env_fill(instance->w2c_env_instance, var_i0, var_i1, var_i2);
       wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
       var_i0 = var_p0;
-      var_i1 = 273u;
+      var_i1 = 274u;
       i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 160u, var_i1);
       var_i0 = var_p1;
       var_i1 = 256u;
@@ -136337,7 +136446,7 @@ u32 w2c_image_read_chunks(w2c_image* instance, u32 var_p0, u32 var_p1) {
       w2c_env_fill(instance->w2c_env_instance, var_i0, var_i1, var_i2);
       wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
       var_i0 = var_p0;
-      var_i1 = 274u;
+      var_i1 = 275u;
       i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 160u, var_i1);
       var_i0 = var_p1;
       var_i1 = var_p0;
@@ -136891,7 +137000,7 @@ u32 w2c_image_read_chunks(w2c_image* instance, u32 var_p0, u32 var_p1) {
       var_j1 = 0ull;
       i64_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_j1);
       var_i0 = var_p0;
-      var_i1 = 275u;
+      var_i1 = 276u;
       i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 160u, var_i1);
       var_i0 = var_l6;
       var_i1 = 4294967280u;
@@ -138594,10 +138703,10 @@ u32 w2c_image_spng_0x5Finflate_stream(w2c_image* instance, u32 var_p0, u32 var_p
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
   var_B1:;
   var_i0 = var_p0;
-  var_i1 = 276u;
+  var_i1 = 277u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 2432u, var_i1);
   var_i0 = var_p0;
-  var_i1 = 277u;
+  var_i1 = 278u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 2428u, var_i1);
   var_i0 = var_p0;
   var_i1 = var_p0;
@@ -140963,10 +141072,10 @@ u32 w2c_image_spng_0x5Finflate_init(w2c_image* instance, u32 var_p0, u32 var_p1)
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
   var_B1:;
   var_i0 = var_p0;
-  var_i1 = 276u;
+  var_i1 = 277u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 2432u, var_i1);
   var_i0 = var_p0;
-  var_i1 = 277u;
+  var_i1 = 278u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 2428u, var_i1);
   var_i0 = var_p0;
   var_i1 = var_p0;
@@ -141330,16 +141439,16 @@ u32 w2c_image_spng_ctx_new(w2c_image* instance, u32 var_p0) {
   var_o1 = v128_const(0xff, 0xff, 0xff, 0x7f, 0xff, 0xff, 0xff, 0x7f, 0xff, 0xff, 0xff, 0x7f, 0xff, 0xff, 0xff, 0xff);
   v128_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 212u, var_o1);
   var_i0 = var_l2;
-  var_i1 = 278u;
+  var_i1 = 279u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 100u, var_i1);
   var_i0 = var_l2;
-  var_i1 = 279u;
+  var_i1 = 280u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 96u, var_i1);
   var_i0 = var_l2;
-  var_i1 = 280u;
+  var_i1 = 281u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 92u, var_i1);
   var_i0 = var_l2;
-  var_i1 = 281u;
+  var_i1 = 282u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 88u, var_i1);
   var_i0 = var_l2;
   var_i1 = 1u;
@@ -141851,7 +141960,7 @@ u32 w2c_image_spng_set_png_buffer(w2c_image* instance, u32 var_p0, u32 var_p1, u
   var_i1 = 2u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 112u, var_i1);
   var_i0 = var_p0;
-  var_i1 = 282u;
+  var_i1 = 283u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 20u, var_i1);
   var_i0 = 0u;
   var_l3 = var_i0;
@@ -142545,17 +142654,17 @@ u32 w2c_image_mz_inflateInit2(w2c_image* instance, u32 var_p0, u32 var_p1) {
   var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 32u);
   var_l2 = var_i0;
   if (var_i0) {goto var_B3;}
-  var_i0 = 283u;
+  var_i0 = 284u;
   var_l2 = var_i0;
   var_i0 = var_p0;
-  var_i1 = 283u;
+  var_i1 = 284u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 32u, var_i1);
   var_B3:;
   var_i0 = var_p0;
   var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 36u);
   if (var_i0) {goto var_B4;}
   var_i0 = var_p0;
-  var_i1 = 284u;
+  var_i1 = 285u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 36u, var_i1);
   var_B4:;
   var_i0 = var_p0;
@@ -152003,7 +152112,7 @@ u32 w2c_image_jpeg_skip_scanlines(w2c_image* instance, u32 var_p0, u32 var_p1) {
   var_i0 = !(var_i0);
   if (var_i0) {goto var_B14;}
   var_i0 = var_l8;
-  var_i1 = 285u;
+  var_i1 = 286u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   var_i0 = var_l2;
   var_l7 = var_i0;
@@ -152021,7 +152130,7 @@ u32 w2c_image_jpeg_skip_scanlines(w2c_image* instance, u32 var_p0, u32 var_p1) {
   var_i0 = !(var_i0);
   if (var_i0) {goto var_B15;}
   var_i0 = var_l8;
-  var_i1 = 286u;
+  var_i1 = 287u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   var_i0 = var_l19;
   var_l18 = var_i0;
@@ -152865,7 +152974,7 @@ u32 w2c_image_jpeg_skip_scanlines(w2c_image* instance, u32 var_p0, u32 var_p1) {
   var_i0 = !(var_i0);
   if (var_i0) {goto var_B51;}
   var_i0 = var_l18;
-  var_i1 = 285u;
+  var_i1 = 286u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   var_i0 = var_l2;
   var_i1 = 8u;
@@ -152885,7 +152994,7 @@ u32 w2c_image_jpeg_skip_scanlines(w2c_image* instance, u32 var_p0, u32 var_p1) {
   var_i0 = !(var_i0);
   if (var_i0) {goto var_B52;}
   var_i0 = var_l18;
-  var_i1 = 286u;
+  var_i1 = 287u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   var_i0 = var_l36;
   var_l16 = var_i0;
@@ -153047,7 +153156,7 @@ void w2c_image_increment_simple_rowgroup_ctr(w2c_image* instance, u32 var_p0, u3
   var_i0 = !(var_i0);
   if (var_i0) {goto var_B3;}
   var_i0 = var_l6;
-  var_i1 = 285u;
+  var_i1 = 286u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   var_i0 = var_l7;
   var_l3 = var_i0;
@@ -153063,7 +153172,7 @@ void w2c_image_increment_simple_rowgroup_ctr(w2c_image* instance, u32 var_p0, u3
   var_i0 = !(var_i0);
   if (var_i0) {goto var_B4;}
   var_i0 = var_l6;
-  var_i1 = 286u;
+  var_i1 = 287u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   var_i0 = var_l7;
   var_l5 = var_i0;
@@ -153166,7 +153275,7 @@ void w2c_image_increment_simple_rowgroup_ctr(w2c_image* instance, u32 var_p0, u3
   var_i0 = !(var_i0);
   if (var_i0) {goto var_B9;}
   var_i0 = var_l9;
-  var_i1 = 285u;
+  var_i1 = 286u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   var_i0 = var_l2;
   var_i1 = 8u;
@@ -153186,7 +153295,7 @@ void w2c_image_increment_simple_rowgroup_ctr(w2c_image* instance, u32 var_p0, u3
   var_i0 = !(var_i0);
   if (var_i0) {goto var_B10;}
   var_i0 = var_l9;
-  var_i1 = 286u;
+  var_i1 = 287u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   var_i0 = var_l10;
   var_l7 = var_i0;
@@ -153315,7 +153424,7 @@ void w2c_image_read_and_discard_scanlines(w2c_image* instance, u32 var_p0, u32 v
   var_i0 = !(var_i0);
   if (var_i0) {goto var_B1;}
   var_i0 = var_l7;
-  var_i1 = 285u;
+  var_i1 = 286u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   var_i0 = var_l2;
   var_i1 = 8u;
@@ -153335,7 +153444,7 @@ void w2c_image_read_and_discard_scanlines(w2c_image* instance, u32 var_p0, u32 v
   var_i0 = !(var_i0);
   if (var_i0) {goto var_B2;}
   var_i0 = var_l7;
-  var_i1 = 286u;
+  var_i1 = 287u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   var_i0 = var_l8;
   var_l4 = var_i0;
@@ -153437,7 +153546,7 @@ void w2c_image_jinit_arith_decoder(w2c_image* instance, u32 var_p0) {
 #endif
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
   var_l1 = var_i0;
-  var_i1 = 287u;
+  var_i1 = 288u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
   var_i0 = var_p0;
   var_i1 = var_l1;
@@ -153881,24 +153990,24 @@ void w2c_image_start_pass(w2c_image* instance, u32 var_p0) {
   var_i0 = var_l3;
   if (var_i0) {goto var_B21;}
   var_i0 = var_l2;
-  var_i1 = 288u;
+  var_i1 = 289u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   goto var_B1;
   var_B21:;
   var_i0 = var_l2;
-  var_i1 = 289u;
+  var_i1 = 290u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   goto var_B1;
   var_B20:;
   var_i0 = var_l3;
   if (var_i0) {goto var_B22;}
   var_i0 = var_l2;
-  var_i1 = 290u;
+  var_i1 = 291u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   goto var_B1;
   var_B22:;
   var_i0 = var_l2;
-  var_i1 = 291u;
+  var_i1 = 292u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   goto var_B1;
   var_B2:;
@@ -153933,7 +154042,7 @@ void w2c_image_start_pass(w2c_image* instance, u32 var_p0) {
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
   var_B23:;
   var_i0 = var_l2;
-  var_i1 = 292u;
+  var_i1 = 293u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   var_i0 = var_p0;
   var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 328u);
@@ -156988,7 +157097,7 @@ void w2c_image_jpeg_mem_dest_tj(w2c_image* instance, u32 var_p0, u32 var_p1, u32
   var_B4:;
   var_i0 = var_l4;
   var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u);
-  var_i1 = 293u;
+  var_i1 = 294u;
   var_i0 = var_i0 == var_i1;
   if (var_i0) {goto var_B3;}
   var_i0 = var_p0;
@@ -157009,13 +157118,13 @@ void w2c_image_jpeg_mem_dest_tj(w2c_image* instance, u32 var_p0, u32 var_p1, u32
   var_l4 = var_i0;
   var_B3:;
   var_i0 = var_l4;
-  var_i1 = 294u;
+  var_i1 = 295u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 16u, var_i1);
   var_i0 = var_l4;
-  var_i1 = 295u;
+  var_i1 = 296u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
   var_i0 = var_l4;
-  var_i1 = 293u;
+  var_i1 = 294u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
   var_i0 = var_l4;
   var_i1 = var_p3;
@@ -157347,7 +157456,7 @@ void w2c_image_jpeg_mem_src_tj(w2c_image* instance, u32 var_p0, u32 var_p1, u32 
   var_B4:;
   var_i0 = var_l3;
   var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u);
-  var_i1 = 296u;
+  var_i1 = 297u;
   var_i0 = var_i0 == var_i1;
   if (var_i0) {goto var_B3;}
   var_i0 = var_p0;
@@ -157368,19 +157477,19 @@ void w2c_image_jpeg_mem_src_tj(w2c_image* instance, u32 var_p0, u32 var_p1, u32 
   var_l3 = var_i0;
   var_B3:;
   var_i0 = var_l3;
-  var_i1 = 297u;
+  var_i1 = 298u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 24u, var_i1);
   var_i0 = var_l3;
-  var_i1 = 298u;
+  var_i1 = 299u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 20u, var_i1);
   var_i0 = var_l3;
-  var_i1 = 299u;
+  var_i1 = 300u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 16u, var_i1);
   var_i0 = var_l3;
-  var_i1 = 300u;
+  var_i1 = 301u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
   var_i0 = var_l3;
-  var_i1 = 296u;
+  var_i1 = 297u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
   var_i0 = var_l3;
   var_i1 = var_p2;
@@ -157605,10 +157714,10 @@ void w2c_image_jinit_d_coef_controller(w2c_image* instance, u32 var_p0, u32 var_
   var_i1 = 0u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 136u, var_i1);
   var_i0 = var_l4;
-  var_i1 = 301u;
+  var_i1 = 302u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
   var_i0 = var_l4;
-  var_i1 = 302u;
+  var_i1 = 303u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
   var_i0 = var_p0;
   var_i1 = var_l4;
@@ -157709,10 +157818,10 @@ void w2c_image_jinit_d_coef_controller(w2c_image* instance, u32 var_p0, u32 var_
     if (var_i0) {goto var_L5;}
   var_B4:;
   var_i0 = var_l4;
-  var_i1 = 303u;
+  var_i1 = 304u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
   var_i0 = var_l4;
-  var_i1 = 304u;
+  var_i1 = 305u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   var_i0 = var_l4;
   var_i1 = 96u;
@@ -157735,10 +157844,10 @@ void w2c_image_jinit_d_coef_controller(w2c_image* instance, u32 var_p0, u32 var_
   var_p1 = var_i1;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 52u, var_i1);
   var_i0 = var_l4;
-  var_i1 = 305u;
+  var_i1 = 306u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
   var_i0 = var_l4;
-  var_i1 = 306u;
+  var_i1 = 307u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   var_i0 = var_l4;
   var_i1 = var_p1;
@@ -158275,12 +158384,12 @@ void w2c_image_start_output_pass(w2c_image* instance, u32 var_p0) {
     var_l3 = var_i1;
     var_i0 = (u32)((s32)var_i0 < (s32)var_i1);
     if (var_i0) {goto var_L5;}
-  var_i0 = 307u;
+  var_i0 = 308u;
   var_l2 = var_i0;
   var_i0 = var_l7;
   if (var_i0) {goto var_B2;}
   var_B3:;
-  var_i0 = 303u;
+  var_i0 = 304u;
   var_l2 = var_i0;
   var_B2:;
   var_i0 = var_l1;
@@ -161677,7 +161786,7 @@ void w2c_image_jinit_color_deconverter(w2c_image* instance, u32 var_p0) {
 #endif
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
   var_l1 = var_i0;
-  var_i1 = 308u;
+  var_i1 = 309u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
   var_i0 = var_p0;
   var_i1 = var_l1;
@@ -161814,7 +161923,7 @@ void w2c_image_jinit_color_deconverter(w2c_image* instance, u32 var_p0) {
   }
   var_B20:;
   var_i0 = var_l1;
-  var_i1 = 309u;
+  var_i1 = 310u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   var_i0 = var_p0;
   w2c_image_build_rgb_y_table(instance, var_i0);
@@ -161893,7 +162002,7 @@ void w2c_image_jinit_color_deconverter(w2c_image* instance, u32 var_p0) {
   }
   var_B25:;
   var_i0 = var_l1;
-  var_i1 = 310u;
+  var_i1 = 311u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   var_i0 = var_p0;
   w2c_image_build_ycc_rgb_table(instance, var_i0);
@@ -161901,7 +162010,7 @@ void w2c_image_jinit_color_deconverter(w2c_image* instance, u32 var_p0) {
   goto var_B8;
   var_B24:;
   var_i0 = var_l1;
-  var_i1 = 311u;
+  var_i1 = 312u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   goto var_B8;
   var_B23:;
@@ -161959,7 +162068,7 @@ void w2c_image_jinit_color_deconverter(w2c_image* instance, u32 var_p0) {
   }
   var_B31:;
   var_i0 = var_l1;
-  var_i1 = 312u;
+  var_i1 = 313u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   var_i0 = var_p0;
   w2c_image_build_ycc_rgb_table(instance, var_i0);
@@ -161967,12 +162076,12 @@ void w2c_image_jinit_color_deconverter(w2c_image* instance, u32 var_p0) {
   goto var_B8;
   var_B30:;
   var_i0 = var_l1;
-  var_i1 = 313u;
+  var_i1 = 314u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   goto var_B8;
   var_B29:;
   var_i0 = var_l1;
-  var_i1 = 314u;
+  var_i1 = 315u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   goto var_B8;
   var_B28:;
@@ -162002,7 +162111,7 @@ void w2c_image_jinit_color_deconverter(w2c_image* instance, u32 var_p0) {
   }
   var_B35:;
   var_i0 = var_l1;
-  var_i1 = 315u;
+  var_i1 = 316u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   var_i0 = var_p0;
   w2c_image_build_ycc_rgb_table(instance, var_i0);
@@ -162010,12 +162119,12 @@ void w2c_image_jinit_color_deconverter(w2c_image* instance, u32 var_p0) {
   goto var_B8;
   var_B34:;
   var_i0 = var_l1;
-  var_i1 = 316u;
+  var_i1 = 317u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   goto var_B8;
   var_B33:;
   var_i0 = var_l1;
-  var_i1 = 317u;
+  var_i1 = 318u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   goto var_B8;
   var_B32:;
@@ -162081,7 +162190,7 @@ void w2c_image_jinit_color_deconverter(w2c_image* instance, u32 var_p0) {
   }
   var_B39:;
   var_i0 = var_l1;
-  var_i1 = 318u;
+  var_i1 = 319u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   var_i0 = var_p0;
   w2c_image_build_ycc_rgb_table(instance, var_i0);
@@ -162109,7 +162218,7 @@ void w2c_image_jinit_color_deconverter(w2c_image* instance, u32 var_p0) {
   var_i0 = var_i0 != var_i1;
   if (var_i0) {goto var_B40;}
   var_i0 = var_l1;
-  var_i1 = 319u;
+  var_i1 = 320u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   var_i0 = var_p0;
   var_i1 = var_p0;
@@ -162133,7 +162242,7 @@ void w2c_image_jinit_color_deconverter(w2c_image* instance, u32 var_p0) {
   goto var_B8;
   var_B11:;
   var_i0 = var_l1;
-  var_i1 = 319u;
+  var_i1 = 320u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   goto var_B8;
   var_B10:;
@@ -162151,17 +162260,17 @@ void w2c_image_jinit_color_deconverter(w2c_image* instance, u32 var_p0) {
   var_i0 = !(var_i0);
   if (var_i0) {goto var_B41;}
   var_i0 = var_l1;
-  var_i1 = 319u;
+  var_i1 = 320u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   goto var_B8;
   var_B41:;
   var_i0 = var_l1;
-  var_i1 = 320u;
+  var_i1 = 321u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   goto var_B8;
   var_B9:;
   var_i0 = var_l1;
-  var_i1 = 321u;
+  var_i1 = 322u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   var_i0 = var_p0;
   var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 36u);
@@ -173088,7 +173197,7 @@ void w2c_image_jinit_inverse_dct(w2c_image* instance, u32 var_p0) {
 #endif
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
   var_l1 = var_i0;
-  var_i1 = 322u;
+  var_i1 = 323u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
   var_i0 = var_p0;
   var_i1 = var_l1;
@@ -173264,7 +173373,7 @@ void w2c_image_start_pass0x2E1(w2c_image* instance, u32 var_p0) {
     var_i1 = 0u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
     var_i0 = var_l1;
-    var_i1 = 323u;
+    var_i1 = 324u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
     goto var_B4;
     var_B20:;
@@ -173272,7 +173381,7 @@ void w2c_image_start_pass0x2E1(w2c_image* instance, u32 var_p0) {
     var_i1 = 0u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
     var_i0 = var_l1;
-    var_i1 = 324u;
+    var_i1 = 325u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
     goto var_B4;
     var_B19:;
@@ -173280,7 +173389,7 @@ void w2c_image_start_pass0x2E1(w2c_image* instance, u32 var_p0) {
     var_i1 = 0u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
     var_i0 = var_l1;
-    var_i1 = 325u;
+    var_i1 = 326u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
     goto var_B4;
     var_B18:;
@@ -173288,7 +173397,7 @@ void w2c_image_start_pass0x2E1(w2c_image* instance, u32 var_p0) {
     var_i1 = 0u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
     var_i0 = var_l1;
-    var_i1 = 326u;
+    var_i1 = 327u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
     goto var_B4;
     var_B17:;
@@ -173296,7 +173405,7 @@ void w2c_image_start_pass0x2E1(w2c_image* instance, u32 var_p0) {
     var_i1 = 0u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
     var_i0 = var_l1;
-    var_i1 = 327u;
+    var_i1 = 328u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
     goto var_B4;
     var_B16:;
@@ -173304,7 +173413,7 @@ void w2c_image_start_pass0x2E1(w2c_image* instance, u32 var_p0) {
     var_i1 = 0u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
     var_i0 = var_l1;
-    var_i1 = 328u;
+    var_i1 = 329u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
     goto var_B4;
     var_B15:;
@@ -173312,7 +173421,7 @@ void w2c_image_start_pass0x2E1(w2c_image* instance, u32 var_p0) {
     var_i1 = 0u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
     var_i0 = var_l1;
-    var_i1 = 329u;
+    var_i1 = 330u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
     goto var_B4;
     var_B14:;
@@ -173329,7 +173438,7 @@ void w2c_image_start_pass0x2E1(w2c_image* instance, u32 var_p0) {
     var_i1 = 0u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
     var_i0 = var_l1;
-    var_i1 = 330u;
+    var_i1 = 331u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
     goto var_B4;
     var_B24:;
@@ -173337,7 +173446,7 @@ void w2c_image_start_pass0x2E1(w2c_image* instance, u32 var_p0) {
     var_i1 = 1u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
     var_i0 = var_l1;
-    var_i1 = 331u;
+    var_i1 = 332u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
     goto var_B4;
     var_B23:;
@@ -173345,7 +173454,7 @@ void w2c_image_start_pass0x2E1(w2c_image* instance, u32 var_p0) {
     var_i1 = 2u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
     var_i0 = var_l1;
-    var_i1 = 332u;
+    var_i1 = 333u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
     goto var_B4;
     var_B22:;
@@ -173368,7 +173477,7 @@ void w2c_image_start_pass0x2E1(w2c_image* instance, u32 var_p0) {
     var_i1 = 0u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
     var_i0 = var_l1;
-    var_i1 = 333u;
+    var_i1 = 334u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
     goto var_B4;
     var_B12:;
@@ -173376,7 +173485,7 @@ void w2c_image_start_pass0x2E1(w2c_image* instance, u32 var_p0) {
     var_i1 = 0u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
     var_i0 = var_l1;
-    var_i1 = 334u;
+    var_i1 = 335u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
     goto var_B4;
     var_B11:;
@@ -173384,7 +173493,7 @@ void w2c_image_start_pass0x2E1(w2c_image* instance, u32 var_p0) {
     var_i1 = 0u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
     var_i0 = var_l1;
-    var_i1 = 335u;
+    var_i1 = 336u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
     goto var_B4;
     var_B10:;
@@ -173392,7 +173501,7 @@ void w2c_image_start_pass0x2E1(w2c_image* instance, u32 var_p0) {
     var_i1 = 0u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
     var_i0 = var_l1;
-    var_i1 = 336u;
+    var_i1 = 337u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
     goto var_B4;
     var_B9:;
@@ -173400,7 +173509,7 @@ void w2c_image_start_pass0x2E1(w2c_image* instance, u32 var_p0) {
     var_i1 = 0u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
     var_i0 = var_l1;
-    var_i1 = 337u;
+    var_i1 = 338u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
     goto var_B4;
     var_B8:;
@@ -173408,7 +173517,7 @@ void w2c_image_start_pass0x2E1(w2c_image* instance, u32 var_p0) {
     var_i1 = 0u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
     var_i0 = var_l1;
-    var_i1 = 338u;
+    var_i1 = 339u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
     goto var_B4;
     var_B7:;
@@ -173416,7 +173525,7 @@ void w2c_image_start_pass0x2E1(w2c_image* instance, u32 var_p0) {
     var_i1 = 0u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
     var_i0 = var_l1;
-    var_i1 = 339u;
+    var_i1 = 340u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
     goto var_B4;
     var_B6:;
@@ -173424,7 +173533,7 @@ void w2c_image_start_pass0x2E1(w2c_image* instance, u32 var_p0) {
     var_i1 = 0u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
     var_i0 = var_l1;
-    var_i1 = 340u;
+    var_i1 = 341u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
     goto var_B4;
     var_B5:;
@@ -173856,10 +173965,10 @@ void w2c_image_jinit_d_diff_controller(w2c_image* instance, u32 var_p0, u32 var_
 #endif
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
   var_l2 = var_i0;
-  var_i1 = 341u;
+  var_i1 = 342u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
   var_i0 = var_l2;
-  var_i1 = 342u;
+  var_i1 = 343u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
   var_i0 = var_p0;
   var_i1 = var_l2;
@@ -173969,11 +174078,11 @@ void w2c_image_jinit_d_diff_controller(w2c_image* instance, u32 var_p0, u32 var_
   var_i0 = var_p1;
   var_i0 = !(var_i0);
   if (var_i0) {goto var_B2;}
-  var_i0 = 343u;
+  var_i0 = 344u;
   var_p1 = var_i0;
   var_i0 = 12u;
   var_l9 = var_i0;
-  var_i0 = 344u;
+  var_i0 = 345u;
   var_l10 = var_i0;
   var_i0 = var_l6;
   var_i1 = 1u;
@@ -173986,11 +174095,11 @@ void w2c_image_jinit_d_diff_controller(w2c_image* instance, u32 var_p0, u32 var_
   var_i0 = var_p1;
   var_i0 = !(var_i0);
   if (var_i0) {goto var_B2;}
-  var_i0 = 343u;
+  var_i0 = 344u;
   var_p1 = var_i0;
   var_i0 = 12u;
   var_l9 = var_i0;
-  var_i0 = 344u;
+  var_i0 = 345u;
   var_l10 = var_i0;
   var_i0 = 4u;
   var_l6 = var_i0;
@@ -174079,13 +174188,13 @@ void w2c_image_jinit_d_diff_controller(w2c_image* instance, u32 var_p0, u32 var_
     goto var_B1;
   var_B2:;
   var_i0 = var_l2;
-  var_i1 = 345u;
+  var_i1 = 346u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   var_i0 = 0u;
   var_p1 = var_i0;
   var_i0 = 136u;
   var_l9 = var_i0;
-  var_i0 = 346u;
+  var_i0 = 347u;
   var_l10 = var_i0;
   var_i0 = 12u;
   var_l6 = var_i0;
@@ -176325,10 +176434,10 @@ void w2c_image_jinit_huff_decoder(w2c_image* instance, u32 var_p0) {
   var_l1 = var_i1;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 444u, var_i1);
   var_i0 = var_l1;
-  var_i1 = 347u;
+  var_i1 = 348u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   var_i0 = var_l1;
-  var_i1 = 348u;
+  var_i1 = 349u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
   var_i0 = var_l1;
   var_o1 = v128_const(0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00);
@@ -178850,16 +178959,16 @@ void w2c_image_jinit_input_controller(w2c_image* instance, u32 var_p0) {
   var_j1 = 0ull;
   i64_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 16u, var_j1);
   var_i0 = var_l1;
-  var_i1 = 349u;
+  var_i1 = 350u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
   var_i0 = var_l1;
-  var_i1 = 350u;
+  var_i1 = 351u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
   var_i0 = var_l1;
-  var_i1 = 351u;
+  var_i1 = 352u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   var_i0 = var_l1;
-  var_i1 = 352u;
+  var_i1 = 353u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
   var_i0 = var_p0;
   var_i1 = var_l1;
@@ -178888,7 +178997,7 @@ void w2c_image_finish_input_pass(w2c_image* instance, u32 var_p0) {
   }
   var_i0 = var_p0;
   var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 436u);
-  var_i1 = 352u;
+  var_i1 = 353u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
   FUNC_EPILOGUE;
 }
@@ -179440,7 +179549,7 @@ void w2c_image_reset_input_controller(w2c_image* instance, u32 var_p0) {
   var_j1 = 0ull;
   i64_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 16u, var_j1);
   var_i0 = var_l1;
-  var_i1 = 352u;
+  var_i1 = 353u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
   var_i0 = var_p0;
   var_i1 = var_p0;
@@ -180012,13 +180121,13 @@ void w2c_image_jinit_lhuff_decoder(w2c_image* instance, u32 var_p0) {
   var_l1 = var_i1;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 444u, var_i1);
   var_i0 = var_l1;
-  var_i1 = 353u;
+  var_i1 = 354u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
   var_i0 = var_l1;
-  var_i1 = 354u;
+  var_i1 = 355u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
   var_i0 = var_l1;
-  var_i1 = 355u;
+  var_i1 = 356u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
   var_i0 = var_l1;
   var_o1 = v128_const(0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00);
@@ -181004,7 +181113,7 @@ void w2c_image_jinit_lossless_decompressor(w2c_image* instance, u32 var_p0) {
 #endif
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
   var_l1 = var_i0;
-  var_i1 = 356u;
+  var_i1 = 357u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
   var_i0 = var_p0;
   var_i1 = var_l1;
@@ -181130,7 +181239,7 @@ void w2c_image_start_pass_lossless(w2c_image* instance, u32 var_p0) {
       instance->w2c_0x5F_fuel = var_i0;
     }
     var_i0 = var_l2;
-    var_i1 = 357u;
+    var_i1 = 358u;
     var_o1 = simde_wasm_i32x4_splat(var_i1);
     v128_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_o1);
     var_i0 = var_l2;
@@ -181173,7 +181282,7 @@ void w2c_image_start_pass_lossless(w2c_image* instance, u32 var_p0) {
       instance->w2c_0x5F_fuel = var_i0;
     }
     var_i0 = var_l2;
-    var_i1 = 357u;
+    var_i1 = 358u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
     var_i0 = var_l2;
     var_i1 = 4u;
@@ -181186,8 +181295,8 @@ void w2c_image_start_pass_lossless(w2c_image* instance, u32 var_p0) {
     if (var_i0) {goto var_L7;}
   var_B3:;
   var_i0 = var_l1;
-  var_i1 = 358u;
-  var_i2 = 359u;
+  var_i1 = 359u;
+  var_i2 = 360u;
   var_i3 = var_p0;
   var_i3 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i3) + 412u);
   var_i1 = var_i3 ? var_i1 : var_i2;
@@ -183397,7 +183506,7 @@ void w2c_image_jinit_d_main_controller(w2c_image* instance, u32 var_p0, u32 var_
   w2c_env_fill(instance->w2c_env_instance, var_i0, var_i1, var_i2);
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
   var_i0 = var_l4;
-  var_i1 = 367u;
+  var_i1 = 368u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
   var_i0 = var_p0;
   var_i1 = var_l4;
@@ -183704,7 +183813,7 @@ void w2c_image_start_pass_main(w2c_image* instance, u32 var_p0, u32 var_p1) {
   var_i0 = !(var_i0);
   if (var_i0) {goto var_B5;}
   var_i0 = var_l2;
-  var_i1 = 368u;
+  var_i1 = 369u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   var_i0 = var_p0;
   var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 36u);
@@ -184403,7 +184512,7 @@ void w2c_image_start_pass_main(w2c_image* instance, u32 var_p0, u32 var_p1) {
   goto var_B4;
   var_B5:;
   var_i0 = var_l2;
-  var_i1 = 369u;
+  var_i1 = 370u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   var_B4:;
   var_i0 = var_l2;
@@ -184412,7 +184521,7 @@ void w2c_image_start_pass_main(w2c_image* instance, u32 var_p0, u32 var_p1) {
   goto var_Bfunc;
   var_B2:;
   var_i0 = var_l2;
-  var_i1 = 370u;
+  var_i1 = 371u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   goto var_Bfunc;
   var_B1:;
@@ -185819,16 +185928,16 @@ void w2c_image_jinit_marker_reader(w2c_image* instance, u32 var_p0) {
   var_l2 = var_o1;
   v128_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 96u, var_o1);
   var_i0 = var_l1;
-  var_i1 = 371u;
+  var_i1 = 372u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 28u, var_i1);
   var_i0 = var_l1;
-  var_i1 = 372u;
+  var_i1 = 373u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
   var_i0 = var_l1;
-  var_i1 = 373u;
+  var_i1 = 374u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   var_i0 = var_l1;
-  var_i1 = 374u;
+  var_i1 = 375u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
   var_i0 = var_l1;
   var_o1 = var_l2;
@@ -185840,52 +185949,52 @@ void w2c_image_jinit_marker_reader(w2c_image* instance, u32 var_p0) {
   var_o1 = var_l2;
   v128_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 144u, var_o1);
   var_i0 = var_l1;
-  var_i1 = 371u;
+  var_i1 = 372u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 40u, var_i1);
   var_i0 = var_l1;
-  var_i1 = 371u;
+  var_i1 = 372u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 36u, var_i1);
   var_i0 = var_l1;
-  var_i1 = 371u;
+  var_i1 = 372u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 56u, var_i1);
   var_i0 = var_l1;
-  var_i1 = 371u;
+  var_i1 = 372u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 52u, var_i1);
   var_i0 = var_l1;
-  var_i1 = 371u;
+  var_i1 = 372u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 48u, var_i1);
   var_i0 = var_l1;
-  var_i1 = 371u;
+  var_i1 = 372u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 44u, var_i1);
   var_i0 = var_l1;
-  var_i1 = 371u;
+  var_i1 = 372u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 72u, var_i1);
   var_i0 = var_l1;
-  var_i1 = 371u;
+  var_i1 = 372u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 68u, var_i1);
   var_i0 = var_l1;
-  var_i1 = 371u;
+  var_i1 = 372u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 64u, var_i1);
   var_i0 = var_l1;
-  var_i1 = 371u;
+  var_i1 = 372u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 60u, var_i1);
   var_i0 = var_l1;
-  var_i1 = 371u;
+  var_i1 = 372u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 84u, var_i1);
   var_i0 = var_l1;
-  var_i1 = 371u;
+  var_i1 = 372u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 80u, var_i1);
   var_i0 = var_l1;
-  var_i1 = 371u;
+  var_i1 = 372u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 76u, var_i1);
   var_i0 = var_l1;
-  var_i1 = 375u;
+  var_i1 = 376u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 32u, var_i1);
   var_i0 = var_l1;
-  var_i1 = 371u;
+  var_i1 = 372u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 92u, var_i1);
   var_i0 = var_l1;
-  var_i1 = 375u;
+  var_i1 = 376u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 88u, var_i1);
   var_i0 = var_l1;
   var_i1 = 0u;
@@ -191788,10 +191897,10 @@ void w2c_image_jinit_master_decompress(w2c_image* instance, u32 var_p0) {
   var_i1 = 0u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
   var_i0 = var_l1;
-  var_i1 = 376u;
+  var_i1 = 377u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   var_i0 = var_l1;
-  var_i1 = 377u;
+  var_i1 = 378u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
   var_i0 = var_l1;
   var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u);
@@ -193105,7 +193214,7 @@ void w2c_image_jinit_merged_upsampler(w2c_image* instance, u32 var_p0) {
   var_i1 = 0u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 16u, var_i1);
   var_i0 = var_l1;
-  var_i1 = 378u;
+  var_i1 = 379u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
   var_i0 = var_p0;
   var_i1 = var_l1;
@@ -193124,10 +193233,10 @@ void w2c_image_jinit_merged_upsampler(w2c_image* instance, u32 var_p0) {
   var_i0 = var_i0 != var_i1;
   if (var_i0) {goto var_B3;}
   var_i0 = var_l1;
-  var_i1 = 379u;
+  var_i1 = 380u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 20u, var_i1);
   var_i0 = var_l1;
-  var_i1 = 380u;
+  var_i1 = 381u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   var_i0 = var_p0;
   var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 44u);
@@ -193135,8 +193244,8 @@ void w2c_image_jinit_merged_upsampler(w2c_image* instance, u32 var_p0) {
   var_i0 = var_i0 != var_i1;
   if (var_i0) {goto var_B4;}
   var_i0 = var_l1;
-  var_i1 = 381u;
-  var_i2 = 382u;
+  var_i1 = 382u;
+  var_i2 = 383u;
   var_i3 = var_p0;
   var_i3 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i3) + 88u);
   var_i1 = var_i3 ? var_i1 : var_i2;
@@ -193161,10 +193270,10 @@ void w2c_image_jinit_merged_upsampler(w2c_image* instance, u32 var_p0) {
   goto var_B2;
   var_B3:;
   var_i0 = var_l1;
-  var_i1 = 383u;
+  var_i1 = 384u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 20u, var_i1);
   var_i0 = var_l1;
-  var_i1 = 384u;
+  var_i1 = 385u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   var_i0 = var_p0;
   var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 44u);
@@ -193172,8 +193281,8 @@ void w2c_image_jinit_merged_upsampler(w2c_image* instance, u32 var_p0) {
   var_i0 = var_i0 != var_i1;
   if (var_i0) {goto var_B5;}
   var_i0 = var_l1;
-  var_i1 = 385u;
-  var_i2 = 386u;
+  var_i1 = 386u;
+  var_i2 = 387u;
   var_i3 = var_p0;
   var_i3 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i3) + 88u);
   var_i1 = var_i3 ? var_i1 : var_i2;
@@ -198913,7 +199022,7 @@ void w2c_image_jinit_phuff_decoder(w2c_image* instance, u32 var_p0) {
   var_o1 = v128_const(0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00);
   v128_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 52u, var_o1);
   var_i0 = var_l1;
-  var_i1 = 387u;
+  var_i1 = 388u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
   var_i0 = var_p0;
   var_i1 = var_p0;
@@ -199317,12 +199426,12 @@ void w2c_image_start_pass_phuff_decoder(w2c_image* instance, u32 var_p0) {
     var_i0 = (u32)((s32)var_i0 < (s32)var_i1);
     if (var_i0) {goto var_L7;}
   var_i0 = var_l4;
-  var_i1 = 388u;
-  var_i2 = 389u;
+  var_i1 = 389u;
+  var_i2 = 390u;
   var_i3 = var_l2;
   var_i1 = var_i3 ? var_i1 : var_i2;
-  var_i2 = 390u;
-  var_i3 = 391u;
+  var_i2 = 391u;
+  var_i3 = 392u;
   var_i4 = var_l2;
   var_i2 = var_i4 ? var_i2 : var_i3;
   var_i3 = var_p0;
@@ -199418,12 +199527,12 @@ void w2c_image_start_pass_phuff_decoder(w2c_image* instance, u32 var_p0) {
     goto var_B5;
   var_B6:;
   var_i0 = var_l4;
-  var_i1 = 388u;
-  var_i2 = 389u;
+  var_i1 = 389u;
+  var_i2 = 390u;
   var_i3 = var_l2;
   var_i1 = var_i3 ? var_i1 : var_i2;
-  var_i2 = 390u;
-  var_i3 = 391u;
+  var_i2 = 391u;
+  var_i3 = 392u;
   var_i4 = var_l2;
   var_i2 = var_i4 ? var_i2 : var_i3;
   var_i3 = var_p0;
@@ -201545,7 +201654,7 @@ void w2c_image_jinit_d_post_controller(w2c_image* instance, u32 var_p0, u32 var_
   var_j1 = 0ull;
   i64_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 16u, var_j1);
   var_i0 = var_l2;
-  var_i1 = 392u;
+  var_i1 = 393u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
   var_i0 = var_p0;
   var_i1 = var_l2;
@@ -201651,7 +201760,7 @@ void w2c_image_start_pass_dpost(w2c_image* instance, u32 var_p0, u32 var_p1) {
   var_i0 = !(var_i0);
   if (var_i0) {goto var_B6;}
   var_i0 = var_l2;
-  var_i1 = 393u;
+  var_i1 = 394u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   var_i0 = var_l2;
   var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 20u);
@@ -201700,7 +201809,7 @@ void w2c_image_start_pass_dpost(w2c_image* instance, u32 var_p0, u32 var_p1) {
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
   var_B7:;
   var_i0 = var_l2;
-  var_i1 = 394u;
+  var_i1 = 395u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   goto var_B1;
   var_B3:;
@@ -201722,7 +201831,7 @@ void w2c_image_start_pass_dpost(w2c_image* instance, u32 var_p0, u32 var_p1) {
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
   var_B8:;
   var_i0 = var_l2;
-  var_i1 = 395u;
+  var_i1 = 396u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   goto var_B1;
   var_B2:;
@@ -202167,10 +202276,10 @@ void w2c_image_jinit_upsampler(w2c_image* instance, u32 var_p0) {
   var_i1 = 0u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 16u, var_i1);
   var_i0 = var_l3;
-  var_i1 = 396u;
+  var_i1 = 397u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   var_i0 = var_l3;
-  var_i1 = 397u;
+  var_i1 = 398u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
   var_i0 = var_p0;
   var_i1 = var_l3;
@@ -202278,7 +202387,7 @@ void w2c_image_jinit_upsampler(w2c_image* instance, u32 var_p0) {
     var_i0 += var_i1;
     var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0));
     if (var_i0) {goto var_B12;}
-    var_i0 = 398u;
+    var_i0 = 399u;
     var_l8 = var_i0;
     var_i0 = 60u;
     var_l6 = var_i0;
@@ -202292,7 +202401,7 @@ void w2c_image_jinit_upsampler(w2c_image* instance, u32 var_p0) {
     var_i1 = var_l7;
     var_i0 = var_i0 != var_i1;
     if (var_i0) {goto var_B13;}
-    var_i0 = 399u;
+    var_i0 = 400u;
     var_l8 = var_i0;
     var_i0 = 60u;
     var_l6 = var_i0;
@@ -202322,14 +202431,14 @@ void w2c_image_jinit_upsampler(w2c_image* instance, u32 var_p0) {
     var_i0 = var_l2;
     var_i1 = 60u;
     var_i0 += var_i1;
-    var_i1 = 400u;
+    var_i1 = 401u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
     goto var_B14;
     var_B16:;
     var_i0 = var_l2;
     var_i1 = 60u;
     var_i0 += var_i1;
-    var_i1 = 401u;
+    var_i1 = 402u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
     goto var_B14;
     var_B15:;
@@ -202354,7 +202463,7 @@ void w2c_image_jinit_upsampler(w2c_image* instance, u32 var_p0) {
     var_i0 = var_l2;
     var_i1 = 60u;
     var_i0 += var_i1;
-    var_i1 = 402u;
+    var_i1 = 403u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
     goto var_B14;
     var_B17:;
@@ -202380,14 +202489,14 @@ void w2c_image_jinit_upsampler(w2c_image* instance, u32 var_p0) {
     var_i0 = var_l2;
     var_i1 = 60u;
     var_i0 += var_i1;
-    var_i1 = 403u;
+    var_i1 = 404u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
     goto var_B14;
     var_B19:;
     var_i0 = var_l2;
     var_i1 = 60u;
     var_i0 += var_i1;
-    var_i1 = 404u;
+    var_i1 = 405u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
     goto var_B14;
     var_B18:;
@@ -202412,7 +202521,7 @@ void w2c_image_jinit_upsampler(w2c_image* instance, u32 var_p0) {
     var_i0 = var_l2;
     var_i1 = 60u;
     var_i0 += var_i1;
-    var_i1 = 405u;
+    var_i1 = 406u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
     var_i0 = var_l3;
     var_i1 = var_l5;
@@ -205280,19 +205389,19 @@ u32 w2c_image_jpeg_std_error(w2c_image* instance, u32 var_p0) {
   var_i1 = 1075920u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 112u, var_i1);
   var_i0 = var_p0;
-  var_i1 = 406u;
+  var_i1 = 407u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 16u, var_i1);
   var_i0 = var_p0;
-  var_i1 = 407u;
+  var_i1 = 408u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
   var_i0 = var_p0;
-  var_i1 = 408u;
+  var_i1 = 409u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
   var_i0 = var_p0;
-  var_i1 = 409u;
+  var_i1 = 410u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   var_i0 = var_p0;
-  var_i1 = 410u;
+  var_i1 = 411u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
   var_i0 = var_p0;
   FUNC_EPILOGUE;
@@ -216369,37 +216478,37 @@ void w2c_image_jinit_memory_mgr(w2c_image* instance, u32 var_p0) {
   var_i1 = 1000000000u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 48u, var_i1);
   var_i0 = var_l2;
-  var_i1 = 411u;
+  var_i1 = 412u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 40u, var_i1);
   var_i0 = var_l2;
-  var_i1 = 412u;
+  var_i1 = 413u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 36u, var_i1);
   var_i0 = var_l2;
-  var_i1 = 413u;
+  var_i1 = 414u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 32u, var_i1);
   var_i0 = var_l2;
-  var_i1 = 414u;
+  var_i1 = 415u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 28u, var_i1);
   var_i0 = var_l2;
-  var_i1 = 415u;
+  var_i1 = 416u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 24u, var_i1);
   var_i0 = var_l2;
-  var_i1 = 416u;
+  var_i1 = 417u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 20u, var_i1);
   var_i0 = var_l2;
-  var_i1 = 417u;
+  var_i1 = 418u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 16u, var_i1);
   var_i0 = var_l2;
-  var_i1 = 418u;
+  var_i1 = 419u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
   var_i0 = var_l2;
-  var_i1 = 419u;
+  var_i1 = 420u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
   var_i0 = var_l2;
-  var_i1 = 420u;
+  var_i1 = 421u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   var_i0 = var_l2;
-  var_i1 = 421u;
+  var_i1 = 422u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
   var_i0 = var_l2;
   var_i1 = var_l1;
@@ -220220,13 +220329,13 @@ void w2c_image_jinit_1pass_quantizer(w2c_image* instance, u32 var_p0) {
   var_i1 = 0u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 72u, var_i1);
   var_i0 = var_l2;
-  var_i1 = 422u;
+  var_i1 = 423u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 16u, var_i1);
   var_i0 = var_l2;
-  var_i1 = 423u;
+  var_i1 = 424u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
   var_i0 = var_l2;
-  var_i1 = 424u;
+  var_i1 = 425u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
   var_i0 = var_p0;
   var_i1 = var_l2;
@@ -221190,12 +221299,12 @@ void w2c_image_start_pass_1_quant(w2c_image* instance, u32 var_p0, u32 var_p1) {
   var_i0 = var_i0 != var_i1;
   if (var_i0) {goto var_B6;}
   var_i0 = var_l2;
-  var_i1 = 425u;
+  var_i1 = 426u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   goto var_Bfunc;
   var_B6:;
   var_i0 = var_l2;
-  var_i1 = 426u;
+  var_i1 = 427u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   goto var_Bfunc;
   var_B4:;
@@ -221203,8 +221312,8 @@ void w2c_image_start_pass_1_quant(w2c_image* instance, u32 var_p0, u32 var_p1) {
   var_i1 = 0u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 52u, var_i1);
   var_i0 = var_l2;
-  var_i1 = 427u;
-  var_i2 = 428u;
+  var_i1 = 428u;
+  var_i2 = 429u;
   var_i3 = var_p0;
   var_i3 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i3) + 120u);
   var_i4 = 3u;
@@ -221524,7 +221633,7 @@ void w2c_image_start_pass_1_quant(w2c_image* instance, u32 var_p0, u32 var_p1) {
   var_i1 = 0u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 88u, var_i1);
   var_i0 = var_l2;
-  var_i1 = 429u;
+  var_i1 = 430u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   var_i0 = var_l2;
   var_i1 = 72u;
@@ -223223,10 +223332,10 @@ void w2c_image_jinit_2pass_quantizer(w2c_image* instance, u32 var_p0) {
   var_i1 = 0u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 36u, var_i1);
   var_i0 = var_l2;
-  var_i1 = 430u;
+  var_i1 = 431u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 16u, var_i1);
   var_i0 = var_l2;
-  var_i1 = 431u;
+  var_i1 = 432u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
   var_i0 = var_p0;
   var_i1 = var_l2;
@@ -223493,7 +223602,7 @@ void w2c_image_start_pass_2_quant(w2c_image* instance, u32 var_p0, u32 var_p1) {
   if (var_i0) {goto var_B5;}
   var_i0 = var_p1;
   if (var_i0) {goto var_B3;}
-  var_i0 = 432u;
+  var_i0 = 433u;
   var_p1 = var_i0;
   goto var_B4;
   var_B5:;
@@ -223502,11 +223611,11 @@ void w2c_image_start_pass_2_quant(w2c_image* instance, u32 var_p0, u32 var_p1) {
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 88u, var_i1);
   var_i0 = var_p1;
   if (var_i0) {goto var_B3;}
-  var_i0 = 433u;
+  var_i0 = 434u;
   var_p1 = var_i0;
   var_B4:;
   var_i0 = var_l2;
-  var_i1 = 434u;
+  var_i1 = 435u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
   var_i0 = var_l2;
   var_i1 = var_p1;
@@ -223598,10 +223707,10 @@ void w2c_image_start_pass_2_quant(w2c_image* instance, u32 var_p0, u32 var_p1) {
   goto var_B2;
   var_B3:;
   var_i0 = var_l2;
-  var_i1 = 435u;
+  var_i1 = 436u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
   var_i0 = var_l2;
-  var_i1 = 436u;
+  var_i1 = 437u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   var_i0 = 1u;
   var_p1 = var_i0;
@@ -228684,7 +228793,7 @@ u32 w2c_image_tj3Init(w2c_image* instance, u32 var_p0) {
   }
   var_B6:;
   var_i0 = var_l1;
-  var_i1 = 1091444u;
+  var_i1 = 1091448u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 28u, var_i1);
   var_i0 = var_l1;
   var_i1 = 1u;
@@ -228696,10 +228805,10 @@ u32 w2c_image_tj3Init(w2c_image* instance, u32 var_p0) {
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
   var_p0 = var_i0;
   var_i0 = var_l2;
-  var_i1 = 437u;
+  var_i1 = 438u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 848u, var_i1);
   var_i0 = var_l2;
-  var_i1 = 438u;
+  var_i1 = 439u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 840u, var_i1);
   var_i0 = var_l2;
   var_i1 = var_p0;
@@ -228714,7 +228823,7 @@ u32 w2c_image_tj3Init(w2c_image* instance, u32 var_p0) {
   var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 844u);
   var_p0 = var_i0;
   var_i0 = var_l2;
-  var_i1 = 439u;
+  var_i1 = 440u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 844u, var_i1);
   var_i0 = var_l2;
   var_i1 = var_p0;
@@ -228749,10 +228858,10 @@ u32 w2c_image_tj3Init(w2c_image* instance, u32 var_p0) {
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
   var_p0 = var_i0;
   var_i0 = var_l2;
-  var_i1 = 437u;
+  var_i1 = 438u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 848u, var_i1);
   var_i0 = var_l2;
-  var_i1 = 438u;
+  var_i1 = 439u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 840u, var_i1);
   var_i0 = var_l2;
   var_i1 = var_p0;
@@ -228767,7 +228876,7 @@ u32 w2c_image_tj3Init(w2c_image* instance, u32 var_p0) {
   var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 844u);
   var_p0 = var_i0;
   var_i0 = var_l2;
-  var_i1 = 439u;
+  var_i1 = 440u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 844u, var_i1);
   var_i0 = var_l2;
   var_i1 = var_p0;
@@ -228781,7 +228890,7 @@ u32 w2c_image_tj3Init(w2c_image* instance, u32 var_p0) {
   w2c_image_jpeg_CreateDecompress(instance, var_i0, var_i1, var_i2);
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
   var_i0 = var_p0;
-  var_i1 = 1091445u;
+  var_i1 = 1091449u;
   var_i2 = 1u;
   w2c_image_jpeg_mem_src_tj(instance, var_i0, var_i1, var_i2);
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
@@ -228794,7 +228903,7 @@ u32 w2c_image_tj3Init(w2c_image* instance, u32 var_p0) {
   goto var_B1;
   var_B4:;
   var_i0 = var_l1;
-  var_i1 = 1091444u;
+  var_i1 = 1091448u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 28u, var_i1);
   var_i0 = var_l1;
   var_i1 = 1u;
@@ -228807,10 +228916,10 @@ u32 w2c_image_tj3Init(w2c_image* instance, u32 var_p0) {
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
   var_l3 = var_i0;
   var_i0 = var_l2;
-  var_i1 = 437u;
+  var_i1 = 438u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 848u, var_i1);
   var_i0 = var_l2;
-  var_i1 = 438u;
+  var_i1 = 439u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 840u, var_i1);
   var_i0 = var_l2;
   var_i1 = var_l3;
@@ -228825,7 +228934,7 @@ u32 w2c_image_tj3Init(w2c_image* instance, u32 var_p0) {
   var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 844u);
   var_l3 = var_i0;
   var_i0 = var_l2;
-  var_i1 = 439u;
+  var_i1 = 440u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 844u, var_i1);
   var_i0 = var_l2;
   var_i1 = var_l3;
@@ -228856,10 +228965,10 @@ u32 w2c_image_tj3Init(w2c_image* instance, u32 var_p0) {
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
   var_p0 = var_i0;
   var_i0 = var_l2;
-  var_i1 = 437u;
+  var_i1 = 438u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 848u, var_i1);
   var_i0 = var_l2;
-  var_i1 = 438u;
+  var_i1 = 439u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 840u, var_i1);
   var_i0 = var_l2;
   var_i1 = var_p0;
@@ -228874,7 +228983,7 @@ u32 w2c_image_tj3Init(w2c_image* instance, u32 var_p0) {
   var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 844u);
   var_p0 = var_i0;
   var_i0 = var_l2;
-  var_i1 = 439u;
+  var_i1 = 440u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 844u, var_i1);
   var_i0 = var_l2;
   var_i1 = var_p0;
@@ -228888,7 +228997,7 @@ u32 w2c_image_tj3Init(w2c_image* instance, u32 var_p0) {
   w2c_image_jpeg_CreateDecompress(instance, var_i0, var_i1, var_i2);
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
   var_i0 = var_p0;
-  var_i1 = 1091445u;
+  var_i1 = 1091449u;
   var_i2 = 1u;
   w2c_image_jpeg_mem_src_tj(instance, var_i0, var_i1, var_i2);
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
@@ -231561,7 +231670,7 @@ u32 w2c_image_tj3Decompress8(w2c_image* instance, u32 var_p0, u32 var_p1, u32 va
   var_i1 = var_p0;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 300u, var_i1);
   var_i0 = var_l6;
-  var_i1 = 440u;
+  var_i1 = 441u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 280u, var_i1);
   var_i0 = var_l6;
   var_i1 = 280u;
@@ -234379,10 +234488,10 @@ void w2c_image_j12init_d_coef_controller(w2c_image* instance, u32 var_p0, u32 va
   var_i1 = 0u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 136u, var_i1);
   var_i0 = var_l4;
-  var_i1 = 441u;
+  var_i1 = 442u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
   var_i0 = var_l4;
-  var_i1 = 442u;
+  var_i1 = 443u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
   var_i0 = var_p0;
   var_i1 = var_l4;
@@ -234483,10 +234592,10 @@ void w2c_image_j12init_d_coef_controller(w2c_image* instance, u32 var_p0, u32 va
     if (var_i0) {goto var_L5;}
   var_B4:;
   var_i0 = var_l4;
-  var_i1 = 443u;
+  var_i1 = 444u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 16u, var_i1);
   var_i0 = var_l4;
-  var_i1 = 444u;
+  var_i1 = 445u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   var_i0 = var_l4;
   var_i1 = 96u;
@@ -234509,10 +234618,10 @@ void w2c_image_j12init_d_coef_controller(w2c_image* instance, u32 var_p0, u32 va
   var_p1 = var_i1;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 52u, var_i1);
   var_i0 = var_l4;
-  var_i1 = 445u;
+  var_i1 = 446u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 16u, var_i1);
   var_i0 = var_l4;
-  var_i1 = 446u;
+  var_i1 = 447u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   var_i0 = var_l4;
   var_i1 = var_p1;
@@ -235049,12 +235158,12 @@ void w2c_image_start_output_pass0x2E2(w2c_image* instance, u32 var_p0) {
     var_l3 = var_i1;
     var_i0 = (u32)((s32)var_i0 < (s32)var_i1);
     if (var_i0) {goto var_L5;}
-  var_i0 = 447u;
+  var_i0 = 448u;
   var_l2 = var_i0;
   var_i0 = var_l7;
   if (var_i0) {goto var_B2;}
   var_B3:;
-  var_i0 = 443u;
+  var_i0 = 444u;
   var_l2 = var_i0;
   var_B2:;
   var_i0 = var_l1;
@@ -238451,7 +238560,7 @@ void w2c_image_j12init_color_deconverter(w2c_image* instance, u32 var_p0) {
 #endif
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
   var_l1 = var_i0;
-  var_i1 = 448u;
+  var_i1 = 449u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
   var_i0 = var_p0;
   var_i1 = var_l1;
@@ -238588,7 +238697,7 @@ void w2c_image_j12init_color_deconverter(w2c_image* instance, u32 var_p0) {
   }
   var_B20:;
   var_i0 = var_l1;
-  var_i1 = 449u;
+  var_i1 = 450u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
   var_i0 = var_p0;
   w2c_image_build_rgb_y_table0x2E1(instance, var_i0);
@@ -238667,7 +238776,7 @@ void w2c_image_j12init_color_deconverter(w2c_image* instance, u32 var_p0) {
   }
   var_B25:;
   var_i0 = var_l1;
-  var_i1 = 450u;
+  var_i1 = 451u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
   var_i0 = var_p0;
   w2c_image_build_ycc_rgb_table0x2E1(instance, var_i0);
@@ -238675,7 +238784,7 @@ void w2c_image_j12init_color_deconverter(w2c_image* instance, u32 var_p0) {
   goto var_B8;
   var_B24:;
   var_i0 = var_l1;
-  var_i1 = 451u;
+  var_i1 = 452u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
   goto var_B8;
   var_B23:;
@@ -238733,7 +238842,7 @@ void w2c_image_j12init_color_deconverter(w2c_image* instance, u32 var_p0) {
   }
   var_B31:;
   var_i0 = var_l1;
-  var_i1 = 452u;
+  var_i1 = 453u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
   var_i0 = var_p0;
   w2c_image_build_ycc_rgb_table0x2E1(instance, var_i0);
@@ -238741,12 +238850,12 @@ void w2c_image_j12init_color_deconverter(w2c_image* instance, u32 var_p0) {
   goto var_B8;
   var_B30:;
   var_i0 = var_l1;
-  var_i1 = 453u;
+  var_i1 = 454u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
   goto var_B8;
   var_B29:;
   var_i0 = var_l1;
-  var_i1 = 454u;
+  var_i1 = 455u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
   goto var_B8;
   var_B28:;
@@ -238776,7 +238885,7 @@ void w2c_image_j12init_color_deconverter(w2c_image* instance, u32 var_p0) {
   }
   var_B35:;
   var_i0 = var_l1;
-  var_i1 = 455u;
+  var_i1 = 456u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
   var_i0 = var_p0;
   w2c_image_build_ycc_rgb_table0x2E1(instance, var_i0);
@@ -238784,12 +238893,12 @@ void w2c_image_j12init_color_deconverter(w2c_image* instance, u32 var_p0) {
   goto var_B8;
   var_B34:;
   var_i0 = var_l1;
-  var_i1 = 456u;
+  var_i1 = 457u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
   goto var_B8;
   var_B33:;
   var_i0 = var_l1;
-  var_i1 = 457u;
+  var_i1 = 458u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
   goto var_B8;
   var_B32:;
@@ -238855,7 +238964,7 @@ void w2c_image_j12init_color_deconverter(w2c_image* instance, u32 var_p0) {
   }
   var_B39:;
   var_i0 = var_l1;
-  var_i1 = 458u;
+  var_i1 = 459u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
   var_i0 = var_p0;
   w2c_image_build_ycc_rgb_table0x2E1(instance, var_i0);
@@ -238883,7 +238992,7 @@ void w2c_image_j12init_color_deconverter(w2c_image* instance, u32 var_p0) {
   var_i0 = var_i0 != var_i1;
   if (var_i0) {goto var_B40;}
   var_i0 = var_l1;
-  var_i1 = 459u;
+  var_i1 = 460u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
   var_i0 = var_p0;
   var_i1 = var_p0;
@@ -238907,7 +239016,7 @@ void w2c_image_j12init_color_deconverter(w2c_image* instance, u32 var_p0) {
   goto var_B8;
   var_B11:;
   var_i0 = var_l1;
-  var_i1 = 459u;
+  var_i1 = 460u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
   goto var_B8;
   var_B10:;
@@ -238925,17 +239034,17 @@ void w2c_image_j12init_color_deconverter(w2c_image* instance, u32 var_p0) {
   var_i0 = !(var_i0);
   if (var_i0) {goto var_B41;}
   var_i0 = var_l1;
-  var_i1 = 459u;
+  var_i1 = 460u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
   goto var_B8;
   var_B41:;
   var_i0 = var_l1;
-  var_i1 = 460u;
+  var_i1 = 461u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
   goto var_B8;
   var_B9:;
   var_i0 = var_l1;
-  var_i1 = 461u;
+  var_i1 = 462u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
   var_i0 = var_p0;
   var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 36u);
@@ -249834,7 +249943,7 @@ void w2c_image_j16init_color_deconverter(w2c_image* instance, u32 var_p0) {
 #endif
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
   var_l1 = var_i0;
-  var_i1 = 462u;
+  var_i1 = 463u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
   var_i0 = var_p0;
   var_i1 = var_l1;
@@ -249971,7 +250080,7 @@ void w2c_image_j16init_color_deconverter(w2c_image* instance, u32 var_p0) {
   }
   var_B20:;
   var_i0 = var_l1;
-  var_i1 = 463u;
+  var_i1 = 464u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
   var_i0 = var_p0;
   var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0));
@@ -250060,7 +250169,7 @@ void w2c_image_j16init_color_deconverter(w2c_image* instance, u32 var_p0) {
   }
   var_B25:;
   var_i0 = var_l1;
-  var_i1 = 464u;
+  var_i1 = 465u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
   var_i0 = var_p0;
   var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0));
@@ -250078,7 +250187,7 @@ void w2c_image_j16init_color_deconverter(w2c_image* instance, u32 var_p0) {
   goto var_B8;
   var_B24:;
   var_i0 = var_l1;
-  var_i1 = 465u;
+  var_i1 = 466u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
   goto var_B8;
   var_B23:;
@@ -250136,7 +250245,7 @@ void w2c_image_j16init_color_deconverter(w2c_image* instance, u32 var_p0) {
   }
   var_B31:;
   var_i0 = var_l1;
-  var_i1 = 466u;
+  var_i1 = 467u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
   var_i0 = var_p0;
   var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0));
@@ -250154,12 +250263,12 @@ void w2c_image_j16init_color_deconverter(w2c_image* instance, u32 var_p0) {
   goto var_B8;
   var_B30:;
   var_i0 = var_l1;
-  var_i1 = 467u;
+  var_i1 = 468u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
   goto var_B8;
   var_B29:;
   var_i0 = var_l1;
-  var_i1 = 468u;
+  var_i1 = 469u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
   goto var_B8;
   var_B28:;
@@ -250189,7 +250298,7 @@ void w2c_image_j16init_color_deconverter(w2c_image* instance, u32 var_p0) {
   }
   var_B35:;
   var_i0 = var_l1;
-  var_i1 = 469u;
+  var_i1 = 470u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
   var_i0 = var_p0;
   var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0));
@@ -250207,12 +250316,12 @@ void w2c_image_j16init_color_deconverter(w2c_image* instance, u32 var_p0) {
   goto var_B8;
   var_B34:;
   var_i0 = var_l1;
-  var_i1 = 470u;
+  var_i1 = 471u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
   goto var_B8;
   var_B33:;
   var_i0 = var_l1;
-  var_i1 = 471u;
+  var_i1 = 472u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
   goto var_B8;
   var_B32:;
@@ -250278,7 +250387,7 @@ void w2c_image_j16init_color_deconverter(w2c_image* instance, u32 var_p0) {
   }
   var_B39:;
   var_i0 = var_l1;
-  var_i1 = 472u;
+  var_i1 = 473u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
   var_i0 = var_p0;
   var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0));
@@ -250316,7 +250425,7 @@ void w2c_image_j16init_color_deconverter(w2c_image* instance, u32 var_p0) {
   var_i0 = var_i0 != var_i1;
   if (var_i0) {goto var_B40;}
   var_i0 = var_l1;
-  var_i1 = 473u;
+  var_i1 = 474u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
   var_i0 = var_p0;
   var_i1 = var_p0;
@@ -250340,7 +250449,7 @@ void w2c_image_j16init_color_deconverter(w2c_image* instance, u32 var_p0) {
   goto var_B8;
   var_B11:;
   var_i0 = var_l1;
-  var_i1 = 473u;
+  var_i1 = 474u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
   goto var_B8;
   var_B10:;
@@ -250358,17 +250467,17 @@ void w2c_image_j16init_color_deconverter(w2c_image* instance, u32 var_p0) {
   var_i0 = !(var_i0);
   if (var_i0) {goto var_B41;}
   var_i0 = var_l1;
-  var_i1 = 473u;
+  var_i1 = 474u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
   goto var_B8;
   var_B41:;
   var_i0 = var_l1;
-  var_i1 = 474u;
+  var_i1 = 475u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
   goto var_B8;
   var_B9:;
   var_i0 = var_l1;
-  var_i1 = 475u;
+  var_i1 = 476u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
   var_i0 = var_p0;
   var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 36u);
@@ -258435,7 +258544,7 @@ void w2c_image_j12init_inverse_dct(w2c_image* instance, u32 var_p0) {
 #endif
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
   var_l1 = var_i0;
-  var_i1 = 476u;
+  var_i1 = 477u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
   var_i0 = var_p0;
   var_i1 = var_l1;
@@ -258574,7 +258683,7 @@ void w2c_image_start_pass0x2E2(w2c_image* instance, u32 var_p0) {
       wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
       instance->w2c_0x5F_fuel = var_i0;
     }
-    var_i0 = 477u;
+    var_i0 = 478u;
     var_l7 = var_i0;
     var_i0 = var_l1;
     var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 36u);
@@ -258601,27 +258710,27 @@ void w2c_image_start_pass0x2E2(w2c_image* instance, u32 var_p0) {
       default: goto var_B15;
     }
     var_B29:;
-    var_i0 = 478u;
-    var_l7 = var_i0;
-    goto var_B9;
-    var_B28:;
     var_i0 = 479u;
     var_l7 = var_i0;
     goto var_B9;
-    var_B27:;
+    var_B28:;
     var_i0 = 480u;
     var_l7 = var_i0;
     goto var_B9;
-    var_B26:;
+    var_B27:;
     var_i0 = 481u;
     var_l7 = var_i0;
     goto var_B9;
-    var_B25:;
+    var_B26:;
     var_i0 = 482u;
     var_l7 = var_i0;
     goto var_B9;
-    var_B24:;
+    var_B25:;
     var_i0 = 483u;
+    var_l7 = var_i0;
+    goto var_B9;
+    var_B24:;
+    var_i0 = 484u;
     var_l7 = var_i0;
     var_i0 = var_p0;
     var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 72u);
@@ -258639,35 +258748,35 @@ void w2c_image_start_pass0x2E2(w2c_image* instance, u32 var_p0) {
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 20u, var_i1);
     goto var_B14;
     var_B23:;
-    var_i0 = 484u;
-    var_l7 = var_i0;
-    goto var_B9;
-    var_B22:;
     var_i0 = 485u;
     var_l7 = var_i0;
     goto var_B9;
-    var_B21:;
+    var_B22:;
     var_i0 = 486u;
     var_l7 = var_i0;
     goto var_B9;
-    var_B20:;
+    var_B21:;
     var_i0 = 487u;
     var_l7 = var_i0;
     goto var_B9;
-    var_B19:;
+    var_B20:;
     var_i0 = 488u;
     var_l7 = var_i0;
     goto var_B9;
-    var_B18:;
+    var_B19:;
     var_i0 = 489u;
     var_l7 = var_i0;
     goto var_B9;
-    var_B17:;
+    var_B18:;
     var_i0 = 490u;
     var_l7 = var_i0;
     goto var_B9;
-    var_B16:;
+    var_B17:;
     var_i0 = 491u;
+    var_l7 = var_i0;
+    goto var_B9;
+    var_B16:;
+    var_i0 = 492u;
     var_l7 = var_i0;
     goto var_B9;
     var_B15:;
@@ -258729,14 +258838,14 @@ void w2c_image_start_pass0x2E2(w2c_image* instance, u32 var_p0) {
     var_B13:;
     var_i0 = 2u;
     var_l5 = var_i0;
-    var_i0 = 492u;
+    var_i0 = 493u;
     var_l6 = var_i0;
     var_i0 = var_l3;
     var_i1 = var_l4;
     var_i2 = 2u;
     var_i1 <<= (var_i2 & 31);
     var_i0 += var_i1;
-    var_i1 = 492u;
+    var_i1 = 493u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
     var_i0 = var_l1;
     var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 48u);
@@ -258762,7 +258871,7 @@ void w2c_image_start_pass0x2E2(w2c_image* instance, u32 var_p0) {
     var_i0 = var_l7;
     var_i1 = 2u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
-    var_i0 = 492u;
+    var_i0 = 493u;
     var_l6 = var_i0;
     var_B12:;
     var_i0 = var_l1;
@@ -258917,7 +259026,7 @@ void w2c_image_start_pass0x2E2(w2c_image* instance, u32 var_p0) {
       if (var_i0) {goto var_L31;}
       goto var_B4;
     var_B11:;
-    var_i0 = 493u;
+    var_i0 = 494u;
     var_l6 = var_i0;
     var_i0 = var_l3;
     var_i1 = var_l4;
@@ -258925,7 +259034,7 @@ void w2c_image_start_pass0x2E2(w2c_image* instance, u32 var_p0) {
     var_i1 <<= (var_i2 & 31);
     var_l8 = var_i1;
     var_i0 += var_i1;
-    var_i1 = 493u;
+    var_i1 = 494u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
     var_i0 = var_l1;
     var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 48u);
@@ -258934,7 +259043,7 @@ void w2c_image_start_pass0x2E2(w2c_image* instance, u32 var_p0) {
     var_l5 = var_i0;
     goto var_B4;
     var_B10:;
-    var_i0 = 494u;
+    var_i0 = 495u;
     var_l7 = var_i0;
     var_B9:;
     var_i0 = var_l3;
@@ -258972,7 +259081,7 @@ void w2c_image_start_pass0x2E2(w2c_image* instance, u32 var_p0) {
     var_i0 = var_l7;
     var_i1 = 1u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
-    var_i0 = 493u;
+    var_i0 = 494u;
     var_l6 = var_i0;
     var_B7:;
     var_i0 = var_l1;
@@ -259184,10 +259293,10 @@ void w2c_image_j12init_d_diff_controller(w2c_image* instance, u32 var_p0, u32 va
 #endif
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
   var_l2 = var_i0;
-  var_i1 = 495u;
+  var_i1 = 496u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
   var_i0 = var_l2;
-  var_i1 = 496u;
+  var_i1 = 497u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
   var_i0 = var_p0;
   var_i1 = var_l2;
@@ -259301,11 +259410,11 @@ void w2c_image_j12init_d_diff_controller(w2c_image* instance, u32 var_p0, u32 va
   var_i0 = var_p1;
   var_i0 = !(var_i0);
   if (var_i0) {goto var_B2;}
-  var_i0 = 497u;
+  var_i0 = 498u;
   var_p1 = var_i0;
   var_i0 = 16u;
   var_l9 = var_i0;
-  var_i0 = 498u;
+  var_i0 = 499u;
   var_l10 = var_i0;
   var_i0 = var_l6;
   var_i1 = 1u;
@@ -259318,11 +259427,11 @@ void w2c_image_j12init_d_diff_controller(w2c_image* instance, u32 var_p0, u32 va
   var_i0 = var_p1;
   var_i0 = !(var_i0);
   if (var_i0) {goto var_B2;}
-  var_i0 = 497u;
+  var_i0 = 498u;
   var_p1 = var_i0;
   var_i0 = 16u;
   var_l9 = var_i0;
-  var_i0 = 498u;
+  var_i0 = 499u;
   var_l10 = var_i0;
   var_i0 = 4u;
   var_l6 = var_i0;
@@ -259411,13 +259520,13 @@ void w2c_image_j12init_d_diff_controller(w2c_image* instance, u32 var_p0, u32 va
     goto var_B1;
   var_B2:;
   var_i0 = var_l2;
-  var_i1 = 499u;
+  var_i1 = 500u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   var_i0 = 0u;
   var_p1 = var_i0;
   var_i0 = 136u;
   var_l9 = var_i0;
-  var_i0 = 500u;
+  var_i0 = 501u;
   var_l10 = var_i0;
   var_i0 = 16u;
   var_l6 = var_i0;
@@ -260480,10 +260589,10 @@ void w2c_image_j16init_d_diff_controller(w2c_image* instance, u32 var_p0, u32 va
 #endif
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
   var_l2 = var_i0;
-  var_i1 = 501u;
+  var_i1 = 502u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
   var_i0 = var_l2;
-  var_i1 = 502u;
+  var_i1 = 503u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
   var_i0 = var_p0;
   var_i1 = var_l2;
@@ -260597,11 +260706,11 @@ void w2c_image_j16init_d_diff_controller(w2c_image* instance, u32 var_p0, u32 va
   var_i0 = var_p1;
   var_i0 = !(var_i0);
   if (var_i0) {goto var_B2;}
-  var_i0 = 503u;
+  var_i0 = 504u;
   var_p1 = var_i0;
   var_i0 = 20u;
   var_l9 = var_i0;
-  var_i0 = 504u;
+  var_i0 = 505u;
   var_l10 = var_i0;
   var_i0 = var_l6;
   var_i1 = 1u;
@@ -260614,11 +260723,11 @@ void w2c_image_j16init_d_diff_controller(w2c_image* instance, u32 var_p0, u32 va
   var_i0 = var_p1;
   var_i0 = !(var_i0);
   if (var_i0) {goto var_B2;}
-  var_i0 = 503u;
+  var_i0 = 504u;
   var_p1 = var_i0;
   var_i0 = 20u;
   var_l9 = var_i0;
-  var_i0 = 504u;
+  var_i0 = 505u;
   var_l10 = var_i0;
   var_i0 = 4u;
   var_l6 = var_i0;
@@ -260707,13 +260816,13 @@ void w2c_image_j16init_d_diff_controller(w2c_image* instance, u32 var_p0, u32 va
     goto var_B1;
   var_B2:;
   var_i0 = var_l2;
-  var_i1 = 505u;
+  var_i1 = 506u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   var_i0 = 0u;
   var_p1 = var_i0;
   var_i0 = 136u;
   var_l9 = var_i0;
-  var_i0 = 506u;
+  var_i0 = 507u;
   var_l10 = var_i0;
   var_i0 = 20u;
   var_l6 = var_i0;
@@ -261775,7 +261884,7 @@ void w2c_image_j12init_lossless_decompressor(w2c_image* instance, u32 var_p0) {
 #endif
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
   var_l1 = var_i0;
-  var_i1 = 507u;
+  var_i1 = 508u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
   var_i0 = var_p0;
   var_i1 = var_l1;
@@ -261901,7 +262010,7 @@ void w2c_image_start_pass_lossless0x2E1(w2c_image* instance, u32 var_p0) {
       instance->w2c_0x5F_fuel = var_i0;
     }
     var_i0 = var_l2;
-    var_i1 = 508u;
+    var_i1 = 509u;
     var_o1 = simde_wasm_i32x4_splat(var_i1);
     v128_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_o1);
     var_i0 = var_l2;
@@ -261944,7 +262053,7 @@ void w2c_image_start_pass_lossless0x2E1(w2c_image* instance, u32 var_p0) {
       instance->w2c_0x5F_fuel = var_i0;
     }
     var_i0 = var_l2;
-    var_i1 = 508u;
+    var_i1 = 509u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
     var_i0 = var_l2;
     var_i1 = 4u;
@@ -261957,8 +262066,8 @@ void w2c_image_start_pass_lossless0x2E1(w2c_image* instance, u32 var_p0) {
     if (var_i0) {goto var_L7;}
   var_B3:;
   var_i0 = var_l1;
-  var_i1 = 509u;
-  var_i2 = 510u;
+  var_i1 = 510u;
+  var_i2 = 511u;
   var_i3 = var_p0;
   var_i3 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i3) + 412u);
   var_i1 = var_i3 ? var_i1 : var_i2;
@@ -263906,7 +264015,7 @@ void w2c_image_j16init_lossless_decompressor(w2c_image* instance, u32 var_p0) {
 #endif
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
   var_l1 = var_i0;
-  var_i1 = 518u;
+  var_i1 = 519u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
   var_i0 = var_p0;
   var_i1 = var_l1;
@@ -264032,7 +264141,7 @@ void w2c_image_start_pass_lossless0x2E2(w2c_image* instance, u32 var_p0) {
       instance->w2c_0x5F_fuel = var_i0;
     }
     var_i0 = var_l2;
-    var_i1 = 519u;
+    var_i1 = 520u;
     var_o1 = simde_wasm_i32x4_splat(var_i1);
     v128_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_o1);
     var_i0 = var_l2;
@@ -264075,7 +264184,7 @@ void w2c_image_start_pass_lossless0x2E2(w2c_image* instance, u32 var_p0) {
       instance->w2c_0x5F_fuel = var_i0;
     }
     var_i0 = var_l2;
-    var_i1 = 519u;
+    var_i1 = 520u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
     var_i0 = var_l2;
     var_i1 = 4u;
@@ -264088,8 +264197,8 @@ void w2c_image_start_pass_lossless0x2E2(w2c_image* instance, u32 var_p0) {
     if (var_i0) {goto var_L7;}
   var_B3:;
   var_i0 = var_l1;
-  var_i1 = 520u;
-  var_i2 = 521u;
+  var_i1 = 521u;
+  var_i2 = 522u;
   var_i3 = var_p0;
   var_i3 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i3) + 412u);
   var_i1 = var_i3 ? var_i1 : var_i2;
@@ -266068,7 +266177,7 @@ void w2c_image_j12init_d_main_controller(w2c_image* instance, u32 var_p0, u32 va
   w2c_env_fill(instance->w2c_env_instance, var_i0, var_i1, var_i2);
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
   var_i0 = var_l4;
-  var_i1 = 529u;
+  var_i1 = 530u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
   var_i0 = var_p0;
   var_i1 = var_l4;
@@ -266375,7 +266484,7 @@ void w2c_image_start_pass_main0x2E1(w2c_image* instance, u32 var_p0, u32 var_p1)
   var_i0 = !(var_i0);
   if (var_i0) {goto var_B5;}
   var_i0 = var_l2;
-  var_i1 = 530u;
+  var_i1 = 531u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
   var_i0 = var_p0;
   var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 36u);
@@ -267074,7 +267183,7 @@ void w2c_image_start_pass_main0x2E1(w2c_image* instance, u32 var_p0, u32 var_p1)
   goto var_B4;
   var_B5:;
   var_i0 = var_l2;
-  var_i1 = 531u;
+  var_i1 = 532u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
   var_B4:;
   var_i0 = var_l2;
@@ -267083,7 +267192,7 @@ void w2c_image_start_pass_main0x2E1(w2c_image* instance, u32 var_p0, u32 var_p1)
   goto var_Bfunc;
   var_B2:;
   var_i0 = var_l2;
-  var_i1 = 532u;
+  var_i1 = 533u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
   goto var_Bfunc;
   var_B1:;
@@ -268051,7 +268160,7 @@ void w2c_image_j16init_d_main_controller(w2c_image* instance, u32 var_p0, u32 va
   w2c_env_fill(instance->w2c_env_instance, var_i0, var_i1, var_i2);
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
   var_i0 = var_l4;
-  var_i1 = 533u;
+  var_i1 = 534u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
   var_i0 = var_p0;
   var_i1 = var_l4;
@@ -268358,7 +268467,7 @@ void w2c_image_start_pass_main0x2E2(w2c_image* instance, u32 var_p0, u32 var_p1)
   var_i0 = !(var_i0);
   if (var_i0) {goto var_B5;}
   var_i0 = var_l2;
-  var_i1 = 534u;
+  var_i1 = 535u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
   var_i0 = var_p0;
   var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 36u);
@@ -269057,7 +269166,7 @@ void w2c_image_start_pass_main0x2E2(w2c_image* instance, u32 var_p0, u32 var_p1)
   goto var_B4;
   var_B5:;
   var_i0 = var_l2;
-  var_i1 = 535u;
+  var_i1 = 536u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
   var_B4:;
   var_i0 = var_l2;
@@ -269066,7 +269175,7 @@ void w2c_image_start_pass_main0x2E2(w2c_image* instance, u32 var_p0, u32 var_p1)
   goto var_Bfunc;
   var_B2:;
   var_i0 = var_l2;
-  var_i1 = 536u;
+  var_i1 = 537u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
   goto var_Bfunc;
   var_B1:;
@@ -270032,7 +270141,7 @@ void w2c_image_j12init_merged_upsampler(w2c_image* instance, u32 var_p0) {
   var_i1 = 0u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 16u, var_i1);
   var_i0 = var_l1;
-  var_i1 = 537u;
+  var_i1 = 538u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
   var_i0 = var_p0;
   var_i1 = var_l1;
@@ -270051,10 +270160,10 @@ void w2c_image_j12init_merged_upsampler(w2c_image* instance, u32 var_p0) {
   var_i0 = var_i0 != var_i1;
   if (var_i0) {goto var_B3;}
   var_i0 = var_l1;
-  var_i1 = 538u;
+  var_i1 = 539u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 20u, var_i1);
   var_i0 = var_l1;
-  var_i1 = 539u;
+  var_i1 = 540u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
   var_i0 = var_p0;
   var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 44u);
@@ -270062,8 +270171,8 @@ void w2c_image_j12init_merged_upsampler(w2c_image* instance, u32 var_p0) {
   var_i0 = var_i0 != var_i1;
   if (var_i0) {goto var_B4;}
   var_i0 = var_l1;
-  var_i1 = 540u;
-  var_i2 = 541u;
+  var_i1 = 541u;
+  var_i2 = 542u;
   var_i3 = var_p0;
   var_i3 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i3) + 88u);
   var_i1 = var_i3 ? var_i1 : var_i2;
@@ -270090,10 +270199,10 @@ void w2c_image_j12init_merged_upsampler(w2c_image* instance, u32 var_p0) {
   goto var_B2;
   var_B3:;
   var_i0 = var_l1;
-  var_i1 = 542u;
+  var_i1 = 543u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 20u, var_i1);
   var_i0 = var_l1;
-  var_i1 = 543u;
+  var_i1 = 544u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
   var_i0 = var_p0;
   var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 44u);
@@ -270101,8 +270210,8 @@ void w2c_image_j12init_merged_upsampler(w2c_image* instance, u32 var_p0) {
   var_i0 = var_i0 != var_i1;
   if (var_i0) {goto var_B5;}
   var_i0 = var_l1;
-  var_i1 = 544u;
-  var_i2 = 545u;
+  var_i1 = 545u;
+  var_i2 = 546u;
   var_i3 = var_p0;
   var_i3 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i3) + 88u);
   var_i1 = var_i3 ? var_i1 : var_i2;
@@ -276075,7 +276184,7 @@ void w2c_image_j12init_d_post_controller(w2c_image* instance, u32 var_p0, u32 va
   var_j1 = 0ull;
   i64_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 16u, var_j1);
   var_i0 = var_l2;
-  var_i1 = 546u;
+  var_i1 = 547u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
   var_i0 = var_p0;
   var_i1 = var_l2;
@@ -276181,7 +276290,7 @@ void w2c_image_start_pass_dpost0x2E1(w2c_image* instance, u32 var_p0, u32 var_p1
   var_i0 = !(var_i0);
   if (var_i0) {goto var_B6;}
   var_i0 = var_l2;
-  var_i1 = 547u;
+  var_i1 = 548u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
   var_i0 = var_l2;
   var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 20u);
@@ -276230,7 +276339,7 @@ void w2c_image_start_pass_dpost0x2E1(w2c_image* instance, u32 var_p0, u32 var_p1
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
   var_B7:;
   var_i0 = var_l2;
-  var_i1 = 548u;
+  var_i1 = 549u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
   goto var_B1;
   var_B3:;
@@ -276252,7 +276361,7 @@ void w2c_image_start_pass_dpost0x2E1(w2c_image* instance, u32 var_p0, u32 var_p1
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
   var_B8:;
   var_i0 = var_l2;
-  var_i1 = 549u;
+  var_i1 = 550u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
   goto var_B1;
   var_B2:;
@@ -276693,7 +276802,7 @@ void w2c_image_j16init_d_post_controller(w2c_image* instance, u32 var_p0, u32 va
   var_j1 = 0ull;
   i64_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 16u, var_j1);
   var_i0 = var_l2;
-  var_i1 = 550u;
+  var_i1 = 551u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
   var_i0 = var_p0;
   var_i1 = var_l2;
@@ -276836,10 +276945,10 @@ void w2c_image_j12init_upsampler(w2c_image* instance, u32 var_p0) {
   var_i1 = 0u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 16u, var_i1);
   var_i0 = var_l3;
-  var_i1 = 551u;
+  var_i1 = 552u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
   var_i0 = var_l3;
-  var_i1 = 552u;
+  var_i1 = 553u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
   var_i0 = var_p0;
   var_i1 = var_l3;
@@ -276947,7 +277056,7 @@ void w2c_image_j12init_upsampler(w2c_image* instance, u32 var_p0) {
     var_i0 += var_i1;
     var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0));
     if (var_i0) {goto var_B12;}
-    var_i0 = 553u;
+    var_i0 = 554u;
     var_l8 = var_i0;
     var_i0 = 60u;
     var_l6 = var_i0;
@@ -276961,7 +277070,7 @@ void w2c_image_j12init_upsampler(w2c_image* instance, u32 var_p0) {
     var_i1 = var_l7;
     var_i0 = var_i0 != var_i1;
     if (var_i0) {goto var_B13;}
-    var_i0 = 554u;
+    var_i0 = 555u;
     var_l8 = var_i0;
     var_i0 = 60u;
     var_l6 = var_i0;
@@ -276991,14 +277100,14 @@ void w2c_image_j12init_upsampler(w2c_image* instance, u32 var_p0) {
     var_i0 = var_l2;
     var_i1 = 60u;
     var_i0 += var_i1;
-    var_i1 = 555u;
+    var_i1 = 556u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
     goto var_B14;
     var_B16:;
     var_i0 = var_l2;
     var_i1 = 60u;
     var_i0 += var_i1;
-    var_i1 = 556u;
+    var_i1 = 557u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
     goto var_B14;
     var_B15:;
@@ -277023,7 +277132,7 @@ void w2c_image_j12init_upsampler(w2c_image* instance, u32 var_p0) {
     var_i0 = var_l2;
     var_i1 = 60u;
     var_i0 += var_i1;
-    var_i1 = 557u;
+    var_i1 = 558u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
     goto var_B14;
     var_B17:;
@@ -277049,14 +277158,14 @@ void w2c_image_j12init_upsampler(w2c_image* instance, u32 var_p0) {
     var_i0 = var_l2;
     var_i1 = 60u;
     var_i0 += var_i1;
-    var_i1 = 558u;
+    var_i1 = 559u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
     goto var_B14;
     var_B19:;
     var_i0 = var_l2;
     var_i1 = 60u;
     var_i0 += var_i1;
-    var_i1 = 559u;
+    var_i1 = 560u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
     goto var_B14;
     var_B18:;
@@ -277081,7 +277190,7 @@ void w2c_image_j12init_upsampler(w2c_image* instance, u32 var_p0) {
     var_i0 = var_l2;
     var_i1 = 60u;
     var_i0 += var_i1;
-    var_i1 = 560u;
+    var_i1 = 561u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
     var_i0 = var_l3;
     var_i1 = var_l5;
@@ -280249,10 +280358,10 @@ void w2c_image_j16init_upsampler(w2c_image* instance, u32 var_p0) {
   var_i1 = 0u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 16u, var_i1);
   var_i0 = var_l3;
-  var_i1 = 561u;
+  var_i1 = 562u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
   var_i0 = var_l3;
-  var_i1 = 562u;
+  var_i1 = 563u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
   var_i0 = var_p0;
   var_i1 = var_l3;
@@ -280360,7 +280469,7 @@ void w2c_image_j16init_upsampler(w2c_image* instance, u32 var_p0) {
     var_i0 += var_i1;
     var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0));
     if (var_i0) {goto var_B12;}
-    var_i0 = 563u;
+    var_i0 = 564u;
     var_l8 = var_i0;
     var_i0 = 60u;
     var_l6 = var_i0;
@@ -280374,7 +280483,7 @@ void w2c_image_j16init_upsampler(w2c_image* instance, u32 var_p0) {
     var_i1 = var_l7;
     var_i0 = var_i0 != var_i1;
     if (var_i0) {goto var_B13;}
-    var_i0 = 564u;
+    var_i0 = 565u;
     var_l8 = var_i0;
     var_i0 = 60u;
     var_l6 = var_i0;
@@ -280404,14 +280513,14 @@ void w2c_image_j16init_upsampler(w2c_image* instance, u32 var_p0) {
     var_i0 = var_l2;
     var_i1 = 60u;
     var_i0 += var_i1;
-    var_i1 = 565u;
+    var_i1 = 566u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
     goto var_B14;
     var_B16:;
     var_i0 = var_l2;
     var_i1 = 60u;
     var_i0 += var_i1;
-    var_i1 = 566u;
+    var_i1 = 567u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
     goto var_B14;
     var_B15:;
@@ -280436,7 +280545,7 @@ void w2c_image_j16init_upsampler(w2c_image* instance, u32 var_p0) {
     var_i0 = var_l2;
     var_i1 = 60u;
     var_i0 += var_i1;
-    var_i1 = 567u;
+    var_i1 = 568u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
     goto var_B14;
     var_B17:;
@@ -280462,14 +280571,14 @@ void w2c_image_j16init_upsampler(w2c_image* instance, u32 var_p0) {
     var_i0 = var_l2;
     var_i1 = 60u;
     var_i0 += var_i1;
-    var_i1 = 568u;
+    var_i1 = 569u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
     goto var_B14;
     var_B19:;
     var_i0 = var_l2;
     var_i1 = 60u;
     var_i0 += var_i1;
-    var_i1 = 569u;
+    var_i1 = 570u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
     goto var_B14;
     var_B18:;
@@ -280494,7 +280603,7 @@ void w2c_image_j16init_upsampler(w2c_image* instance, u32 var_p0) {
     var_i0 = var_l2;
     var_i1 = 60u;
     var_i0 += var_i1;
-    var_i1 = 570u;
+    var_i1 = 571u;
     i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
     var_i0 = var_l3;
     var_i1 = var_l5;
@@ -294446,13 +294555,13 @@ void w2c_image_j12init_1pass_quantizer(w2c_image* instance, u32 var_p0) {
   var_i1 = 0u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 72u, var_i1);
   var_i0 = var_l2;
-  var_i1 = 571u;
+  var_i1 = 572u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 16u, var_i1);
   var_i0 = var_l2;
-  var_i1 = 572u;
+  var_i1 = 573u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
   var_i0 = var_l2;
-  var_i1 = 573u;
+  var_i1 = 574u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
   var_i0 = var_p0;
   var_i1 = var_l2;
@@ -295408,12 +295517,12 @@ void w2c_image_start_pass_1_quant0x2E1(w2c_image* instance, u32 var_p0, u32 var_
   var_i0 = var_i0 != var_i1;
   if (var_i0) {goto var_B6;}
   var_i0 = var_l2;
-  var_i1 = 574u;
+  var_i1 = 575u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
   goto var_Bfunc;
   var_B6:;
   var_i0 = var_l2;
-  var_i1 = 575u;
+  var_i1 = 576u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
   goto var_Bfunc;
   var_B4:;
@@ -295421,8 +295530,8 @@ void w2c_image_start_pass_1_quant0x2E1(w2c_image* instance, u32 var_p0, u32 var_
   var_i1 = 0u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 52u, var_i1);
   var_i0 = var_l2;
-  var_i1 = 576u;
-  var_i2 = 577u;
+  var_i1 = 577u;
+  var_i2 = 578u;
   var_i3 = var_p0;
   var_i3 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i3) + 120u);
   var_i4 = 3u;
@@ -295743,7 +295852,7 @@ void w2c_image_start_pass_1_quant0x2E1(w2c_image* instance, u32 var_p0, u32 var_
   var_i1 = 0u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 88u, var_i1);
   var_i0 = var_l2;
-  var_i1 = 578u;
+  var_i1 = 579u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
   var_i0 = var_l2;
   var_i1 = 72u;
@@ -297558,10 +297667,10 @@ void w2c_image_j12init_2pass_quantizer(w2c_image* instance, u32 var_p0) {
   var_i1 = 0u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 36u, var_i1);
   var_i0 = var_l2;
-  var_i1 = 579u;
+  var_i1 = 580u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 16u, var_i1);
   var_i0 = var_l2;
-  var_i1 = 580u;
+  var_i1 = 581u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
   var_i0 = var_p0;
   var_i1 = var_l2;
@@ -298076,7 +298185,7 @@ void w2c_image_start_pass_2_quant0x2E1(w2c_image* instance, u32 var_p0, u32 var_
   if (var_i0) {goto var_B5;}
   var_i0 = var_p1;
   if (var_i0) {goto var_B3;}
-  var_i0 = 581u;
+  var_i0 = 582u;
   var_p1 = var_i0;
   goto var_B4;
   var_B5:;
@@ -298085,11 +298194,11 @@ void w2c_image_start_pass_2_quant0x2E1(w2c_image* instance, u32 var_p0, u32 var_
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 88u, var_i1);
   var_i0 = var_p1;
   if (var_i0) {goto var_B3;}
-  var_i0 = 582u;
+  var_i0 = 583u;
   var_p1 = var_i0;
   var_B4:;
   var_i0 = var_l2;
-  var_i1 = 583u;
+  var_i1 = 584u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
   var_i0 = var_l2;
   var_i1 = var_p1;
@@ -298430,10 +298539,10 @@ void w2c_image_start_pass_2_quant0x2E1(w2c_image* instance, u32 var_p0, u32 var_
     goto var_B2;
   var_B3:;
   var_i0 = var_l2;
-  var_i1 = 584u;
+  var_i1 = 585u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
   var_i0 = var_l2;
-  var_i1 = 585u;
+  var_i1 = 586u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u, var_i1);
   var_i0 = 1u;
   var_l6 = var_i0;
@@ -303560,7 +303669,7 @@ void w2c_image_guest_longjmp(w2c_image* instance) {
   var_i0 = 1051973u;
   var_l0 = var_i0;
   var_i0 = 0u;
-  var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 1091448u);
+  var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 1091452u);
   var_l1 = var_i0;
   var_i0 = !(var_i0);
   if (var_i0) {goto var_B1;}
@@ -303605,7 +303714,7 @@ u32 w2c_image_jpeg_header(w2c_image* instance, u32 var_p0, u32 var_p1, u32 var_p
   var_i1 = w2c_image_tjInitDecompress(instance);
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
   var_l5 = var_i1;
-  i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 1091448u, var_i1);
+  i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 1091452u, var_i1);
   var_i0 = var_l5;
   if (var_i0) {goto var_B2;}
   var_i0 = 1048609u;
@@ -303772,7 +303881,7 @@ u32 w2c_image_jpeg_decode(w2c_image* instance, u32 var_p0, u32 var_p1, u32 var_p
   var_i1 = w2c_image_tjInitDecompress(instance);
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
   var_l7 = var_i1;
-  i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 1091448u, var_i1);
+  i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 1091452u, var_i1);
   var_i0 = var_l7;
   if (var_i0) {goto var_B2;}
   var_i0 = 1048609u;
@@ -306035,7 +306144,7 @@ u32 w2c_image_wuffs_gif_0x5Fdecoder_0x5Fdecode_frame(w2c_image* instance, u32 va
   var_i1 = 4352u;
   var_i0 += var_i1;
   var_l16 = var_i0;
-  var_i0 = 586u;
+  var_i0 = 587u;
   var_i1 = 0u;
   var_i2 = var_p3;
   var_i3 = 1u;
@@ -306095,7 +306204,7 @@ u32 w2c_image_wuffs_gif_0x5Fdecoder_0x5Fdecode_frame(w2c_image* instance, u32 va
   var_i0 = var_p3;
   var_i0 = !(var_i0);
   if (var_i0) {goto var_B67;}
-  var_i0 = 587u;
+  var_i0 = 588u;
   var_i1 = 0u;
   var_i2 = var_p3;
   var_i3 = 1u;
@@ -306128,7 +306237,7 @@ u32 w2c_image_wuffs_gif_0x5Fdecoder_0x5Fdecode_frame(w2c_image* instance, u32 va
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
   var_i0 = var_p3;
   if (var_i0) {goto var_B62;}
-  var_i0 = 588u;
+  var_i0 = 589u;
   var_l12 = var_i0;
   goto var_B58;
   var_B70:;
@@ -306840,7 +306949,7 @@ u32 w2c_image_wuffs_gif_0x5Fdecoder_0x5Fdecode_frame(w2c_image* instance, u32 va
   var_i0 = var_p3;
   var_i0 = !(var_i0);
   if (var_i0) {goto var_B89;}
-  var_i0 = 589u;
+  var_i0 = 590u;
   var_i1 = 0u;
   var_i2 = var_p3;
   var_i3 = 1u;
@@ -306849,7 +306958,7 @@ u32 w2c_image_wuffs_gif_0x5Fdecoder_0x5Fdecode_frame(w2c_image* instance, u32 va
   var_l12 = var_i0;
   goto var_B60;
   var_B89:;
-  var_i0 = 590u;
+  var_i0 = 591u;
   var_l12 = var_i0;
   goto var_B58;
   var_B68:;
@@ -306861,7 +306970,7 @@ u32 w2c_image_wuffs_gif_0x5Fdecoder_0x5Fdecode_frame(w2c_image* instance, u32 va
   var_i0 = var_p3;
   var_i0 = !(var_i0);
   if (var_i0) {goto var_B90;}
-  var_i0 = 591u;
+  var_i0 = 592u;
   var_i1 = 0u;
   var_i2 = var_p3;
   var_i3 = 1u;
@@ -306870,11 +306979,11 @@ u32 w2c_image_wuffs_gif_0x5Fdecoder_0x5Fdecode_frame(w2c_image* instance, u32 va
   var_l12 = var_i0;
   goto var_B60;
   var_B90:;
-  var_i0 = 592u;
+  var_i0 = 593u;
   var_l12 = var_i0;
   goto var_B58;
   var_B67:;
-  var_i0 = 593u;
+  var_i0 = 594u;
   var_l12 = var_i0;
   goto var_B58;
   var_B66:;
@@ -306982,7 +307091,7 @@ u32 w2c_image_wuffs_gif_0x5Fdecoder_0x5Fdecode_frame(w2c_image* instance, u32 va
   var_i0 = var_p3;
   var_i0 = !(var_i0);
   if (var_i0) {goto var_B93;}
-  var_i0 = 591u;
+  var_i0 = 592u;
   var_i1 = 0u;
   var_i2 = var_p3;
   var_i3 = 1u;
@@ -306991,7 +307100,7 @@ u32 w2c_image_wuffs_gif_0x5Fdecoder_0x5Fdecode_frame(w2c_image* instance, u32 va
   var_l12 = var_i0;
   goto var_B60;
   var_B93:;
-  var_i0 = 592u;
+  var_i0 = 593u;
   var_l12 = var_i0;
   goto var_B58;
   var_B64:;
@@ -307099,7 +307208,7 @@ u32 w2c_image_wuffs_gif_0x5Fdecoder_0x5Fdecode_frame(w2c_image* instance, u32 va
   var_i0 = var_p3;
   var_i0 = !(var_i0);
   if (var_i0) {goto var_B59;}
-  var_i0 = 594u;
+  var_i0 = 595u;
   var_i1 = 0u;
   var_i2 = var_p3;
   var_i3 = 1u;
@@ -307113,7 +307222,7 @@ u32 w2c_image_wuffs_gif_0x5Fdecoder_0x5Fdecode_frame(w2c_image* instance, u32 va
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 172u, var_i1);
   var_i0 = var_p0;
   var_i1 = var_l22;
-  var_i2 = 595u;
+  var_i2 = 596u;
   var_i3 = var_p3;
   var_i1 = var_i3 ? var_i1 : var_i2;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 164u, var_i1);
@@ -307135,7 +307244,7 @@ u32 w2c_image_wuffs_gif_0x5Fdecoder_0x5Fdecode_frame(w2c_image* instance, u32 va
   var_i0 = var_p3;
   var_i0 = !(var_i0);
   if (var_i0) {goto var_B59;}
-  var_i0 = 594u;
+  var_i0 = 595u;
   var_i1 = 0u;
   var_i2 = var_p3;
   var_i3 = 1u;
@@ -307161,14 +307270,14 @@ u32 w2c_image_wuffs_gif_0x5Fdecoder_0x5Fdecode_frame(w2c_image* instance, u32 va
   if (var_i0) {goto var_B57;}
   goto var_B16;
   var_B59:;
-  var_i0 = 596u;
+  var_i0 = 597u;
   var_l12 = var_i0;
   var_B58:;
   var_i0 = var_p0;
   var_i1 = 1u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 172u, var_i1);
   var_i0 = var_p0;
-  var_i1 = 595u;
+  var_i1 = 596u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 164u, var_i1);
   var_i0 = var_p0;
   var_i1 = var_l12;
@@ -314279,16 +314388,17 @@ u32 w2c_image_gif_animation(w2c_image* instance, u32 var_p0, u32 var_p1, u32 var
   var_i3 += var_i4;
   var_i0 = w2c_image_open_gif(instance, var_i0, var_i1, var_i2, var_i3);
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
-  var_p1 = var_i0;
-  if (var_i0) {goto var_B1;}
+  var_p0 = var_i0;
   var_i0 = var_l3;
   var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 24u);
-  var_p0 = var_i0;
+  var_p1 = var_i0;
   var_i0 = var_p0;
-  var_i1 = var_p0;
+  if (var_i0) {goto var_B5;}
+  var_i0 = var_p1;
+  var_i1 = var_p1;
   var_i1 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i1) + 65132u);
   var_l4 = var_i1;
-  var_i2 = var_p0;
+  var_i2 = var_p1;
   var_i2 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i2) + 65128u);
   var_l5 = var_i2;
   var_i1 *= var_i2;
@@ -314299,12 +314409,12 @@ u32 w2c_image_gif_animation(w2c_image* instance, u32 var_p0, u32 var_p1, u32 var
   var_l7 = var_i1;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 65120u, var_i1);
   var_i0 = var_l7;
-  if (var_i0) {goto var_B2;}
+  if (var_i0) {goto var_B6;}
   var_i0 = 1054788u;
-  var_p1 = var_i0;
-  goto var_B1;
-  var_B2:;
-  var_i0 = var_p0;
+  var_p0 = var_i0;
+  goto var_B4;
+  var_B6:;
+  var_i0 = var_p1;
   var_i1 = 65032u;
   var_i0 += var_i1;
   var_i1 = 0u;
@@ -314312,7 +314422,7 @@ u32 w2c_image_gif_animation(w2c_image* instance, u32 var_p0, u32 var_p1, u32 var
   w2c_env_fill(instance->w2c_env_instance, var_i0, var_i1, var_i2);
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
   var_i0 = 1080032u;
-  var_p1 = var_i0;
+  var_p0 = var_i0;
   var_i0 = 0u;
   var_i1 = 2717943944u;
   var_i2 = var_l5;
@@ -314354,11 +314464,11 @@ u32 w2c_image_gif_animation(w2c_image* instance, u32 var_p0, u32 var_p1, u32 var
   var_i0 += var_i1;
   var_l10 = var_i0;
   var_i0 = !(var_i0);
-  if (var_i0) {goto var_B4;}
+  if (var_i0) {goto var_B7;}
   var_i0 = var_l10;
   var_i1 = 7u;
   var_i0 &= var_i1;
-  if (var_i0) {goto var_B4;}
+  if (var_i0) {goto var_B7;}
   var_i0 = var_l3;
   var_i1 = var_l10;
   var_i2 = 3u;
@@ -314386,21 +314496,21 @@ u32 w2c_image_gif_animation(w2c_image* instance, u32 var_p0, u32 var_p1, u32 var
   w2c_image_0x5F_multi3(instance, var_i0, var_j1, var_j2, var_j3, var_j4);
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
   var_i0 = 1079664u;
-  var_p1 = var_i0;
+  var_p0 = var_i0;
   var_i0 = var_l3;
   var_j0 = i64_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 8u);
   var_j1 = 0ull;
   var_i0 = var_j0 != var_j1;
-  if (var_i0) {goto var_B4;}
+  if (var_i0) {goto var_B7;}
   var_j0 = var_l12;
   var_j1 = var_l13;
   var_j0 *= var_j1;
   var_j1 = 32ull;
   var_j0 >>= (var_j1 & 63);
   var_i0 = (u32)(var_j0);
-  if (var_i0) {goto var_B4;}
+  if (var_i0) {goto var_B7;}
   var_i0 = 1079616u;
-  var_p1 = var_i0;
+  var_p0 = var_i0;
   var_j0 = var_l14;
   var_j1 = var_l12;
   var_j0 *= var_j1;
@@ -314409,61 +314519,82 @@ u32 w2c_image_gif_animation(w2c_image* instance, u32 var_p0, u32 var_p1, u32 var
   var_i1 <<= (var_i2 & 31);
   var_j1 = (u64)(var_i1);
   var_i0 = var_j0 <= var_j1;
-  if (var_i0) {goto var_B3;}
-  var_B4:;
-  var_i0 = var_p1;
+  if (var_i0) {goto var_B2;}
+  var_B7:;
+  var_i0 = var_p0;
   var_i0 = i32_load8_u_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0));
   var_i1 = 4294967261u;
   var_i0 += var_i1;
-  var_p0 = var_i0;
+  var_p2 = var_i0;
   var_i1 = 29u;
   var_i0 = var_i0 > var_i1;
-  if (var_i0) {goto var_B1;}
+  if (var_i0) {goto var_B4;}
   var_i0 = 1u;
-  var_i1 = var_p0;
+  var_i1 = var_p2;
   var_i0 <<= (var_i1 & 31);
   var_i1 = 536870915u;
   var_i0 &= var_i1;
   var_i0 = !(var_i0);
-  if (var_i0) {goto var_B1;}
-  var_i0 = var_p1;
+  if (var_i0) {goto var_B4;}
+  var_i0 = var_p0;
   var_i1 = 1u;
   var_i0 += var_i1;
-  var_p1 = var_i0;
-  goto var_B1;
+  var_p0 = var_i0;
+  goto var_B4;
+  var_B5:;
+  var_i0 = var_p1;
+  var_i0 = !(var_i0);
+  if (var_i0) {goto var_B3;}
+  var_B4:;
+  var_i0 = var_p1;
+  var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 65120u);
+  w2c_image_free(instance, var_i0);
+  wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
+  var_i0 = var_p1;
+  var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 65124u);
+  w2c_image_free(instance, var_i0);
+  wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
   var_B3:;
-  var_i0 = var_p0;
+  var_i0 = var_p1;
+  w2c_image_free(instance, var_i0);
+  wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
+  goto var_B1;
+  var_B2:;
+  var_i0 = var_p1;
   var_i1 = var_l10;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 65044u, var_i1);
-  var_i0 = var_p0;
+  var_i0 = var_p1;
   var_i1 = var_l8;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 65040u, var_i1);
-  var_i0 = var_p0;
+  var_i0 = var_p1;
   var_i1 = var_l9;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 65032u, var_i1);
-  var_i0 = var_p0;
+  var_i0 = var_p1;
   var_i1 = var_l10;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 65056u, var_i1);
-  var_i0 = var_p0;
+  var_i0 = var_p1;
   var_i1 = var_l7;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 65048u, var_i1);
   var_i0 = var_p2;
-  var_i1 = 597u;
+  var_i1 = 598u;
+  i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 20u, var_i1);
+  var_i0 = var_p2;
+  var_i1 = 599u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 16u, var_i1);
   var_i0 = var_p2;
-  var_i1 = 598u;
+  var_i1 = 600u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 12u, var_i1);
   var_i0 = var_p2;
-  var_i1 = var_p0;
+  var_i1 = var_p1;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0), var_i1);
-  var_i0 = var_p0;
+  var_i0 = var_p1;
   var_i1 = var_l11;
   var_i2 = var_l8;
   var_i1 *= var_i2;
-  var_p1 = var_i1;
+  var_p0 = var_i1;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 65060u, var_i1);
-  var_i0 = var_p0;
-  var_i1 = var_p1;
+  var_i0 = var_p1;
+  var_i1 = var_p0;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 65052u, var_i1);
   var_i0 = var_p2;
   var_i1 = var_l4;
@@ -314472,15 +314603,52 @@ u32 w2c_image_gif_animation(w2c_image* instance, u32 var_p0, u32 var_p1, u32 var
   var_i1 = var_l5;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 4u, var_i1);
   var_i0 = 0u;
-  var_p1 = var_i0;
+  var_p0 = var_i0;
   var_B1:;
   var_i0 = var_l3;
   var_i1 = 32u;
   var_i0 += var_i1;
   instance->w2c_0x5F_stack_pointer = var_i0;
-  var_i0 = var_p1;
+  var_i0 = var_p0;
   FUNC_EPILOGUE;
   return var_i0;
+}
+
+void w2c_image_close_gif(w2c_image* instance, u32 var_p0) {
+  FUNC_PROLOGUE;
+  uint8_t* const wasm_rt_local_memory_base = (instance->w2c_env_memory)->data;
+  uint64_t wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
+  (void)wasm_rt_local_memory_base;
+  (void)wasm_rt_local_memory_size;
+  u32 var_i0, var_i1;
+  var_i0 = instance->w2c_0x5F_fuel;
+  var_i1 = 1u;
+  var_i0 -= var_i1;
+  instance->w2c_0x5F_fuel = var_i0;
+  var_i0 = instance->w2c_0x5F_fuel;
+  var_i1 = 0u;
+  var_i0 = (u32)((s32)var_i0 < (s32)var_i1);
+  if (var_i0) {
+    var_i0 = w2c_env_refuel(instance->w2c_env_instance);
+    wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
+    instance->w2c_0x5F_fuel = var_i0;
+  }
+  var_i0 = var_p0;
+  var_i0 = !(var_i0);
+  if (var_i0) {goto var_B1;}
+  var_i0 = var_p0;
+  var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 65120u);
+  w2c_image_free(instance, var_i0);
+  wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
+  var_i0 = var_p0;
+  var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 65124u);
+  w2c_image_free(instance, var_i0);
+  wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
+  var_B1:;
+  var_i0 = var_p0;
+  w2c_image_free(instance, var_i0);
+  wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
+  FUNC_EPILOGUE;
 }
 
 void w2c_image_rewind_frames(w2c_image* instance, u32 var_p0) {
@@ -321290,7 +321458,7 @@ u32 w2c_image_vsnprintf(w2c_image* instance, u32 var_p0, u32 var_p1, u32 var_p2,
   var_i1 = 4294967295u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 72u, var_i1);
   var_i0 = var_l4;
-  var_i1 = 618u;
+  var_i1 = 620u;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 32u, var_i1);
   var_i0 = var_l4;
   var_i1 = var_l4;
