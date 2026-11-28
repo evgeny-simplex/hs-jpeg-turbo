@@ -10,7 +10,8 @@ static struct {
   uint8_t *pixels;
 } frames;
 
-const char *scale_pixels(const uint8_t *source, uint32_t source_width, uint32_t source_height, uint8_t *destination, uint32_t width, uint32_t height)
+static const char *scale_pixels(const uint8_t *source, uint32_t source_width, uint32_t source_height, uint8_t *destination, uint32_t width,
+                                uint32_t height)
 {
   const int stride = (int)source_width * 4;
   rescaler_t *work = malloc((size_t)WebPRescalerWorkSize((int)source_width, (int)source_height, (int)width, (int)height, 4));
@@ -27,6 +28,40 @@ const char *scale_pixels(const uint8_t *source, uint32_t source_width, uint32_t 
   }
   free(work);
   return NULL;
+}
+
+static void unpremultiply(uint8_t *pixels, size_t count)
+{
+  size_t i;
+  int c;
+
+  for (i = 0; i < count; i++, pixels += 4)
+    for (c = 0; c < 3; c++)
+      pixels[c] = pixels[3] ? (uint8_t)(pixels[c] >= pixels[3] ? 255 : (pixels[c] * 255u + pixels[3] / 2u) / pixels[3]) : 0;
+}
+
+const char *gif_decode(const uint8_t *data, size_t size, uint32_t width, uint32_t height, Image *image)
+{
+  Animation animation;
+  const uint8_t *canvas;
+  uint32_t duration;
+  const char *error = gif_animation(data, size, &animation);
+
+  if (!error && (width < 1 || width > animation.width || height < 1 || height > animation.height))
+    error = "invalid decode options";
+  if (!error)
+    error = animation.next(animation.state, &canvas, &duration);
+  if (!error && !(image->pixels = malloc((size_t)width * height * 4)))
+    error = "image is too large";
+  if (!error && width == animation.width && height == animation.height)
+    memcpy(image->pixels, canvas, (size_t)width * height * 4);
+  else if (!error)
+    error = scale_pixels(canvas, animation.width, animation.height, image->pixels, width, height);
+  if (!error) {
+    unpremultiply(image->pixels, (size_t)width * height);
+    image->layout = LAYOUT_RGBA8;
+  }
+  return error;
 }
 
 static uint8_t multiply(uint32_t value, uint32_t alpha)
