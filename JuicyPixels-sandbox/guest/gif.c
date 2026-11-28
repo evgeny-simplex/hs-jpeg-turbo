@@ -147,6 +147,17 @@ static const char *next_frame(void *state, const uint8_t **canvas, uint32_t *dur
   return NULL;
 }
 
+static void close_gif(void *state)
+{
+  Gif *gif = state;
+
+  if (gif) {
+    free(gif->canvas);
+    free(gif->previous);
+  }
+  free(gif);
+}
+
 const char *gif_animation(const uint8_t *data, size_t size, Animation *animation)
 {
   wuffs_base__pixel_config config;
@@ -155,18 +166,22 @@ const char *gif_animation(const uint8_t *data, size_t size, Animation *animation
   Gif *gif;
   const char *error = open_gif(data, size, &gif, &loops);
 
-  if (error)
+  if (!error && !(gif->canvas = calloc((size_t)gif->width * gif->height, 4)))
+    error = "image is too large";
+  if (!error) {
+    wuffs_base__pixel_config__set(&config, WUFFS_BASE__PIXEL_FORMAT__RGBA_PREMUL, WUFFS_BASE__PIXEL_SUBSAMPLING__NONE, gif->width, gif->height);
+    status = wuffs_base__pixel_buffer__set_from_slice(&gif->buffer, &config, wuffs_base__make_slice_u8(gif->canvas, (size_t)gif->width * gif->height * 4));
+    error = wuffs_base__status__message(&status);
+  }
+  if (error) {
+    close_gif(gif);
     return error;
-  if (!(gif->canvas = calloc((size_t)gif->width * gif->height, 4)))
-    return "image is too large";
-  wuffs_base__pixel_config__set(&config, WUFFS_BASE__PIXEL_FORMAT__RGBA_PREMUL, WUFFS_BASE__PIXEL_SUBSAMPLING__NONE, gif->width, gif->height);
-  status = wuffs_base__pixel_buffer__set_from_slice(&gif->buffer, &config, wuffs_base__make_slice_u8(gif->canvas, (size_t)gif->width * gif->height * 4));
-  if (status.repr)
-    return wuffs_base__status__message(&status);
+  }
   animation->state = gif;
   animation->width = gif->width;
   animation->height = gif->height;
   animation->next = next_frame;
   animation->rewind = rewind_frames;
+  animation->close = close_gif;
   return NULL;
 }

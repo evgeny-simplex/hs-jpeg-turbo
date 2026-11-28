@@ -22,6 +22,7 @@ typedef struct {
   uint32_t height;
   const char *(*next)(void *state, const uint8_t **canvas, uint32_t *duration);
   void (*rewind)(void *state);
+  void (*close)(void *state);
 } Animation;
 
 const char *jpeg_header(const uint8_t *data, size_t size, uint32_t *width, uint32_t *height);
@@ -49,6 +50,8 @@ const char *frames_still(const Image *image, uint32_t width, uint32_t height);
 const char *frames_animate(const uint8_t *data, size_t size, uint32_t format, uint32_t width, uint32_t height, Image *metadata);
 
 const char *frames_next(uint32_t restart, const uint8_t **pixels, uint32_t *duration);
+
+void frames_close(void);
 
 const char *guest_message(const char *message);
 

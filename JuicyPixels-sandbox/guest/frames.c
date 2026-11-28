@@ -47,7 +47,9 @@ const char *gif_decode(const uint8_t *data, size_t size, uint32_t width, uint32_
   uint32_t duration;
   const char *error = gif_animation(data, size, &animation);
 
-  if (!error && (width < 1 || width > animation.width || height < 1 || height > animation.height))
+  if (error)
+    return error;
+  if (width < 1 || width > animation.width || height < 1 || height > animation.height)
     error = "invalid decode options";
   if (!error)
     error = animation.next(animation.state, &canvas, &duration);
@@ -61,6 +63,7 @@ const char *gif_decode(const uint8_t *data, size_t size, uint32_t width, uint32_
     unpremultiply(image->pixels, (size_t)width * height);
     image->layout = LAYOUT_RGBA8;
   }
+  animation.close(animation.state);
   return error;
 }
 
@@ -159,4 +162,12 @@ const char *frames_next(uint32_t restart, const uint8_t **pixels, uint32_t *dura
     return NULL;
   }
   return scale_pixels(canvas, frames.animation.width, frames.animation.height, frames.pixels, frames.width, frames.height);
+}
+
+void frames_close(void)
+{
+  if (frames.animation.close)
+    frames.animation.close(frames.animation.state);
+  free(frames.pixels);
+  memset(&frames, 0, sizeof(frames));
 }

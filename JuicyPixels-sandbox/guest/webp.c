@@ -165,6 +165,14 @@ static const char *next_frame(void *state, const uint8_t **canvas, uint32_t *dur
   return NULL;
 }
 
+static void close_animation(void *state)
+{
+  Animated *animated = state;
+
+  WebPAnimDecoderDelete(animated->decoder);
+  free(animated);
+}
+
 const char *webp_animation(const uint8_t *data, size_t size, Animation *animation, Image *metadata)
 {
   WebPData input = {data, size};
@@ -177,8 +185,10 @@ const char *webp_animation(const uint8_t *data, size_t size, Animation *animatio
   options.color_mode = MODE_rgbA;
   if (!(animated = calloc(1, sizeof(*animated))))
     return "image is too large";
-  if (!(animated->decoder = WebPAnimDecoderNew(&input, &options)) || !WebPAnimDecoderGetInfo(animated->decoder, &info))
+  if (!(animated->decoder = WebPAnimDecoderNew(&input, &options)) || !WebPAnimDecoderGetInfo(animated->decoder, &info)) {
+    close_animation(animated);
     return "invalid WebP container";
+  }
   read_chunk(WebPAnimDecoderGetDemuxer(animated->decoder), "ICCP", &metadata->icc, &metadata->icc_size);
   read_chunk(WebPAnimDecoderGetDemuxer(animated->decoder), "EXIF", &metadata->exif, &metadata->exif_size);
   animation->state = animated;
@@ -186,5 +196,6 @@ const char *webp_animation(const uint8_t *data, size_t size, Animation *animatio
   animation->height = info.canvas_height;
   animation->next = next_frame;
   animation->rewind = rewind_animation;
+  animation->close = close_animation;
   return NULL;
 }
