@@ -116,6 +116,14 @@ static void premultiply(const Image *image, size_t count, uint8_t *out)
   }
 }
 
+void frames_close(void)
+{
+  if (frames.animation.close)
+    frames.animation.close(frames.animation.state);
+  free(frames.pixels);
+  memset(&frames, 0, sizeof(frames));
+}
+
 const char *frames_still(const Image *image, uint32_t width, uint32_t height)
 {
   const size_t count = (size_t)width * height;
@@ -139,8 +147,10 @@ const char *frames_animate(const uint8_t *data, size_t size, uint32_t format, ui
                                  : "invalid decode options";
   frames.width = width;
   frames.height = height;
-  if (!error && (width != frames.animation.width || height != frames.animation.height) && !(frames.pixels = malloc((size_t)width * height * 4)))
+  if (!error && (width != frames.animation.width || height != frames.animation.height) && !(frames.pixels = malloc((size_t)width * height * 4))) {
+    frames_close();
     error = "image is too large";
+  }
   return error;
 }
 
@@ -162,12 +172,4 @@ const char *frames_next(uint32_t restart, const uint8_t **pixels, uint32_t *dura
     return NULL;
   }
   return scale_pixels(canvas, frames.animation.width, frames.animation.height, frames.pixels, frames.width, frames.height);
-}
-
-void frames_close(void)
-{
-  if (frames.animation.close)
-    frames.animation.close(frames.animation.state);
-  free(frames.pixels);
-  memset(&frames, 0, sizeof(frames));
 }
