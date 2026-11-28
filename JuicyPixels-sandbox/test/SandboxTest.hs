@@ -175,6 +175,7 @@ unit_limits = do
   sandboxedWith defaultLimits Right "GIF89a" >>= (@?= Left "unsupported image format") . void'
   ok <- decodeImageCounted defaultBudget (options defaultLimits Right) jpeg
   assertBool "iterations counted" $ iterations ok > 0
+  (\(header, _, _) -> header) <$> decoded ok @?= Right (ImageHeader JPEG 227 149)
   where
     void' = fmap (const ())
 
@@ -271,10 +272,13 @@ options :: Limits -> ((Int, Int) -> Either String (Int, Int)) -> DecodeOptions
 options l size = DecodeOptions {limits = l, maxPixels = maxImagePixels, outputSize = size . headerSize}
 
 sandboxed :: (ImageHeader -> Either String (Int, Int)) -> ByteString -> IO (Either String (DynamicImage, Metadata))
-sandboxed size = decodeImage DecodeOptions {limits = defaultLimits, maxPixels = maxImagePixels, outputSize = size}
+sandboxed size = fmap withoutHeader <$> decodeImage DecodeOptions {limits = defaultLimits, maxPixels = maxImagePixels, outputSize = size}
 
 sandboxedWith :: Limits -> ((Int, Int) -> Either String (Int, Int)) -> ByteString -> IO (Either String (DynamicImage, Metadata))
-sandboxedWith l size = decodeImage (options l size)
+sandboxedWith l size = fmap withoutHeader <$> decodeImage (options l size)
+
+withoutHeader :: (ImageHeader, DynamicImage, Metadata) -> (DynamicImage, Metadata)
+withoutHeader (_, img, metadata) = (img, metadata)
 
 fullSize :: ByteString -> ImageHeader -> Either String (Int, Int)
 fullSize _ = Right . headerSize

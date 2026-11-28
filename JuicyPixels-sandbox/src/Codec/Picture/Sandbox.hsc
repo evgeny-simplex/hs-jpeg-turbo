@@ -87,12 +87,12 @@ unlimitedBudget :: Budget
 unlimitedBudget = Budget {base = 0, perByte = 0, perPixel = const 0}
 
 data Counted = Counted
-  { decoded :: Either String (DynamicImage, Metadata)
+  { decoded :: Either String (ImageHeader, DynamicImage, Metadata)
   , iterations :: Word64
   , linearMemoryBytes :: Word64
   }
 
-decodeImage :: DecodeOptions -> ByteString -> IO (Either String (DynamicImage, Metadata))
+decodeImage :: DecodeOptions -> ByteString -> IO (Either String (ImageHeader, DynamicImage, Metadata))
 decodeImage options input = decoded <$> decodeImageCounted defaultBudget options input
 
 decodeImageCounted :: Budget -> DecodeOptions -> ByteString -> IO Counted
@@ -110,7 +110,7 @@ decodeImageCounted budget@Budget {perPixel} DecodeOptions {limits, maxPixels, ou
           ExceptT $ allocaBytes #{size sandbox_image} \image -> runExceptT do
             decodeStatus <- liftIO $ sandboxDecode session (fromIntegral width') (fromIntegral height') (perPixel format) image
             checkStatus session decodeStatus
-            liftIO $ readImage format input image
+            liftIO $ readImage imageHeader input image
         counted <- if session == nullPtr then pure 0 else sandboxIterations session
         memory <- if session == nullPtr then pure 0 else sandboxMemoryBytes session
         pure Counted {decoded = result, iterations = counted, linearMemoryBytes = memory}
@@ -126,8 +126,8 @@ readHeader header = do
     #{const FORMAT_WEBP} -> Right $ ImageHeader WebP width height
     _ -> Left "invalid sandbox output"
 
-readImage :: ImageFormat -> ByteString -> Ptr () -> IO (DynamicImage, Metadata)
-readImage format input image = do
+readImage :: ImageHeader -> ByteString -> Ptr () -> IO (ImageHeader, DynamicImage, Metadata)
+readImage header@ImageHeader {format} input image = do
   pixels <- #{peek sandbox_image, pixels} image
   width <- fromIntegral @Word32 <$> #{peek sandbox_image, width} image
   height <- fromIntegral @Word32 <$> #{peek sandbox_image, height} image
@@ -143,7 +143,7 @@ readImage format input image = do
   let metadata = case format of
         JPEG -> Metadata {iccProfile = jpegIccProfile segments, exif = jpegExif segments}
         _ -> Metadata {iccProfile = icc, exif = exifTiff}
-  pure (dynamic samples, metadata)
+  pure (header, dynamic samples, metadata)
   where
     segments = jpegSegments $ B.drop 2 input
     bytes peekAddress peekSize = do
