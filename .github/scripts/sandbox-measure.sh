@@ -49,7 +49,7 @@ jpeg_neon() {
 }
 
 build() {
-  local name=$1 command=$2 variant=$3 flags=${4:-} arch
+  local name=$1 command=$2 variant=$3 arch
   arch=$($command -dumpmachine | cut -d- -f1)
   case $arch in
     arm64) arch=aarch64 ;;
@@ -75,7 +75,7 @@ build() {
     $command -iquote $package/guest -I $package/cbits "$out"/obj-*/*.o $package/cbits/clock.c .github/scripts/sandbox-bench.c $libs -o "$out/$name.exe"
     rm -rf "$out"/obj-*
   else
-    $command $sandbox_flags $flags $sandbox_sources .github/scripts/sandbox-bench.c $libs -o "$out/$name.exe"
+    $command $sandbox_flags $sandbox_sources .github/scripts/sandbox-bench.c $libs -o "$out/$name.exe"
   fi
 }
 
@@ -124,9 +124,6 @@ for config in "$@"; do
     $command --version | head -1
     build "native-$name" "$command" native
     build "sandbox-$name" "$command" sandbox
-    if [ "$measure" = true ]; then
-      build "reserved-$name" "$command" sandbox "-UWASM_RT_USE_MMAP -DWASM_RT_USE_MMAP=1"
-    fi
     {
       echo "### $platform, $name \`$command\`: sizes"
       echo '```'
@@ -170,22 +167,16 @@ for config in "$@"; do
     continue
   fi
 
-  SANDBOX_DEADLINE_MS=600000 "$out/native-$name.exe" time 9 16384 $workloads > "$out/time-native-$name.tsv"
-  rm -f "$out/time-sandbox-$name.tsv" "$out/time-reserved-$name.tsv"
-  for file in $workloads; do
-    for variant in sandbox reserved; do
-      SANDBOX_DEADLINE_MS=600000 "$out/$variant-$name.exe" time 9 16384 "$file" >> "$out/time-$variant-$name.tsv"
-    done
+  for variant in native sandbox; do
+    SANDBOX_DEADLINE_MS=600000 "$out/$variant-$name.exe" time 9 16384 $workloads > "$out/time-$variant-$name.tsv"
   done
   $python -I .github/scripts/sandbox-report.py "$platform, $name \`$command\`" "$out/time-native-$name.tsv" "$out/time-sandbox-$name.tsv" | tee -a "$summary"
-  $python -I .github/scripts/sandbox-report.py "$platform, $name, memory grown as needed against memory reserved at the limit" "$out/time-reserved-$name.tsv" \
-    "$out/time-sandbox-$name.tsv" reserved grown | tee -a "$summary"
 
   {
     echo "### $platform, $name: the largest picked images at the display size (4320), one decode each"
     echo
     echo '```'
-    for variant in native sandbox reserved; do
+    for variant in native sandbox; do
       for file in $largest; do
         echo "$variant 256 MiB $(SANDBOX_MEMORY_MB=256 SANDBOX_DEADLINE_MS=0 "$out/$variant-$name.exe" time 1 4320 "$file" || echo "$(basename "$file") failed")"
       done
@@ -215,12 +206,10 @@ for config in "$@"; do
       echo "### $platform, $name: concurrent decodes, each session open until all have decoded"
       echo
       echo '```'
-      for variant in sandbox reserved; do
-        for file in $concurrent; do
-          for memory in 256 512; do
-            for threads in 4 8 16 32; do
-              echo "$variant $(SANDBOX_MEMORY_MB=$memory "$out/$variant-$name.exe" concurrent $threads "$file")"
-            done
+      for file in $concurrent; do
+        for memory in 256 512; do
+          for threads in 4 8 16 32; do
+            SANDBOX_MEMORY_MB=$memory "$out/sandbox-$name.exe" concurrent $threads "$file"
           done
         done
       done
