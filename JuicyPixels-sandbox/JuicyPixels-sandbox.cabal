@@ -55,7 +55,7 @@ library
   hs-source-dirs:
       src
   ghc-options: -Wmissing-export-lists
-  cc-options: -O2 -DWASM_RT_MEMCHECK_BOUNDS_CHECK=1 -DWASM_RT_STACK_DEPTH_COUNT=1 -DWASM_RT_MAX_CALL_STACK_DEPTH=128 -DWASM_RT_GROW_FAILED_HANDLER=sandbox_grow_failed
+  cc-options: -O2 -DWASM_RT_MEMCHECK_BOUNDS_CHECK=1 -DWASM_RT_STACK_DEPTH_COUNT=1 -DWASM_RT_MAX_CALL_STACK_DEPTH=128
   include-dirs:
       cbits
       cbits/wasm2c

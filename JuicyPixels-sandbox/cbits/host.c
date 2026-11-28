@@ -122,12 +122,14 @@ bool wasm_rt_is_initialized(void)
   return true;
 }
 
-void sandbox_grow_failed(void)
+uint64_t sandbox_grow_memory(wasm_rt_memory_t *memory, uint64_t delta)
 {
-  sandbox *session = current();
+  const int beyond_limit = delta > memory->max_pages - memory->pages;
+  const uint64_t pages = wasm_rt_grow_memory(memory, delta);
 
-  if (session)
-    session->grow_failed = 1;
+  if (pages == (uint64_t)-1)
+    current()->grow_failed = beyond_limit ? SANDBOX_MEMORY_LIMIT : SANDBOX_OUT_OF_MEMORY;
+  return pages;
 }
 
 wasm_rt_memory_t *w2c_env_memory(struct w2c_env *env)
@@ -412,7 +414,7 @@ static int failure(sandbox *session, int status)
 static int decoder_failure(sandbox *session, uint32_t address)
 {
   if (session->grow_failed)
-    return failure(session, SANDBOX_MEMORY_LIMIT);
+    return failure(session, session->grow_failed);
   if (copy_guest_message(session, address))
     return SANDBOX_DECODER;
   return failure(session, SANDBOX_INVALID_OUTPUT);
@@ -423,7 +425,7 @@ static int trapped(sandbox *session)
   if (session->env.stopped)
     return failure(session, session->env.stopped);
   if (session->grow_failed)
-    return failure(session, SANDBOX_MEMORY_LIMIT);
+    return failure(session, session->grow_failed);
   if (session->instantiated && copy_guest_message(session, session->message_address))
     return SANDBOX_DECODER;
   return failure(session, SANDBOX_TRAP);
@@ -534,7 +536,7 @@ int sandbox_open(const uint8_t *data, size_t size, const sandbox_limits *limits,
   if ((status = guarded(*session, probe, &call)) != 0)
     return status;
   if ((*session)->input == 0)
-    return (*session)->grow_failed ? failure(*session, SANDBOX_MEMORY_LIMIT) : failure(*session, SANDBOX_OUT_OF_MEMORY);
+    return (*session)->grow_failed ? failure(*session, (*session)->grow_failed) : failure(*session, SANDBOX_OUT_OF_MEMORY);
   return read_header(*session, call.header, header);
 }
 
@@ -565,23 +567,23 @@ static uint32_t layout_channels(uint32_t format, uint32_t layout)
   }
 }
 
-static int copy_bytes(sandbox *session, uint32_t address, uint32_t size, uint64_t limit, uint8_t **copy)
+static int copy_bytes(sandbox *session, uint32_t address, uint64_t size, uint64_t limit, uint8_t **copy)
 {
   *copy = NULL;
   if (address == 0 && size == 0)
-    return 1;
+    return 0;
   if (size > limit || !in_memory(session, address, size))
-    return 0;
-  if (!(*copy = malloc(size ? size : 1)))
-    return 0;
-  memcpy(*copy, session->env.memory.data + address, size);
-  return 1;
+    return SANDBOX_INVALID_OUTPUT;
+  if (!(*copy = malloc(size ? (size_t)size : 1)))
+    return SANDBOX_OUT_OF_MEMORY;
+  memcpy(*copy, session->env.memory.data + address, (size_t)size);
+  return 0;
 }
 
 static int read_output(sandbox *session, uint32_t address, uint32_t width, uint32_t height, sandbox_image *image)
 {
-  uint32_t message, channels, pixels;
-  uint64_t length;
+  uint32_t message, channels;
+  int status;
 
   if (!in_memory(session, address, OUTPUT_SIZE))
     return failure(session, SANDBOX_INVALID_OUTPUT);
@@ -591,24 +593,20 @@ static int read_output(sandbox *session, uint32_t address, uint32_t width, uint3
   channels = layout_channels(session->header.format, read_u32(session, address + 12));
   if (read_u32(session, address + 4) != width || read_u32(session, address + 8) != height || channels == 0)
     return failure(session, SANDBOX_INVALID_OUTPUT);
-  pixels = read_u32(session, address + 16);
-  length = (uint64_t)width * height * channels;
-  if (length > SIZE_MAX || !in_memory(session, pixels, length))
-    return failure(session, SANDBOX_INVALID_OUTPUT);
   image->width = width;
   image->height = height;
   image->layout = read_u32(session, address + 12);
   image->icc_size = read_u32(session, address + 24);
   image->exif_size = read_u32(session, address + 32);
-  if (!copy_bytes(session, read_u32(session, address + 20), image->icc_size, MAX_METADATA, &image->icc) ||
-      !copy_bytes(session, read_u32(session, address + 28), image->exif_size, session->size, &image->exif) ||
-      !(image->pixels = malloc((size_t)length))) {
+  if ((status = copy_bytes(session, read_u32(session, address + 16), (uint64_t)width * height * channels, SIZE_MAX, &image->pixels)) ||
+      (status = copy_bytes(session, read_u32(session, address + 20), image->icc_size, MAX_METADATA, &image->icc)) ||
+      (status = copy_bytes(session, read_u32(session, address + 28), image->exif_size, session->size, &image->exif))) {
+    free(image->pixels);
     free(image->icc);
     free(image->exif);
     memset(image, 0, sizeof(*image));
-    return failure(session, SANDBOX_INVALID_OUTPUT);
+    return failure(session, status);
   }
-  memcpy(image->pixels, session->env.memory.data + pixels, (size_t)length);
   return 0;
 }
 
