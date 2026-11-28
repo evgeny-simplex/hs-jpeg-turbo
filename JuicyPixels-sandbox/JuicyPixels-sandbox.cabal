@@ -35,6 +35,11 @@ source-repository head
   type: git
   location: https://github.com/simplex-chat/hs-jpeg-turbo
 
+flag grow-memory
+  description: Allocate the linear memory at the module's initial size and grow it as the decode needs it, on 64-bit targets too
+  default: False
+  manual: True
+
 common options
   default-extensions:
       BangPatterns
@@ -72,6 +77,8 @@ library
     , vector
   if os(android) || (os(osx) && arch(aarch64))
     cc-options: -O3
+  if flag(grow-memory)
+    cc-options: -DWASM_RT_USE_MMAP=0
 
 test-suite JuicyPixels-sandbox-test
   import: options
