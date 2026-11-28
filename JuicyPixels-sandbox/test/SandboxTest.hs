@@ -12,7 +12,7 @@ import Control.Concurrent (forkIO, threadDelay)
 import Control.Concurrent.MVar (MVar, newEmptyMVar, newMVar, putMVar, takeMVar, withMVar)
 import Control.Exception (bracket, evaluate)
 import Control.Monad (forM, forM_, replicateM, unless)
-import Data.Bits (shiftL, shiftR, xor)
+import Data.Bits (shiftL, shiftR, xor, (.|.))
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as B
 import Data.ByteString.Lazy qualified as BL
@@ -23,7 +23,7 @@ import Data.List (dropWhileEnd, foldl', isSuffixOf, sort, transpose, zip4)
 import Data.Maybe (catMaybes, fromMaybe)
 import Data.Vector.Storable qualified as V
 import Data.Vector.Storable.Mutable qualified as VM
-import Data.Word (Word32, Word8)
+import Data.Word (Word32, Word64, Word8)
 import Foreign (Ptr, castPtr, copyBytes, nullPtr, peek, with)
 import Foreign.C.String (CString, peekCAString)
 import Foreign.C.Types (CSize(..))
@@ -417,22 +417,14 @@ unit_frameLimits = do
   small <- replicateM 100 $ readFrame budgeted PremultipliedRGBA (1024, 1024)
   assertBool "each 1x1 frame decoded within its own budget" $ all isRight small
   replicateM 2 (withoutResult <$> readFrame budgeted PremultipliedRGBA (1024, 1024)) >>= (@?= replicate 2 (Left "budget exceeded"))
-  encoded <- evaluate $ gifOf (2048, 2048) LoopingForever [gifFrame (0, 0) (1, 1) Nothing DisposalAny \_ _ -> 7, gifFrame (0, 0) (2048, 2048) Nothing DisposalAny noise]
-  let slow = B.take 6 encoded <> le 2 16 <> le 2 16 <> B.drop 10 encoded
-      openSlow timeout = openFrames (options defaultLimits {timeoutMs = timeout} Right) (const Animation) slow >>= either assertFailure pure
-  (unbounded, opening) <- timed $ openSlow 0
-  _ <- readFrame unbounded PremultipliedRGBA (16, 16)
-  (_, decoding) <- timedFrame unbounded (16, 16)
-  closeFrames unbounded
-  let timeout = round (sqrt (opening * decoding) * 1000) :: Int
-  assertBool ("the frame of 2048x2048 on a canvas of 16x16 decoded in " <> show decoding <> " s, the session opened in " <> show opening <> " s") $ opening * 16 < decoding
-  deadlined <- openSlow timeout
-  threadDelay $ 2000 * timeout
+  wide <- evaluate $ gifWiderThanCanvas 1000000
+  deadlined <- either assertFailure pure =<< openFramesWithBudget unlimitedBudget (options defaultLimits {timeoutMs = 100} Right) (const Animation) wide
+  threadDelay 200000
   (first, t1) <- timedFrame deadlined (16, 16)
-  assertBool ("the 1x1 frame decoded within its own deadline of " <> show timeout <> " ms after the session's, " <> show t1 <> " s") $ isRight first
+  assertBool ("the 1x1 frame decoded within its own deadline after the session's, " <> show t1 <> " s") $ isRight first
   (second, t2) <- timedFrame deadlined (16, 16)
   second @?= Left "deadline exceeded"
-  assertBool ("deadline stop after " <> show t2 <> " s, the deadline " <> show timeout <> " ms") $ t2 * 1000 >= fromIntegral timeout
+  assertBool ("deadline stop after " <> show t2) $ t2 >= 0.1 && t2 < 1
   animation <- evaluate $ gifOf (64, 48) LoopingForever [gifFrame (0, 0) (64, 48) Nothing DisposalAny \x y -> fromIntegral (x + y + k) | k <- [0 .. 9]]
   long <- either assertFailure pure =<< openFrames (options defaultLimits {timeoutMs = 50} Right) (const Animation) animation
   (read', t3) <- timed $ replicateM 10 (readFrame long PremultipliedRGBA (64, 48) <* threadDelay 20000)
@@ -723,6 +715,27 @@ generatedGifs =
       ]
   , gifOf (301, 199) (LoopingRepeat 2) [gifFrame (0, 0) (301, 199) (Just 255) DisposalRestoreBackground \x y -> fromIntegral (x * 31 + y * 17 + k) | k <- [0, 64, 128]]
   ]
+
+gifWiderThanCanvas :: Int -> ByteString
+gifWiderThanCanvas repeats = "GIF89a" <> le 2 16 <> le 2 16 <> B.pack [0xF0, 0, 0, 0, 0, 0, 255, 255, 255] <> image (1, 1) [(4, 3), (0, 3), (5, 3)] <> image (65535, 65535) run <> ";"
+  where
+    image (w, h) codes = "," <> le 2 0 <> le 2 0 <> le 2 w <> le 2 h <> B.pack [0, 2] <> foldMap block (chunksOf 255 $ packedCodes codes) <> B.singleton 0
+    block bytes = B.singleton (fromIntegral $ B.length bytes) <> bytes
+    run = (4, 3) : longer 0 6 3 <> replicate repeats (4095, 12) <> [(5, 12)]
+    longer code next size = (code, size) : if code == 4095 then [] else longer (if code == 0 then 6 else code + 1) next' size'
+      where
+        next' = min 4096 (next + 1)
+        size' = if next < 4096 && next' == 2 ^ size + 1 && size < 12 then size + 1 else size
+    chunksOf n s = takeWhile (not . B.null) [B.take n $ B.drop i s | i <- [0, n ..]]
+
+packedCodes :: [(Int, Int)] -> ByteString
+packedCodes = B.pack . go (0 :: Word64) (0 :: Int)
+  where
+    go acc n codes
+      | n >= 8 = fromIntegral acc : go (acc `shiftR` 8) (n - 8) codes
+      | otherwise = case codes of
+          (code, width) : rest -> go (acc .|. (fromIntegral code `shiftL` n)) (n + width) rest
+          [] -> [fromIntegral acc | n > 0]
 
 type Conf = [(String, [(String, String)])]
 
