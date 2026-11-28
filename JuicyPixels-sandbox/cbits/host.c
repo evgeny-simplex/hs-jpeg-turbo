@@ -934,7 +934,7 @@ int sandbox_read_output(const sandbox_limits *limits, uint32_t size, uint32_t fo
 static void read_placed_start(sandbox *session, void *argument)
 {
   Placed *placed = argument;
-  sandbox_frames frames;
+  sandbox_frames frames = {0};
 
   place(session, placed);
   placed->status = read_start(session, placed->address, &frames);
