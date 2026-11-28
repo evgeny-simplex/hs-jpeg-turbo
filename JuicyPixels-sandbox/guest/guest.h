@@ -45,7 +45,7 @@ const char *gif_decode(const uint8_t *data, size_t size, uint32_t width, uint32_
 
 const char *gif_animation(const uint8_t *data, size_t size, Animation *animation);
 
-const char *frames_still(const Image *image, uint32_t width, uint32_t height);
+const char *frames_still(Image *image, uint32_t width, uint32_t height);
 
 const char *frames_animate(const uint8_t *data, size_t size, uint32_t format, uint32_t width, uint32_t height, Image *metadata);
 

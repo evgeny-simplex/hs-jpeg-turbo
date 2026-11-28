@@ -124,16 +124,20 @@ void frames_close(void)
   memset(&frames, 0, sizeof(frames));
 }
 
-const char *frames_still(const Image *image, uint32_t width, uint32_t height)
+const char *frames_still(Image *image, uint32_t width, uint32_t height)
 {
   const size_t count = (size_t)width * height;
 
   memset(&frames, 0, sizeof(frames));
   frames.width = width;
   frames.height = height;
-  if (!(frames.pixels = malloc(count * 4)))
+  frames.pixels = image->layout == LAYOUT_RGBA8 ? image->pixels : malloc(count * 4);
+  if (!frames.pixels)
     return "image is too large";
   premultiply(image, count, frames.pixels);
+  if (frames.pixels != image->pixels)
+    free(image->pixels);
+  image->pixels = NULL;
   return NULL;
 }
 
