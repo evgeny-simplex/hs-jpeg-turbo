@@ -2,6 +2,8 @@ module Codec.Picture.Webp
   ( DecodeOptions(..)
   , Metadata(..)
   , decodeWebp
+  , Animation(..)
+  , decodeWebpAnimation
   ) where
 
 import Codec.Picture (DynamicImage(..), Image(..))
@@ -17,7 +19,7 @@ import Data.ByteString.Unsafe qualified as BU
 import Data.Vector.Storable qualified as V
 import Data.Vector.Storable.Mutable qualified as MV
 import Data.Word (Word32, Word8)
-import Foreign (Ptr, allocaBytes, castPtr, minusPtr, nullPtr, peekByteOff, plusPtr, pokeByteOff)
+import Foreign (Ptr, allocaBytes, castPtr, copyBytes, mallocForeignPtrBytes, minusPtr, nullPtr, peek, peekByteOff, plusPtr, pokeByteOff, with, withForeignPtr)
 import Foreign.C.String (CString)
 import Foreign.C.Types (CInt(..), CSize(..))
 import System.IO.Unsafe (unsafePerformIO)
@@ -52,7 +54,7 @@ decodeWebp DecodeOptions{maxMemoryMB, outputSize} webp
       let chunk fourcc = withIterator #{size WebPChunkIterator} (getChunk demux fourcc) webPDemuxReleaseChunkIterator (chunkPayload input)
       (image,) <$> (Metadata <$> chunk "ICCP" <*> chunk "EXIF")
   where
-    limit = fromInteger $ min (toInteger (maxBound :: CSize)) (toInteger maxMemoryMB * 1048576)
+    limit = memoryLimit maxMemoryMB
     decodeFrame memory (width, height) (width', height') animated iter = do
       fragment <- liftIO $ #{peek WebPIterator, fragment.bytes} iter
       fragmentSize <- liftIO $ #{peek WebPIterator, fragment.size} iter
@@ -93,6 +95,45 @@ decodeWebp DecodeOptions{maxMemoryMB, outputSize} webp
       size <- #{peek WebPChunkIterator, chunk.size} iter
       pure $ B.take (fromIntegral @CSize size) $ B.drop ((bytes :: Ptr Word8) `minusPtr` input) webp
 
+data Animation = Animation
+  { canvasWidth :: Int
+  , canvasHeight :: Int
+  , loopCount :: Int
+  , frames :: [(V.Vector Word8, Int)]
+  }
+  deriving (Eq, Show)
+
+decodeWebpAnimation :: Int -> ByteString -> IO (Either String Animation)
+decodeWebpAnimation maxMemoryMB webp
+  | maxMemoryMB < 1 = pure $ Left "invalid decode options"
+  | otherwise = BU.unsafeUseAsCStringLen webp \(buf, len) -> allocaBytes #{size HsWebPMemory} \memory -> do
+      #{poke HsWebPMemory, limit} memory (memoryLimit maxMemoryMB)
+      bracket (counted $ hsWebPAnimDecoderNew (castPtr buf) (fromIntegral len) memory) webPAnimDecoderDelete \decoder -> runExceptT do
+        when (decoder == nullPtr) $ refusal memory "invalid WebP container"
+        (width, height, loops, count) <- liftIO $ allocaBytes #{size WebPAnimInfo} \info -> do
+          _ <- webPAnimDecoderGetInfo decoder info
+          let field peekField = fromIntegral @Word32 <$> peekField info
+          (,,,) <$> field #{peek WebPAnimInfo, canvas_width} <*> field #{peek WebPAnimInfo, canvas_height} <*> field #{peek WebPAnimInfo, loop_count} <*> field #{peek WebPAnimInfo, frame_count}
+        let frame previous = do
+              (canvas, timestamp) <- ExceptT $ with nullPtr \pixels -> with 0 \timestampPtr -> do
+                decoded <- counted $ hsWebPAnimDecoderGetNext decoder pixels timestampPtr memory
+                if decoded == 0 then runExceptT (refusal memory "invalid WebP frame") else Right <$> ((,) <$> peek pixels <*> peek timestampPtr)
+              samples <- liftIO $ copied canvas (width * height * 4)
+              pure ((samples, fromIntegral timestamp - previous), fromIntegral timestamp)
+            decodeFrames :: Int -> Int -> ExceptT String IO [(V.Vector Word8, Int)]
+            decodeFrames 0 _ = pure []
+            decodeFrames n previous = frame previous >>= \(decoded, timestamp) -> (decoded :) <$> decodeFrames (n - 1) timestamp
+        Animation width height loops <$> decodeFrames count 0
+  where
+    copied :: Ptr Word8 -> Int -> IO (V.Vector Word8)
+    copied source size = do
+      pixels <- mallocForeignPtrBytes size
+      withForeignPtr pixels \destination -> copyBytes destination source size
+      pure $ V.unsafeFromForeignPtr0 pixels size
+
+memoryLimit :: Int -> CSize
+memoryLimit maxMemoryMB = fromInteger $ min (toInteger (maxBound :: CSize)) (toInteger maxMemoryMB * 1048576)
+
 scaledSpan :: Int -> Int -> Int -> Int -> (Int, Int)
 scaledSpan side side' offset size = (start, end - start)
   where
@@ -116,6 +157,10 @@ data WebPDecoderConfig
 data WebPBitstreamFeatures
 
 data HsWebPMemory
+
+data WebPAnimDecoder
+
+data WebPAnimInfo
 
 withDemuxer :: CSize -> ByteString -> (Ptr Word8 -> Ptr HsWebPMemory -> Ptr WebPDemuxer -> ExceptT String IO a) -> IO (Either String a)
 withDemuxer limit webp action =
@@ -186,3 +231,11 @@ foreign import ccall "src/webp/decode.h WebPInitDecoderConfigInternal" webPInitD
 foreign import ccall "src/webp/decode.h WebPGetFeaturesInternal" webPGetFeaturesInternal :: Ptr Word8 -> CSize -> Ptr WebPBitstreamFeatures -> CInt -> IO CInt
 
 foreign import ccall "hs_webp.h HsWebPDecode" hsWebPDecode :: Ptr Word8 -> CSize -> Ptr WebPDecoderConfig -> Ptr HsWebPMemory -> IO CInt
+
+foreign import ccall "hs_webp.h HsWebPAnimDecoderNew" hsWebPAnimDecoderNew :: Ptr Word8 -> CSize -> Ptr HsWebPMemory -> IO (Ptr WebPAnimDecoder)
+
+foreign import ccall "hs_webp.h HsWebPAnimDecoderGetNext" hsWebPAnimDecoderGetNext :: Ptr WebPAnimDecoder -> Ptr (Ptr Word8) -> Ptr CInt -> Ptr HsWebPMemory -> IO CInt
+
+foreign import ccall "src/webp/demux.h WebPAnimDecoderGetInfo" webPAnimDecoderGetInfo :: Ptr WebPAnimDecoder -> Ptr WebPAnimInfo -> IO CInt
+
+foreign import ccall "src/webp/demux.h WebPAnimDecoderDelete" webPAnimDecoderDelete :: Ptr WebPAnimDecoder -> IO ()

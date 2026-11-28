@@ -66,6 +66,29 @@ unit_animation = do
         | otherwise = PixelRGBA8 0 0 0 0
   decodeWebp options webp >>= (@?= Right ("RGBA8", imageData expected)) . fmap (samples . fst)
 
+unit_animationFrames :: IO ()
+unit_animationFrames = do
+  still <- testFile "test.webp"
+  small <- testFile "small_31x13.webp"
+  tiny <- testFile "small_1x1.webp"
+  Right (ImageRGB8 big, _) <- decodeWebp options still
+  Right (ImageRGB8 little, _) <- decodeWebp options small
+  let webp = animation (160, 150) [((16, 8), (128, 128), still), ((0, 0), (31, 13), small)]
+      opaque (PixelRGB8 r g b) = PixelRGBA8 r g b 255
+      first x y
+        | x >= 16 && x < 144 && y >= 8 && y < 136 = opaque $ pixelAt big (x - 16) (y - 8)
+        | otherwise = PixelRGBA8 0 0 0 0
+      second x y
+        | x < 31 && y < 13 = opaque $ pixelAt little x y
+        | otherwise = first x y
+      canvas pixel = imageData $ generateImage pixel 160 150
+  decodeWebpAnimation 256 webp >>= (@?= Right (Animation 160 150 0 [(canvas first, 100), (canvas second, 100)]))
+  let large = animation (1024, 1024) [((0, 0), (1, 1), tiny)]
+  decodeWebpAnimation 8 large >>= (@?= Left "image is too large") . fmap frames
+  decodeWebpAnimation 16 large >>= assertBool "1024x1024 canvas refused within 16 MiB" . isRight
+  decodeWebpAnimation 256 "RIFF" >>= (@?= Left "invalid WebP container") . fmap frames
+  decodeWebpAnimation 0 webp >>= (@?= Left "invalid decode options") . fmap frames
+
 unit_scaledAnimation :: IO ()
 unit_scaledAnimation = do
   small <- testFile "small_31x13.webp"

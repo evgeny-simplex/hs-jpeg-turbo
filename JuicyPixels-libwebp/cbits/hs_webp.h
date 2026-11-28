@@ -17,4 +17,8 @@ WebPDemuxer *HsWebPDemux(const uint8_t *data, size_t size, HsWebPMemory *memory)
 
 VP8StatusCode HsWebPDecode(const uint8_t *data, size_t size, WebPDecoderConfig *config, HsWebPMemory *memory);
 
+WebPAnimDecoder *HsWebPAnimDecoderNew(const uint8_t *data, size_t size, HsWebPMemory *memory);
+
+int HsWebPAnimDecoderGetNext(WebPAnimDecoder *decoder, uint8_t **pixels, int *timestamp, HsWebPMemory *memory);
+
 #endif

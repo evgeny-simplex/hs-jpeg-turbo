@@ -84,3 +84,33 @@ VP8StatusCode HsWebPDecode(const uint8_t *data, size_t size, WebPDecoderConfig *
   active = NULL;
   return status;
 }
+
+WebPAnimDecoder *HsWebPAnimDecoderNew(const uint8_t *data, size_t size, HsWebPMemory *memory)
+{
+  WebPData webp;
+  WebPAnimDecoderOptions options;
+  WebPAnimDecoder *decoder;
+
+  webp.bytes = data;
+  webp.size = size;
+  memory->used = 0;
+  memory->peak = 0;
+  memory->refused = 0;
+  if (!WebPAnimDecoderOptionsInit(&options))
+    return NULL;
+  options.color_mode = MODE_rgbA;
+  active = memory;
+  decoder = WebPAnimDecoderNew(&webp, &options);
+  active = NULL;
+  return decoder;
+}
+
+int HsWebPAnimDecoderGetNext(WebPAnimDecoder *decoder, uint8_t **pixels, int *timestamp, HsWebPMemory *memory)
+{
+  int decoded;
+
+  active = memory;
+  decoded = WebPAnimDecoderGetNext(decoder, pixels, timestamp);
+  active = NULL;
+  return decoded;
+}
