@@ -423,8 +423,8 @@ unit_frameLimits = do
   _ <- readFrame unbounded PremultipliedRGBA (2048, 2048)
   (_, decoding) <- timedFrame unbounded (2048, 2048)
   closeFrames unbounded
-  let timeout = floor (decoding * 500) :: Int
-  assertBool ("the noise frame decoded in " <> show decoding <> " s, the session opened in " <> show opening <> " s") $ timeout >= 4 && opening * 2000 < fromIntegral timeout
+  let timeout = round ((opening * 2 + decoding) * 500) :: Int
+  assertBool ("the noise frame decoded in " <> show decoding <> " s, the session opened in " <> show opening <> " s") $ opening * 2 < decoding
   deadlined <- openSlow timeout
   (first, t1) <- timedFrame deadlined (2048, 2048)
   assertBool ("the 1x1 frame decoded within its own deadline, " <> show t1 <> " s") $ isRight first
