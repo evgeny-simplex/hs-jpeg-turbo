@@ -373,6 +373,7 @@ static void time_frames(int repeat, uint32_t max_side, int count, char **paths)
       for (frame = 0; a.status == 0 && frame < a.frames; frame++) {
         frame_start = sandbox_now_ns();
         read_frame(&a, pixels, &duration);
+        __asm__ volatile("" : : "r"(pixels) : "memory");
         if ((double)(sandbox_now_ns() - frame_start) > slowest[i])
           slowest[i] = (double)(sandbox_now_ns() - frame_start);
       }
