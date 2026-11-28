@@ -230,12 +230,39 @@ unit_moduleOutputChecks = do
     ]
     \(size, format, request, fields) -> output size format request fields "\0" >>= (@?= Left "invalid sandbox output")
   readSandboxOutput limits 0 2 (2, 3) maxBound (words32 [0, 2, 3, 2, pixels, 0, 0, 0, 0]) >>= (@?= Left "invalid sandbox output")
+  forM_ [(0, [0, 0, 0, 0, 0, 0]), (0, [0, 1, 0, 0, 0, 0]), (16, [0, 1, pixels, 16, pixels, 16])] \(size, fields) -> start size fields "" >>= (@?= Right ())
+  start 0 [at + 24, 0, 0, 0, 0, 0] "invalid WebP frame\0" >>= (@?= Left "invalid WebP frame")
+  forM_
+    [ (0, [0, 2, 0, 0, 0, 0])
+    , (0, [0, 0, maxBound, 16, 0, 0])
+    , (0, [0, 0, pixels, 64 * 1048576 + 1, 0, 0])
+    , (15, [0, 0, 0, 0, pixels, 16])
+    , (16, [0, 0, 0, 0, maxBound, 16])
+    , (0, [maxBound, 0, 0, 0, 0, 0])
+    , (0, [at + 24, 0, 0, 0, 0, 0])
+    ]
+    \(size, fields) -> start size fields "\0" >>= (@?= Left "invalid sandbox output")
+  readSandboxStart limits 0 maxBound (words32 [0, 0, 0, 0, 0, 0]) >>= (@?= Left "invalid sandbox output")
+  frame (2, 3) [0, 2, 3, pixels, 40] "" >>= (@?= Right ())
+  frame (2, 3) [at + 20, 2, 3, pixels, 40] "bad code\0" >>= (@?= Left "bad code")
+  forM_
+    [ ((2, 3), [0, 3, 3, pixels, 40])
+    , ((2, 3), [0, 2, 2, pixels, 40])
+    , ((2, 3), [0, 2, 3, maxBound - 8, 40])
+    , ((1024, 1024), [0, 1024, 1024, pixels, 40])
+    , ((2, 3), [maxBound, 2, 3, pixels, 40])
+    , ((2, 3), [at + 20, 2, 3, pixels, 40])
+    ]
+    \(size, fields) -> frame size fields "\0" >>= (@?= Left "invalid sandbox output")
+  readSandboxFrame limits (2, 3) maxBound (words32 [0, 2, 3, pixels, 40]) >>= (@?= Left "invalid sandbox output")
   where
     limits = defaultLimits {memoryLimitMB = 16}
     at = 65536
     pixels = at + 64
     header fields text = readSandboxHeader limits at (words32 fields <> text)
     output size format request fields text = readSandboxOutput limits size format request at (words32 fields <> text)
+    start size fields text = readSandboxStart limits size at (words32 fields <> text)
+    frame size fields text = readSandboxFrame limits size at (words32 fields <> text)
     words32 = foldMap (le 4 . fromIntegral)
 
 unit_neverEnding :: IO ()

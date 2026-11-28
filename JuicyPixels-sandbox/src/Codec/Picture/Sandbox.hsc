@@ -27,6 +27,8 @@ module Codec.Picture.Sandbox
   , treeSandbox
   , readSandboxHeader
   , readSandboxOutput
+  , readSandboxStart
+  , readSandboxFrame
   ) where
 
 import Codec.Picture (DynamicImage(..), Image(..))
@@ -325,6 +327,14 @@ readSandboxOutput :: Limits -> Word32 -> Word32 -> (Word32, Word32) -> Word32 ->
 readSandboxOutput limits size format (width, height) address bytes = BU.unsafeUseAsCStringLen bytes \(buf, len) ->
   testCall limits 0 \l message -> sandboxReadOutput l size format width height address (castPtr buf) (fromIntegral len) message
 
+readSandboxStart :: Limits -> Word32 -> Word32 -> ByteString -> IO (Either String ())
+readSandboxStart limits size address bytes = BU.unsafeUseAsCStringLen bytes \(buf, len) ->
+  testCall limits 0 \l message -> sandboxReadStart l size address (castPtr buf) (fromIntegral len) message
+
+readSandboxFrame :: Limits -> (Word32, Word32) -> Word32 -> ByteString -> IO (Either String ())
+readSandboxFrame limits (width, height) address bytes = BU.unsafeUseAsCStringLen bytes \(buf, len) ->
+  testCall limits 0 \l message -> sandboxReadFrame l width height address (castPtr buf) (fromIntegral len) message
+
 data Sandbox
 
 foreign import ccall unsafe "sandbox_now_ns" sandboxNowNs :: IO Word64
@@ -358,3 +368,7 @@ foreign import ccall safe "sandbox_tree" sandboxTree :: Ptr () -> Word32 -> Ptr 
 foreign import ccall safe "sandbox_read_header" sandboxReadHeader :: Ptr () -> Word32 -> Ptr Word8 -> Word32 -> Ptr () -> CString -> IO CInt
 
 foreign import ccall safe "sandbox_read_output" sandboxReadOutput :: Ptr () -> Word32 -> Word32 -> Word32 -> Word32 -> Word32 -> Ptr Word8 -> Word32 -> CString -> IO CInt
+
+foreign import ccall safe "sandbox_read_start" sandboxReadStart :: Ptr () -> Word32 -> Word32 -> Ptr Word8 -> Word32 -> CString -> IO CInt
+
+foreign import ccall safe "sandbox_read_frame" sandboxReadFrame :: Ptr () -> Word32 -> Word32 -> Word32 -> Ptr Word8 -> Word32 -> CString -> IO CInt

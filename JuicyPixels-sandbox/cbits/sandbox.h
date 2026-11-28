@@ -95,4 +95,9 @@ int sandbox_read_header(const sandbox_limits *limits, uint32_t address, const ui
 int sandbox_read_output(const sandbox_limits *limits, uint32_t size, uint32_t format, uint32_t width, uint32_t height, uint32_t address,
                         const uint8_t *data, uint32_t length, char *message);
 
+int sandbox_read_start(const sandbox_limits *limits, uint32_t size, uint32_t address, const uint8_t *data, uint32_t length, char *message);
+
+int sandbox_read_frame(const sandbox_limits *limits, uint32_t width, uint32_t height, uint32_t address, const uint8_t *data, uint32_t length,
+                       char *message);
+
 #endif

@@ -930,3 +930,46 @@ int sandbox_read_output(const sandbox_limits *limits, uint32_t size, uint32_t fo
 
   return status ? status : placed.status;
 }
+
+static void read_placed_start(sandbox *session, void *argument)
+{
+  Placed *placed = argument;
+  sandbox_frames frames;
+
+  place(session, placed);
+  placed->status = read_start(session, placed->address, &frames);
+  if (placed->status == 0) {
+    free(frames.icc);
+    free(frames.exif);
+  }
+}
+
+int sandbox_read_start(const sandbox_limits *limits, uint32_t size, uint32_t address, const uint8_t *data, uint32_t length, char *message)
+{
+  Placed placed = {.address = address, .length = length, .data = data};
+  int status = run_test(limits, size, read_placed_start, &placed, message);
+
+  return status ? status : placed.status;
+}
+
+static void read_placed_frame(sandbox *session, void *argument)
+{
+  Placed *placed = argument;
+  uint8_t *pixels = malloc((size_t)placed->width * placed->height * 4 + 1);
+  uint32_t duration;
+
+  place(session, placed);
+  session->frame_width = placed->width;
+  session->frame_height = placed->height;
+  placed->status = pixels ? read_frame(session, placed->address, placed->format, pixels, (size_t)placed->width * 4, &duration) : SANDBOX_OUT_OF_MEMORY;
+  free(pixels);
+}
+
+int sandbox_read_frame(const sandbox_limits *limits, uint32_t width, uint32_t height, uint32_t address, const uint8_t *data, uint32_t length,
+                       char *message)
+{
+  Placed placed = {.address = address, .length = length, .format = PIXELS_BGRA, .width = width, .height = height, .data = data};
+  int status = run_test(limits, 0, read_placed_frame, &placed, message);
+
+  return status ? status : placed.status;
+}
