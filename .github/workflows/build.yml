@@ -207,7 +207,8 @@ jobs:
         with:
           submodules: true
 
-      - name: Download wasi-sdk 34, wabt 1.0.42 and the SSE2 headers of Emscripten 6.0.13
+      - &wasm-tools
+        name: Download wasi-sdk 34, wabt 1.0.42 and the SSE2 headers of Emscripten 6.0.13
         run: |
           tools=$RUNNER_TEMP/tools
           mkdir -p "$tools/wasi-sdk" "$tools/wabt" "$tools/wabt-src" "$tools/emscripten"
@@ -247,6 +248,45 @@ jobs:
         run: |
           git add --intent-to-add JuicyPixels-sandbox/cbits
           git diff --stat --exit-code -- JuicyPixels-sandbox/cbits
+
+  gif-decoders:
+    name: GIF decoders compared in the sandbox
+    if: ${{ inputs.measure }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+
+      - *wasm-tools
+
+      - name: Fetch libnsgif, giflib and the GIF test suite of pygif
+        run: |
+          git clone --quiet https://github.com/netsurf-browser/libnsgif "$RUNNER_TEMP/libnsgif"
+          git -C "$RUNNER_TEMP/libnsgif" checkout --quiet b9e3b0aadce374cce45c34feb55ad73a3381ff98
+          curl -fsSL -o "$RUNNER_TEMP/giflib.tar.gz" https://downloads.sourceforge.net/project/giflib/giflib-5.x/giflib-5.2.2.tar.gz
+          echo "be7ffbd057cadebe2aa144542fd90c6838c6a083b5e8a9048b8ee3b66b29d5fb  $RUNNER_TEMP/giflib.tar.gz" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/giflib.tar.gz" -C "$RUNNER_TEMP"
+          git clone --quiet https://github.com/robert-ancell/pygif "$RUNNER_TEMP/pygif"
+          git -C "$RUNNER_TEMP/pygif" checkout --quiet 741b282047e0dde112e5ac2df0c7f8f923cb5df6
+          {
+            echo "NSGIF=$RUNNER_TEMP/libnsgif"
+            echo "GIFLIB=$RUNNER_TEMP/giflib-5.2.2"
+            echo "GIF_TEST_SUITE=$RUNNER_TEMP/pygif/test-suite"
+            echo "GIF_WORKLOADS=$RUNNER_TEMP/gif-workloads"
+          } >> "$GITHUB_ENV"
+
+      - name: Generate the GIF workloads
+        run: python3 -I .github/scripts/gif-workloads.py "$GIF_WORKLOADS"
+
+      - name: Compare Wuffs, libnsgif and giflib in the sandbox
+        run: bash .github/scripts/gif-compare.sh
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gif-compare
+          path: dist-newstyle/gif-compare/*.tsv
 
   build-full:
     name: ${{ matrix.os }}, GHC ${{ matrix.ghc }}
