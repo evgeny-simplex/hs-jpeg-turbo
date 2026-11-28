@@ -127400,6 +127400,8 @@ u32 w2c_image_frames_animate(w2c_image* instance, u32 var_p0, u32 var_p1, u32 va
   if (var_i0) {goto var_B5;}
   var_B6:;
   var_i0 = 0u;
+  var_p2 = var_i0;
+  var_i0 = 0u;
   var_i1 = var_p3;
   var_i2 = var_p4;
   var_i1 *= var_i2;
@@ -127407,12 +127409,42 @@ u32 w2c_image_frames_animate(w2c_image* instance, u32 var_p0, u32 var_p1, u32 va
   var_i1 <<= (var_i2 & 31);
   var_i1 = w2c_image_malloc(instance, var_i1);
   wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
-  var_p2 = var_i1;
+  var_p3 = var_i1;
   i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 1091444u, var_i1);
+  var_i0 = var_p3;
+  if (var_i0) {goto var_B5;}
   var_i0 = 0u;
-  var_i1 = 1054788u;
-  var_i2 = var_p2;
-  var_i0 = var_i2 ? var_i0 : var_i1;
+  var_p2 = var_i0;
+  var_i0 = 0u;
+  var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 1091432u);
+  var_p3 = var_i0;
+  var_i0 = !(var_i0);
+  if (var_i0) {goto var_B7;}
+  var_i0 = 0u;
+  var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 1091412u);
+  var_i1 = var_p3;
+  CALL_INDIRECT(instance->w2c_T0, void (*)(void*, u32), w2c_image_t2, var_i1, instance->w2c_T0.data[var_i1].module_instance, var_i0);
+#if WASM_RT_USE_SEGUE_FOR_THIS_MODULE
+  wasm_rt_segue_write_base((*instance->w2c_env_memory).data);
+#endif
+  wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
+  var_i0 = 0u;
+  var_i0 = i32_load_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 1091444u);
+  var_p2 = var_i0;
+  var_B7:;
+  var_i0 = var_p2;
+  w2c_image_free(instance, var_i0);
+  wasm_rt_local_memory_size = (instance->w2c_env_memory)->size;
+  var_i0 = 0u;
+  var_o1 = var_l6;
+  v128_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 1091428u, var_o1);
+  var_i0 = 0u;
+  var_o1 = var_l6;
+  v128_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 1091412u, var_o1);
+  var_i0 = 0u;
+  var_i1 = 0u;
+  i32_store_default32(wasm_rt_local_memory_base, wasm_rt_local_memory_size, instance->w2c_env_memory, (u64)(var_i0) + 1091444u, var_i1);
+  var_i0 = 1054788u;
   var_p2 = var_i0;
   var_B5:;
   var_i0 = var_p2;
