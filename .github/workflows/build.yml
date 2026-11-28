@@ -311,11 +311,17 @@ jobs:
   sandbox-sanitizers:
     name: sandbox with sanitizers on truncated and changed images
     if: *full-run
+    needs: sandbox-fixtures
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
         with:
           submodules: true
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: sandbox-fixtures
+          path: ${{ runner.temp }}/sandbox-fixtures
 
       - name: Clone libwebp test data
         run: |
@@ -327,10 +333,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y clang-18 libclang-rt-18-dev
 
-      - name: Decode truncated and changed images in the sandbox with address and undefined behaviour sanitizers
+      - name: Decode truncated and changed images and animations in the sandbox with address and undefined behaviour sanitizers
         env:
           CC: clang-18
           WEBP_TEST_DATA: ${{ runner.temp }}/libwebp-test-data
+          FIXTURES: ${{ runner.temp }}/sandbox-fixtures
         run: bash .github/scripts/sandbox-sanitize.sh
 
   sandbox-fixtures:

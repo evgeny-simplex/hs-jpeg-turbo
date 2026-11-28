@@ -136,27 +136,60 @@ const char *guest_message(const char *text)
   return message;
 }
 
+static uint32_t native_format(const uint8_t *data, size_t size)
+{
+  if (size >= 2 && data[0] == 0xFF && data[1] == 0xD8)
+    return FORMAT_JPEG;
+  if (size >= 8 && !memcmp(data, "\x89PNG", 4))
+    return FORMAT_PNG;
+  if (size >= 3 && !memcmp(data, "GIF", 3))
+    return FORMAT_GIF;
+  return FORMAT_WEBP;
+}
+
+static const char *native_header(uint32_t format, const uint8_t *data, size_t size, uint32_t *width, uint32_t *height, uint32_t *frames)
+{
+  uint32_t loops;
+
+  *frames = 1;
+  switch (format) {
+  case FORMAT_JPEG:
+    return jpeg_header(data, size, width, height);
+  case FORMAT_PNG:
+    return png_header(data, size, width, height);
+  case FORMAT_GIF:
+    return gif_header(data, size, width, height, frames, &loops);
+  default:
+    return webp_header(data, size, width, height, frames, &loops);
+  }
+}
+
+static const char *native_decode(uint32_t format, const uint8_t *data, size_t size, uint32_t width, uint32_t height, Image *image)
+{
+  switch (format) {
+  case FORMAT_JPEG:
+    return jpeg_decode(data, size, width, height, (uint32_t)(limits.memory_limit >> 20), image);
+  case FORMAT_PNG:
+    return png_decode(data, size, width, height, image);
+  case FORMAT_GIF:
+    return gif_decode(data, size, width, height, image);
+  default:
+    return webp_decode(data, size, width, height, image);
+  }
+}
+
 static void decode(const uint8_t *data, size_t size, uint32_t max_side, Result *r)
 {
   Image image = {0};
   const char *error;
-  uint32_t w, h, frames, loops;
+  uint32_t w, h, frames;
 
   memset(r, 0, sizeof(*r));
-  r->format = size >= 2 && data[0] == 0xFF && data[1] == 0xD8 ? FORMAT_JPEG
-              : size >= 8 && !memcmp(data, "\x89PNG", 4)    ? FORMAT_PNG
-              : size >= 3 && !memcmp(data, "GIF", 3)        ? FORMAT_GIF
-                                                            : FORMAT_WEBP;
-  error = r->format == FORMAT_JPEG ? jpeg_header(data, size, &r->image_width, &r->image_height)
-          : r->format == FORMAT_PNG ? png_header(data, size, &r->image_width, &r->image_height)
-          : r->format == FORMAT_GIF ? gif_header(data, size, &r->image_width, &r->image_height, &frames, &loops)
-                                    : webp_header(data, size, &r->image_width, &r->image_height, &frames, &loops);
+  r->format = native_format(data, size);
+  error = native_header(r->format, data, size, &r->image_width, &r->image_height, &frames);
   if (!error) {
     output_size(r->format, r->image_width, r->image_height, max_side, &w, &h);
-    error = r->format == FORMAT_JPEG ? jpeg_decode(data, size, w, h, (uint32_t)(limits.memory_limit >> 20), &image)
-            : r->format == FORMAT_PNG ? png_decode(data, size, w, h, &image)
-            : r->format == FORMAT_GIF ? gif_decode(data, size, w, h, &image)
-                                      : webp_decode(data, size, w, h, &image);
+    error = native_decode(r->format, data, size, w, h, &image);
     r->width = w;
     r->height = h;
   }
@@ -170,6 +203,243 @@ static void decode(const uint8_t *data, size_t size, uint32_t max_side, Result *
   r->channels = layout_channels(image.layout);
   if (r->format == FORMAT_PNG)
     free((void *)image.icc);
+}
+#endif
+
+typedef struct {
+#ifdef SANDBOX
+  sandbox *session;
+  uint64_t opened;
+#endif
+  uint32_t format, image_width, image_height, frames, width, height;
+  int status;
+  char message[SANDBOX_MESSAGE_SIZE];
+} Animated;
+
+static uint64_t call_deadline(void)
+{
+  return deadline_ms ? sandbox_now_ns() + deadline_ms * 1000000u : 0;
+}
+
+#ifdef SANDBOX
+static int session_status(Animated *a)
+{
+  if (a->status != 0 && a->session)
+    strncpy(a->message, sandbox_message(a->session), SANDBOX_MESSAGE_SIZE - 1);
+  return a->status;
+}
+
+static int open_frames(const uint8_t *data, size_t size, uint32_t max_side, Animated *a)
+{
+  sandbox_header header;
+  sandbox_frames info;
+
+  memset(a, 0, sizeof(*a));
+  a->status = sandbox_open(data, size, call_limits(sandbox_now_ns()), &a->session, &header);
+  if (a->status == 0) {
+    a->opened = sandbox_iterations(a->session);
+    a->format = header.format;
+    a->image_width = header.width;
+    a->image_height = header.height;
+    a->frames = header.frames;
+    output_size(header.format, header.width, header.height, max_side, &a->width, &a->height);
+    a->status = sandbox_start(a->session, a->width, a->height, header.frames > 1 ? PLAYBACK_ANIMATION : PLAYBACK_STILL, call_deadline(), per_pixel,
+                              &info);
+    free(info.icc);
+    free(info.exif);
+  }
+  return session_status(a);
+}
+
+static int read_frame(Animated *a, uint8_t *pixels, uint32_t *duration)
+{
+  a->status = sandbox_next(a->session, call_deadline(), per_pixel, PIXELS_RGBA, pixels, (size_t)a->width * 4, duration);
+  return session_status(a);
+}
+
+static void close_frames(Animated *a)
+{
+  sandbox_close(a->session);
+}
+#else
+static int native_status(Animated *a, const char *error)
+{
+  if (error) {
+    a->status = SANDBOX_DECODER;
+    strncpy(a->message, error, SANDBOX_MESSAGE_SIZE - 1);
+  }
+  return a->status;
+}
+
+static int open_frames(const uint8_t *data, size_t size, uint32_t max_side, Animated *a)
+{
+  Image image = {0};
+  const char *error;
+
+  memset(a, 0, sizeof(*a));
+  a->format = native_format(data, size);
+  error = native_header(a->format, data, size, &a->image_width, &a->image_height, &a->frames);
+  if (!error) {
+    output_size(a->format, a->image_width, a->image_height, max_side, &a->width, &a->height);
+    if (a->frames > 1) {
+      error = frames_animate(data, size, a->format, a->width, a->height, &image);
+    } else {
+      if (!(error = native_decode(a->format, data, size, a->width, a->height, &image)))
+        error = frames_still(&image, a->width, a->height);
+      free(image.pixels);
+      if (a->format == FORMAT_PNG)
+        free((void *)image.icc);
+    }
+  }
+  return native_status(a, error);
+}
+
+static int read_frame(Animated *a, uint8_t *pixels, uint32_t *duration)
+{
+  const uint8_t *frame;
+  const char *error = frames_next(0, &frame, duration);
+
+  if (!error)
+    memcpy(pixels, frame, (size_t)a->width * a->height * 4);
+  return native_status(a, error);
+}
+
+static void close_frames(Animated *a)
+{
+  (void)a;
+  frames_close();
+}
+#endif
+
+static void frame_path(char *output, size_t size, const char *dir, const char *path, uint32_t frame)
+{
+  const char *name = base_name(path), *dot = strrchr(name, '.');
+
+  snprintf(output, size, "%s/%.*s-frame%u%s.out", dir, dot ? (int)(dot - name) : (int)strlen(name), name, frame, dot ? dot : "");
+}
+
+static void check_frames(const char *dir, uint32_t max_side, int count, char **paths)
+{
+  char output[4096];
+  size_t size;
+  unsigned char *data;
+  uint8_t *pixels;
+  uint32_t frame, duration;
+  Animated a;
+  FILE *out;
+  int i;
+
+  for (i = 0; i < count; i++) {
+    data = read_file(paths[i], &size);
+    open_frames(data, size, max_side, &a);
+    pixels = malloc(a.status == 0 ? (size_t)a.width * a.height * 4 : 1);
+    for (frame = 0; frame == 0 || (a.status == 0 && frame < a.frames); frame++) {
+      duration = 0;
+      if (a.status == 0)
+        read_frame(&a, pixels, &duration);
+      frame_path(output, sizeof(output), dir, paths[i], frame);
+      if (!(out = fopen(output, "wb")) || fprintf(out, "%d %u %u 4 %u\n", a.status, a.width, a.height, duration) < 0 ||
+          (a.status == 0 && fwrite(pixels, (size_t)a.width * 4, a.height, out) != a.height) || fclose(out) != 0) {
+        perror(output);
+        exit(1);
+      }
+    }
+    close_frames(&a);
+    free(pixels);
+    free(data);
+  }
+}
+
+static int compare_doubles(const void *a, const void *b);
+
+static void time_frames(int repeat, uint32_t max_side, int count, char **paths)
+{
+  double *totals = malloc(sizeof(double) * repeat), *slowest = malloc(sizeof(double) * repeat);
+  size_t size;
+  unsigned char *data;
+  uint8_t *pixels;
+  uint64_t start, frame_start;
+  uint32_t frame, duration;
+  Animated a;
+  int i, k;
+
+  for (k = 0; k < count; k++) {
+    data = read_file(paths[k], &size);
+    for (i = 0; i < repeat; i++) {
+      start = sandbox_now_ns();
+      slowest[i] = 0;
+      open_frames(data, size, max_side, &a);
+      pixels = malloc(a.status == 0 ? (size_t)a.width * a.height * 4 : 1);
+      for (frame = 0; a.status == 0 && frame < a.frames; frame++) {
+        frame_start = sandbox_now_ns();
+        read_frame(&a, pixels, &duration);
+        if ((double)(sandbox_now_ns() - frame_start) > slowest[i])
+          slowest[i] = (double)(sandbox_now_ns() - frame_start);
+      }
+      totals[i] = (double)(sandbox_now_ns() - start);
+      close_frames(&a);
+      free(pixels);
+    }
+    qsort(totals, repeat, sizeof(double), compare_doubles);
+    qsort(slowest, repeat, sizeof(double), compare_doubles);
+    printf("%s\t%u\t%u\t%u\t%u\t%u\t%u\t%zu\t%.0f\t%.0f\t%d\t%s\n", base_name(paths[k]), a.format, a.image_width, a.image_height, a.frames, a.width,
+           a.height, size, totals[repeat / 2], slowest[repeat / 2], a.status, a.message);
+    free(data);
+  }
+  free(slowest);
+  free(totals);
+}
+
+#ifdef SANDBOX
+static void count_frames_of(const char *name, const unsigned char *data, size_t size, uint32_t max_side)
+{
+  uint8_t *pixels;
+  uint64_t before, start = sandbox_now_ns();
+  uint32_t frame, duration;
+  Animated a;
+
+  open_frames(data, size, max_side, &a);
+  printf("%s#start\t%u\t%u\t%zu\t%llu\t%llu\t%d\t%llu\t%llu\t%s\n", name, a.format, max_side, size, (unsigned long long)a.image_width * a.image_height,
+         (unsigned long long)a.width * a.height, a.status, (unsigned long long)(a.session ? sandbox_iterations(a.session) - a.opened : 0),
+         (unsigned long long)(sandbox_now_ns() - start), a.message);
+  pixels = malloc(a.status == 0 ? (size_t)a.width * a.height * 4 : 1);
+  for (frame = 0; a.status == 0 && frame < a.frames; frame++) {
+    before = sandbox_iterations(a.session);
+    start = sandbox_now_ns();
+    read_frame(&a, pixels, &duration);
+    printf("%s#frame%u\t%u\t%u\t%zu\t%llu\t%llu\t%d\t%llu\t%llu\t%s\n", name, frame, a.format, max_side, size, (unsigned long long)a.image_width * a.image_height,
+           (unsigned long long)a.width * a.height, a.status, (unsigned long long)(sandbox_iterations(a.session) - before),
+           (unsigned long long)(sandbox_now_ns() - start), a.message);
+  }
+  close_frames(&a);
+  free(pixels);
+}
+
+static void count_frames(uint32_t max_side, int changed, int count, char **paths)
+{
+  char name[4200];
+  size_t size, k;
+  unsigned char *data, *copy;
+  int i;
+
+  for (i = 0; i < count; i++) {
+    data = read_file(paths[i], &size);
+    if (!changed) {
+      count_frames_of(base_name(paths[i]), data, size, max_side);
+    } else {
+      copy = malloc(size ? size : 1);
+      for (k = 0; k < 32; k++) {
+        snprintf(name, sizeof(name), "%s#truncated%zu", base_name(paths[i]), k);
+        count_frames_of(name, k ? data : NULL, size * k / 32, max_side);
+        memcpy(copy, data, size);
+        copy[(size - 1) * k / 31] ^= (unsigned char)(1u << (k % 8));
+        snprintf(name, sizeof(name), "%s#changed%zu", base_name(paths[i]), k);
+        count_frames_of(name, copy, size, max_side);
+      }
+      free(copy);
+    }
+    free(data);
+  }
 }
 #endif
 
@@ -486,7 +756,23 @@ static int run(int argc, char **argv)
     count_files((uint32_t)atoi(argv[2]), 1, argc - 3, argv + 3);
     return 0;
   }
+  if (argc >= 4 && !strcmp(argv[1], "frames")) {
+    check_frames(argv[2], (uint32_t)atoi(argv[3]), argc - 4, argv + 4);
+    return 0;
+  }
+  if (argc >= 4 && !strcmp(argv[1], "frames-time")) {
+    time_frames(atoi(argv[2]), (uint32_t)atoi(argv[3]), argc - 4, argv + 4);
+    return 0;
+  }
 #ifdef SANDBOX
+  if (argc >= 3 && !strcmp(argv[1], "frames-count")) {
+    count_frames((uint32_t)atoi(argv[2]), 0, argc - 3, argv + 3);
+    return 0;
+  }
+  if (argc >= 3 && !strcmp(argv[1], "frames-count-changed")) {
+    count_frames((uint32_t)atoi(argv[2]), 1, argc - 3, argv + 3);
+    return 0;
+  }
   if (argc == 3 && !strcmp(argv[1], "spin"))
     return stop("spin", atoi(argv[2]), NULL) != 0;
   if (argc == 4 && !strcmp(argv[1], "stop"))
@@ -504,7 +790,9 @@ static int run(int argc, char **argv)
     return concurrent(atoi(argv[2]), argv[3]);
 #endif
 #endif
-  fprintf(stderr, "usage: %s check DIR MAXSIDE FILE... | time REPEAT MAXSIDE FILE... | count MAXSIDE FILE... | count-changed MAXSIDE FILE... | spin REPEAT | "
+  fprintf(stderr, "usage: %s check DIR MAXSIDE FILE... | time REPEAT MAXSIDE FILE... | count MAXSIDE FILE... | count-changed MAXSIDE FILE... | "
+                  "frames DIR MAXSIDE FILE... | frames-time REPEAT MAXSIDE FILE... | frames-count MAXSIDE FILE... | frames-count-changed MAXSIDE FILE... | "
+                  "spin REPEAT | "
                   "stop REPEAT FILE | tree DEPTH MESSAGE | limit | memory limit|growth|copy FILE | concurrent THREADS FILE\n",
           argv[0]);
   return 2;

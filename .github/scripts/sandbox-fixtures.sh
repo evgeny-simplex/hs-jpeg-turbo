@@ -10,10 +10,14 @@ images=https://raw.githubusercontent.com/simplex-chat/simplex-chat/8f5dfa3d4e305
 tmp=$RUNNER_TEMP/fixtures
 
 rm -rf "$out" "$tmp"
-mkdir -p "$out/workloads" "$out/largest" "$out/calibration" "$out/webp" "$tmp/calibration"
+mkdir -p "$out/workloads" "$out/largest" "$out/calibration" "$out/webp" "$out/animations" "$out/gif-suite" "$tmp/calibration"
 git clone --quiet https://chromium.googlesource.com/webm/libwebp-test-data "$tmp/libwebp-test-data"
 git -C "$tmp/libwebp-test-data" checkout --quiet 06ddd96e276c2c638a72d39d3c0f340afd61978c
 cp "$tmp"/libwebp-test-data/*.webp "$out/webp/"
+git clone --quiet https://github.com/robert-ancell/pygif "$tmp/pygif"
+git -C "$tmp/pygif" checkout --quiet 741b282047e0dde112e5ac2df0c7f8f923cb5df6
+cp "$tmp"/pygif/test-suite/*.gif "$out/gif-suite/"
+python3 -I .github/scripts/gif-workloads.py "$out/animations"
 curl -fsSL -o "$tmp/$release.tar.gz" "$url"
 echo "1c5ffab71efecefa0e3c23516c3a3a1dccb45cc310ae1095c6f14ae268e38067  $tmp/$release.tar.gz" | sha256sum --check
 tar -xzf "$tmp/$release.tar.gz" -C "$tmp"
@@ -79,7 +83,7 @@ gcc -O2 -I "$webp" -I "$webp/src" "$webp"/src/*/*.c "$webp"/sharpyuv/*.c .github
 {
   echo "### Sandbox workloads, the largest picked images and the budget calibration"
   echo '```'
-  for file in "$out"/workloads/* "$out"/largest/* "$out"/calibration/*; do
+  for file in "$out"/workloads/* "$out"/largest/* "$out"/calibration/* "$out"/animations/*; do
     echo "$(sha256sum "$file" | cut -c1-16) $(wc -c < "$file") $(basename "$file")"
   done
   echo '```'

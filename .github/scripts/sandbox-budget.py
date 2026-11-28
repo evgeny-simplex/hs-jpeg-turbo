@@ -1,18 +1,21 @@
 import sys
 
-FORMATS = {"1": "JPEG", "2": "PNG", "3": "WebP"}
+FORMATS = {"1": "JPEG", "2": "PNG", "3": "WebP", "4": "GIF"}
+KINDS = ["corpus", "changed", "worst case", "crafted", "frames"]
 BASE, PER_BYTE = 1048576, 16
 RATES = [16, 32, 64, 128, 256, 512, 1024]
 PACKAGE = dict((fmt, int(rate)) for fmt, rate in (arg.split("=") for arg in sys.argv[2:]))
 
 
 def kind(name):
-    if "#" in name:
-        return "changed"
     if name.startswith("worst-"):
         return "worst case"
     if name.startswith("crafted-"):
         return "crafted"
+    if "#truncated" in name or "#changed" in name:
+        return "changed"
+    if "#" in name:
+        return "frames"
     return "corpus"
 
 
@@ -31,8 +34,8 @@ print(f"Needed rate: (iterations − {BASE} − {PER_BYTE} × bytes) ÷ (image p
 print()
 print("| Format | Set | Decodes | Most iterations | Largest needed rate per pixel | Largest rate without the per-byte term | Median ns per iteration |")
 print("|---|---|---|---|---|---|---|")
-for fmt in ["JPEG", "PNG", "WebP"]:
-    for group_kind in ["corpus", "changed", "worst case", "crafted"]:
+for fmt in FORMATS.values():
+    for group_kind in KINDS:
         group = [r for r in rows if r[0] == fmt and r[1] == group_kind]
         if not group:
             continue
@@ -47,12 +50,12 @@ for fmt in ["JPEG", "PNG", "WebP"]:
 print()
 print("Decodes refused at each per-pixel rate, base and per-byte rate as above:")
 print()
-print("| Rate | " + " | ".join(f"{fmt}, {k}" for fmt in ["JPEG", "PNG", "WebP"] for k in ["corpus", "changed", "worst case", "crafted"]) + " |")
-print("|---" * 13 + "|")
+print("| Rate | " + " | ".join(f"{fmt}, {k}" for fmt in FORMATS.values() for k in KINDS) + " |")
+print("|---" * (1 + len(FORMATS) * len(KINDS)) + "|")
 for rate in RATES:
     cells = []
-    for fmt in ["JPEG", "PNG", "WebP"]:
-        for group_kind in ["corpus", "changed", "worst case", "crafted"]:
+    for fmt in FORMATS.values():
+        for group_kind in KINDS:
             refused = [r for r in rows if r[0] == fmt and r[1] == group_kind and r[8] > rate]
             cells.append(str(len(refused)))
     print(f"| {rate} | " + " | ".join(cells) + " |")
@@ -63,7 +66,7 @@ if PACKAGE:
     print("| Format | Rate | Set | Smallest margin | Decodes refused |")
     print("|---|---|---|---|---|")
     for fmt, rate in PACKAGE.items():
-        for group_kind in ["corpus", "changed", "worst case", "crafted"]:
+        for group_kind in KINDS:
             group = [r for r in rows if r[0] == fmt and r[1] == group_kind and r[8] > 0]
             if group:
                 least = min(group, key=lambda r: rate / r[8])

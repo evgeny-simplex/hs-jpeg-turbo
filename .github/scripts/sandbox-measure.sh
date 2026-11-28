@@ -21,8 +21,10 @@ workloads=
 calibration=
 largest=
 concurrent=
+animations=
 if [ "${BUILD_ONLY:-}" != 1 ]; then
   corpus=$(ls $jpeg/mozjpeg/testimages/*.jpg $spng/libspng/tests/images/*.png "$FIXTURES"/webp/*.webp "$FIXTURES"/workloads/*)
+  animations=$(ls "$FIXTURES"/animations/* "$FIXTURES"/gif-suite/*)
   workloads=$(ls "$FIXTURES"/workloads/*)
   calibration=$(ls "$FIXTURES"/calibration/*)
   largest=$(ls "$FIXTURES"/largest/*)
@@ -90,6 +92,7 @@ check() {
   for side in 16384 64; do
     mkdir -p "$out/check-$variant-$name-$side"
     "$out/$variant-$name.exe" check "$out/check-$variant-$name-$side" $side $corpus $calibration
+    "$out/$variant-$name.exe" frames "$out/check-$variant-$name-$side" $side $animations
   done
   if [ $variant = sandbox ] || [ "$measure" = true ]; then
     mkdir -p "$out/check-$variant-$name-4320"
@@ -176,8 +179,10 @@ for config in "$@"; do
 
   for variant in native sandbox; do
     SANDBOX_DEADLINE_MS=600000 "$out/$variant-$name.exe" time 9 16384 $workloads > "$out/time-$variant-$name.tsv"
+    SANDBOX_DEADLINE_MS=600000 "$out/$variant-$name.exe" frames-time 5 16384 "$FIXTURES"/animations/* > "$out/frames-$variant-$name.tsv"
   done
   $python -I .github/scripts/sandbox-report.py "$platform, $name \`$command\`" "$out/time-native-$name.tsv" "$out/time-sandbox-$name.tsv" | tee -a "$summary"
+  $python -I .github/scripts/sandbox-frames-report.py "$platform, $name \`$command\`" "$out/frames-native-$name.tsv" "$out/frames-sandbox-$name.tsv" | tee -a "$summary"
 
   {
     echo "### $platform, $name: the largest picked images at the display size (4320), one decode each"
@@ -232,8 +237,9 @@ if [ "${COUNT:-}" = 1 ]; then
     "$out/sandbox-$name.exe" count $side $corpus
     "$out/sandbox-$name.exe" count-changed $side $(ls $jpeg/mozjpeg/testimages/*.jpg $spng/libspng/tests/images/*.png "$FIXTURES"/webp/*.webp | head -400)
     SANDBOX_MEMORY_MB=1024 "$out/sandbox-$name.exe" count $side $calibration
+    "$out/sandbox-$name.exe" frames-count $side $animations
   done > "$out/count.tsv"
-  rates=$(sed -n 's/^  \(JPEG\|PNG\|WebP\) -> \([0-9][0-9]*\)$/\1=\2/p' $package/src/Codec/Picture/Sandbox.hsc)
+  rates=$(sed -n 's/^  \(JPEG\|PNG\|WebP\|GIF\) -> \([0-9][0-9]*\)$/\1=\2/p' $package/src/Codec/Picture/Sandbox.hsc)
   $python -I .github/scripts/sandbox-budget.py "$out/count.tsv" $rates | tee -a "$summary"
 fi
 
