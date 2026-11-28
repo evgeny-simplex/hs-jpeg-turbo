@@ -744,10 +744,8 @@ expectedFrames :: Conf -> [String]
 expectedFrames conf = words [if c == ',' then ' ' else c | c <- setting conf "config" "frames"]
 
 expectedPixels :: FilePath -> Conf -> String -> IO (V.Vector Word8)
-expectedPixels dir conf frame = case (lookupSetting conf frame "pixels", lookupSetting conf frame "image") of
-  (Just raw, _) -> premultipliedSamples . V.fromList . B.unpack <$> B.readFile (dir </> raw)
-  (_, Just png) -> B.readFile (dir </> png) >>= Spng.decodePng (Spng.DecodeOptions maxImagePixels 128 Right) >>= either assertFailure (pure . premultiplied . fst)
-  _ -> assertFailure $ frame <> ": no expected pixels"
+expectedPixels dir conf frame =
+  maybe (assertFailure $ frame <> ": no expected pixels") (fmap (premultipliedSamples . V.fromList . B.unpack) . B.readFile . (dir </>)) $ lookupSetting conf frame "pixels"
 
 gifSeparateImages :: [(String, (Int, [Int]))]
 gifSeparateImages =
