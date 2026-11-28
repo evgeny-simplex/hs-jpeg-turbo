@@ -272,10 +272,10 @@ options :: Limits -> ((Int, Int) -> Either String (Int, Int)) -> DecodeOptions
 options l size = DecodeOptions {limits = l, maxPixels = maxImagePixels, outputSize = size . headerSize}
 
 sandboxed :: (ImageHeader -> Either String (Int, Int)) -> ByteString -> IO (Either String (DynamicImage, Metadata))
-sandboxed size = fmap withoutHeader <$> decodeImage DecodeOptions {limits = defaultLimits, maxPixels = maxImagePixels, outputSize = size}
+sandboxed size input = fmap withoutHeader <$> decodeImage DecodeOptions {limits = defaultLimits, maxPixels = maxImagePixels, outputSize = size} input
 
 sandboxedWith :: Limits -> ((Int, Int) -> Either String (Int, Int)) -> ByteString -> IO (Either String (DynamicImage, Metadata))
-sandboxedWith l size = fmap withoutHeader <$> decodeImage (options l size)
+sandboxedWith l size input = fmap withoutHeader <$> decodeImage (options l size) input
 
 withoutHeader :: (ImageHeader, DynamicImage, Metadata) -> (DynamicImage, Metadata)
 withoutHeader (_, img, metadata) = (img, metadata)
