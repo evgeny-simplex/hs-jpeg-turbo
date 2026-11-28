@@ -417,20 +417,20 @@ unit_frameLimits = do
   small <- replicateM 100 $ readFrame budgeted PremultipliedRGBA (1024, 1024)
   assertBool "each 1x1 frame decoded within its own budget" $ all isRight small
   replicateM 2 (withoutResult <$> readFrame budgeted PremultipliedRGBA (1024, 1024)) >>= (@?= replicate 2 (Left "budget exceeded"))
-  [dot, tall] <- mapM (\file -> B.readFile . (</> file) =<< getEnv "WEBP_TEST_DATA") ["small_1x1.webp", "tall-lossless.webp"]
-  let slow = webpAnimation (1024, 4096) [((0, 0), (1, 1), 0, 100, imageChunks dot), ((0, 0), (1024, 4096), 0, 100, imageChunks tall)]
+  encoded <- evaluate $ gifOf (2048, 2048) LoopingForever [gifFrame (0, 0) (1, 1) Nothing DisposalAny \_ _ -> 7, gifFrame (0, 0) (2048, 2048) Nothing DisposalAny noise]
+  let slow = B.take 6 encoded <> le 2 16 <> le 2 16 <> B.drop 10 encoded
       openSlow timeout = openFrames (options defaultLimits {timeoutMs = timeout} Right) (const Animation) slow >>= either assertFailure pure
   (unbounded, opening) <- timed $ openSlow 0
-  _ <- readFrame unbounded PremultipliedRGBA (1024, 4096)
-  (_, decoding) <- timedFrame unbounded (1024, 4096)
+  _ <- readFrame unbounded PremultipliedRGBA (16, 16)
+  (_, decoding) <- timedFrame unbounded (16, 16)
   closeFrames unbounded
   let timeout = round (sqrt (opening * decoding) * 1000) :: Int
-  assertBool ("the lossless frame decoded in " <> show decoding <> " s, the session opened in " <> show opening <> " s") $ opening * 9 < decoding
+  assertBool ("the frame of 2048x2048 on a canvas of 16x16 decoded in " <> show decoding <> " s, the session opened in " <> show opening <> " s") $ opening * 16 < decoding
   deadlined <- openSlow timeout
   threadDelay $ 2000 * timeout
-  (first, t1) <- timedFrame deadlined (1024, 4096)
+  (first, t1) <- timedFrame deadlined (16, 16)
   assertBool ("the 1x1 frame decoded within its own deadline of " <> show timeout <> " ms after the session's, " <> show t1 <> " s") $ isRight first
-  (second, t2) <- timedFrame deadlined (1024, 4096)
+  (second, t2) <- timedFrame deadlined (16, 16)
   second @?= Left "deadline exceeded"
   assertBool ("deadline stop after " <> show t2 <> " s, the deadline " <> show timeout <> " ms") $ t2 * 1000 >= fromIntegral timeout
   animation <- evaluate $ gifOf (64, 48) LoopingForever [gifFrame (0, 0) (64, 48) Nothing DisposalAny \x y -> fromIntegral (x + y + k) | k <- [0 .. 9]]
