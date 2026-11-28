@@ -101,6 +101,12 @@ u32 w2c_image_probe(w2c_image*, u32, u32);
 /* export: 'decode' */
 u32 w2c_image_decode(w2c_image*, u32, u32, u32, u32, u32);
 
+/* export: 'start' */
+u32 w2c_image_start(w2c_image*, u32, u32, u32, u32, u32, u32);
+
+/* export: 'next' */
+u32 w2c_image_next(w2c_image*, u32);
+
 /* export: 'error' */
 u32 w2c_image_error(w2c_image*);
 
