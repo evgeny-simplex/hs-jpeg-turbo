@@ -91,3 +91,6 @@ write_gif(
     [(k * 6 % 360, k * 3 % 202, 120, 68, bytes((x + y + k) % 256 if (x * y + k) % 4 else 255 for y in range(68) for x in range(120)), 255, k % 4, False, 0) for k in range(60)],
 )
 write_gif("dots-1024x1024.gif", 1024, 1024, [(k % 1024, k // 1024, 1, 1, bytes([k % 256]), None, 1, False, 0) for k in range(1000)])
+write_gif("flat-4320x4320.gif", 4320, 4320, [full(4320, 4320, bytes(4320 * 4320))])
+write_gif("flat-1920x1920.gif", 1920, 1920, [full(1920, 1920, bytes([k]) * (1920 * 1920), disposal=k % 4) for k in range(10)])
+write_gif("flat-interlaced-1920x1920.gif", 1920, 1920, [full(1920, 1920, bytes([k]) * (1920 * 1920), interlace=True, transparent=k) for k in range(10)])
