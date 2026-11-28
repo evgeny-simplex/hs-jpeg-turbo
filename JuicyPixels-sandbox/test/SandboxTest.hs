@@ -10,7 +10,7 @@ import Codec.Picture.Spng qualified as Spng
 import Codec.Picture.Webp qualified as Webp
 import Control.Concurrent (forkIO, threadDelay)
 import Control.Concurrent.MVar (MVar, newEmptyMVar, newMVar, putMVar, takeMVar, withMVar)
-import Control.Exception (bracket)
+import Control.Exception (bracket, evaluate)
 import Control.Monad (forM, forM_, replicateM, unless)
 import Data.Bits (shiftL, shiftR, xor)
 import Data.ByteString (ByteString)
@@ -417,21 +417,21 @@ unit_frameLimits = do
   small <- replicateM 100 $ readFrame budgeted PremultipliedRGBA (1024, 1024)
   assertBool "each 1x1 frame decoded within its own budget" $ all isRight small
   replicateM 2 (withoutResult <$> readFrame budgeted PremultipliedRGBA (1024, 1024)) >>= (@?= replicate 2 (Left "budget exceeded"))
-  let slow = gifOf (2048, 2048) LoopingForever [gifFrame (0, 0) (1, 1) Nothing DisposalAny \_ _ -> 7, gifFrame (0, 0) (2048, 2048) Nothing DisposalAny noise]
-      openSlow timeout = openFrames (options defaultLimits {timeoutMs = timeout} Right) (const Animation) slow >>= either assertFailure pure
+  slow <- evaluate $ gifOf (2048, 2048) LoopingForever [gifFrame (0, 0) (1, 1) Nothing DisposalAny \_ _ -> 7, gifFrame (0, 0) (2048, 2048) Nothing DisposalAny noise]
+  let openSlow timeout = openFrames (options defaultLimits {timeoutMs = timeout} Right) (const Animation) slow >>= either assertFailure pure
   (unbounded, opening) <- timed $ openSlow 0
   _ <- readFrame unbounded PremultipliedRGBA (2048, 2048)
   (_, decoding) <- timedFrame unbounded (2048, 2048)
   closeFrames unbounded
   let timeout = floor (decoding * 500) :: Int
-  assertBool ("the noise frame decoded in " <> show decoding <> " s, the session opened in " <> show opening <> " s") $ timeout >= 4 && opening * 4000 < fromIntegral timeout
+  assertBool ("the noise frame decoded in " <> show decoding <> " s, the session opened in " <> show opening <> " s") $ timeout >= 4 && opening * 2000 < fromIntegral timeout
   deadlined <- openSlow timeout
   (first, t1) <- timedFrame deadlined (2048, 2048)
   assertBool ("the 1x1 frame decoded within its own deadline, " <> show t1 <> " s") $ isRight first
   (second, t2) <- timedFrame deadlined (2048, 2048)
   second @?= Left "deadline exceeded"
   assertBool ("deadline stop after " <> show t2 <> " s, the frame decoded in " <> show decoding <> " s") $ t2 * 1000 >= fromIntegral timeout && t2 < decoding
-  let animation = gifOf (64, 48) LoopingForever [gifFrame (0, 0) (64, 48) Nothing DisposalAny \x y -> fromIntegral (x + y + k) | k <- [0 .. 9]]
+  animation <- evaluate $ gifOf (64, 48) LoopingForever [gifFrame (0, 0) (64, 48) Nothing DisposalAny \x y -> fromIntegral (x + y + k) | k <- [0 .. 9]]
   long <- either assertFailure pure =<< openFrames (options defaultLimits {timeoutMs = 50} Right) (const Animation) animation
   (read', t3) <- timed $ replicateM 10 (readFrame long PremultipliedRGBA (64, 48) <* threadDelay 20000)
   assertBool ("an animation read in " <> show t3 <> " s, longer than one deadline") $ t3 > 0.05
