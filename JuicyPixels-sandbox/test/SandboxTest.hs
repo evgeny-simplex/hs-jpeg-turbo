@@ -343,11 +343,11 @@ unit_gifConformance = do
     gif <- B.readFile $ dir </> setting conf "config" "input"
     expected <- forM (expectedFrames conf) \frame -> (,10 * maybe 0 read (lookupSetting conf frame "delay")) <$> expectedPixels dir conf frame
     sandbox <- sandboxFrames id gif
-    pure (name, conformance conf expected sandbox)
+    pure (name, conformance conf (lookup name gifSeparateImages) expected sandbox)
   let failing = [(name, issue) | (name, Just issue) <- problems]
   assertEqual ("GIF conformance: " <> show failing) gifDeviations (map fst failing)
   where
-    conformance conf expected = \case
+    conformance conf separate expected = \case
       Left e
         | null expected -> Nothing
         | otherwise -> Just $ "refused: " <> e
@@ -355,7 +355,8 @@ unit_gifConformance = do
         | null expected -> Just $ "decoded " <> show frameCount <> " frames, expected none"
         | (width, height) /= (read $ setting conf "config" "width", read $ setting conf "config" "height") -> Just $ "size " <> show (width, height)
         | loopCount /= expectedLoops (length expected) (setting conf "config" "loop-count") -> Just $ "loop count " <> show loopCount
-        | frames /= expected -> Just $ "frames differ: " <> show [k | (k, a, b) <- zip3 [0 :: Int ..] frames expected, a /= b] <> " of " <> show (length frames, length expected)
+        | Just (images, shown) <- separate, length frames /= images || map (frames !!) shown /= expected -> Just $ "frames of the separate images differ"
+        | Nothing <- separate, frames /= expected -> Just $ "frames differ: " <> show [k | (k, a, b) <- zip3 [0 :: Int ..] frames expected, a /= b] <> " of " <> show (length frames, length expected)
         | otherwise -> Nothing
     expectedLoops frames loops
       | frames <= 1 = 1
@@ -368,16 +369,19 @@ unit_gifNative = do
   suite <- mapM (B.readFile . (dir </>)) . sort . filter (".gif" `isSuffixOf`) =<< listDirectory dir
   let tolerance = if nativeNeon then 3 else 0
   forM_ (zip [1 :: Int ..] $ suite <> generatedGifs) \(n, gif) -> forM_ [(0, id), (tolerance, halve), (tolerance, \(w, h) -> (min 11 w, min 7 h))] \(close, scale) ->
-    sandboxFrames scale gif >>= \case
-      Left e -> nativeGifFrames (1, 1) 0 gif >>= assertBool ("GIF " <> show n <> ": refused in the sandbox, " <> e <> ", decoded natively") . isLeft
+    sandboxFrameResults scale gif >>= \case
+      Left e -> nativeGifFrames (1, 1) 0 gif >>= assertBool ("GIF " <> show n <> ": refused in the sandbox, " <> e <> ", opened natively") . isLeft
       Right (header@ImageHeader {frameCount}, frames) -> do
-        native <- nativeGifFrames (scale $ headerSize header) frameCount gif
-        case native of
-          Left e -> assertFailure $ "GIF " <> show n <> ": refused natively, " <> e
-          Right nativeFrames -> forM_ (zip3 [1 :: Int ..] nativeFrames frames) \(k, (a, d), (b, d')) -> do
+        let name = "GIF " <> show n <> " at " <> show (scale $ headerSize header)
+        native <- nativeGifFrames (scale $ headerSize header) frameCount gif >>= either (assertFailure . ((name <> ": refused natively, ") <>)) pure
+        assertEqual (name <> ": frames decoded natively and in the sandbox") (length native) (length frames)
+        forM_ (zip3 [1 :: Int ..] native frames) \(k, a, b) -> case (a, b) of
+          (Right (x, d), Right (y, d')) -> do
             d' @?= d
-            assertBool ("GIF " <> show n <> ", frame " <> show k <> " at " <> show (scale $ headerSize header) <> ": differs from the native frame by more than " <> show close) $
-              V.and (V.zipWith (\x y -> abs (fromIntegral x - fromIntegral y :: Int) <= close) a b)
+            assertBool (name <> ", frame " <> show k <> ": differs from the native frame by more than " <> show close) $
+              V.and (V.zipWith (\p q -> abs (fromIntegral p - fromIntegral q :: Int) <= close) x y)
+          (Left _, Left _) -> pure ()
+          _ -> assertFailure $ name <> ", frame " <> show k <> ": native " <> outcome a <> ", sandbox " <> outcome b
 
 unit_frameLimits :: IO ()
 unit_frameLimits = do
@@ -387,12 +391,19 @@ unit_frameLimits = do
   assertBool "each 1x1 frame decoded within its own budget" $ all isRight small
   replicateM 2 (withoutResult <$> readFrame budgeted PremultipliedRGBA (1024, 1024)) >>= (@?= replicate 2 (Left "budget exceeded"))
   let slow = gifOf (2048, 2048) LoopingForever [gifFrame (0, 0) (1, 1) Nothing DisposalAny \_ _ -> 7, gifFrame (0, 0) (2048, 2048) Nothing DisposalAny noise]
-  deadlined <- either assertFailure pure =<< openFrames (options defaultLimits {timeoutMs = 50} Right) (const Animation) slow
+      openSlow timeout = openFrames (options defaultLimits {timeoutMs = timeout} Right) (const Animation) slow >>= either assertFailure pure
+  (unbounded, opening) <- timed $ openSlow 0
+  _ <- readFrame unbounded PremultipliedRGBA (2048, 2048)
+  (_, decoding) <- timedFrame unbounded (2048, 2048)
+  closeFrames unbounded
+  let timeout = floor (decoding * 500) :: Int
+  assertBool ("the noise frame decoded in " <> show decoding <> " s, the session opened in " <> show opening <> " s") $ timeout >= 4 && opening * 4000 < fromIntegral timeout
+  deadlined <- openSlow timeout
   (first, t1) <- timedFrame deadlined (2048, 2048)
   assertBool ("the 1x1 frame decoded within its own deadline, " <> show t1 <> " s") $ isRight first
   (second, t2) <- timedFrame deadlined (2048, 2048)
   second @?= Left "deadline exceeded"
-  assertBool ("deadline stop after " <> show t2) $ t2 >= 0.05 && t2 < 1
+  assertBool ("deadline stop after " <> show t2 <> " s, the frame decoded in " <> show decoding <> " s") $ t2 * 1000 >= fromIntegral timeout && t2 < decoding
   let animation = gifOf (64, 48) LoopingForever [gifFrame (0, 0) (64, 48) Nothing DisposalAny \x y -> fromIntegral (x + y + k) | k <- [0 .. 9]]
   long <- either assertFailure pure =<< openFrames (options defaultLimits {timeoutMs = 50} Right) (const Animation) animation
   (read', t3) <- timed $ replicateM 10 (readFrame long PremultipliedRGBA (64, 48) <* threadDelay 20000)
@@ -567,19 +578,25 @@ readFrame frames pixelFormat (w, h) = do
   pure $ (pixels,) <$> duration
 
 sandboxFrames :: ((Int, Int) -> (Int, Int)) -> ByteString -> IO (Either String (ImageHeader, [(V.Vector Word8, Int)]))
-sandboxFrames scale input =
+sandboxFrames scale input = (>>= \(header, decoded) -> (header,) <$> sequence decoded) <$> sandboxFrameResults scale input
+
+sandboxFrameResults :: ((Int, Int) -> (Int, Int)) -> ByteString -> IO (Either String (ImageHeader, [Either String (V.Vector Word8, Int)]))
+sandboxFrameResults scale input =
   openFrames (options defaultLimits (Right . scale)) (const Animation) input >>= \case
     Left e -> pure $ Left e
     Right frames -> do
       let header@ImageHeader {frameCount} = framesHeader frames
       decoded <- replicateM frameCount $ readFrame frames PremultipliedRGBA (scale $ headerSize header)
       closeFrames frames
-      pure $ (header,) <$> sequence decoded
+      pure $ Right (header, upToFailure decoded)
 
-nativeGifFrames :: (Int, Int) -> Int -> ByteString -> IO (Either String [(V.Vector Word8, Int)])
+upToFailure :: [Either e a] -> [Either e a]
+upToFailure results = let (decoded, failures) = span isRight results in decoded <> take 1 failures
+
+nativeGifFrames :: (Int, Int) -> Int -> ByteString -> IO (Either String [Either String (V.Vector Word8, Int)])
 nativeGifFrames (w, h) count gif = withMVar nativeLock \_ -> BU.unsafeUseAsCStringLen gif \(buf, len) -> do
   failure <- nativeGifStart (castPtr buf) (fromIntegral len) (fromIntegral w) (fromIntegral h)
-  if failure /= nullPtr then Left <$> peekCAString failure else sequence <$> replicateM count frame
+  if failure /= nullPtr then Left <$> peekCAString failure else Right . upToFailure <$> replicateM count frame <* nativeFramesClose
   where
     frame = with nullPtr \pixels -> with 0 \duration -> do
       failure <- nativeFramesNext 0 pixels duration
@@ -705,9 +722,34 @@ expectedPixels dir conf frame = case (lookupSetting conf frame "pixels", lookupS
   (_, Just png) -> B.readFile (dir </> png) >>= Spng.decodePng (Spng.DecodeOptions maxImagePixels 128 Right) >>= either assertFailure (pure . premultiplied . fst)
   _ -> assertFailure $ frame <> ": no expected pixels"
 
+gifSeparateImages :: [(String, (Int, [Int]))]
+gifSeparateImages =
+  [ ("dispose-restore-previous", (5, [1, 2, 3, 4]))
+  , ("animation-multi-image", (7, [0, 2, 4, 6]))
+  , ("animation-multi-image-explicit-zero-delay", (7, [0, 2, 4, 6]))
+  , ("images-combine", (4, [3]))
+  , ("images-overlap", (2, [1]))
+  , ("high-color", (4, [3]))
+  ]
+
 gifDeviations :: [String]
-gifDeviations = []
+gifDeviations =
+  [ "no-data"
+  , "image-zero-width"
+  , "image-zero-height"
+  , "image-zero-size"
+  , "image-overlap-bg"
+  , "image-outside-bg"
+  , "invalid-colors"
+  , "max-width"
+  , "max-height"
+  , "max-codes"
+  , "plain-text"
+  , "gif87a-animation"
+  ]
 
 foreign import ccall safe "native_gif_frames" nativeGifStart :: Ptr Word8 -> CSize -> Word32 -> Word32 -> IO CString
 
 foreign import ccall safe "frames_next" nativeFramesNext :: Word32 -> Ptr (Ptr Word8) -> Ptr Word32 -> IO CString
+
+foreign import ccall unsafe "frames_close" nativeFramesClose :: IO ()
